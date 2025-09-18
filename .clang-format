@@ -1,0 +1,12 @@
+# .clang-format
+BasedOnStyle: LLVM
+IndentWidth:   4
+TabWidth:      4
+UseTab:        Never
+
+IndentCaseLabels: true 
+AllowShortBlocksOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+SeparateDefinitionBlocks: Always
+AccessModifierOffset: -4
+# ColumnLimit:     0
