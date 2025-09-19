@@ -20,6 +20,7 @@ project(riscv_sim VERSION 1.0 LANGUAGES C CXX)
 # Set the C++ standard to C++20.
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_C_STANDARD 17)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -37,8 +38,9 @@ target_include_directories(riscv_sim_lib PUBLIC include)
 set_property(TARGET riscv_sim_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # Create the main executable.
-add_executable(riscv-sim src/main.c)
-target_link_libraries(riscv-sim PRIVATE riscv_sim_lib pthread m)
+file(GLOB_RECURSE APP_SOURCES "src/main.c" "src/main.cpp")
+add_executable(riscv-sim ${APP_SOURCES})
+target_link_libraries(riscv-sim PRIVATE riscv_sim_lib pthread m readline ncurses)
 set_property(TARGET riscv-sim PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # --- Google Test Integration ---

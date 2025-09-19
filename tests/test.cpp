@@ -16,9 +16,7 @@
 
 #include <gtest/gtest.h>
 
-TEST(SampleTestSuite, BasicAssertion) {
-    EXPECT_TRUE(true);
-}
+TEST(SampleTestSuite, BasicAssertion) { EXPECT_TRUE(true); }
 
 TEST(SampleTestSuite, MathTest) {
     EXPECT_EQ(2 + 2, 4);

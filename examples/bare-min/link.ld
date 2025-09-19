@@ -14,8 +14,27 @@
  * limitations under the License.
  */
 
-#include <iostream>
+ENTRY(_start)
 
-extern "C" void f() {
-    std::cout << (void *)f << std::endl;
+SECTIONS
+{
+  . = 0x80000000;
+
+  .text : {
+    KEEP(*(.text*))
+    KEEP(*(.rodata*))
+  }
+
+  .data : {
+    *(.data*)
+  }
+
+  .bss : {
+    __bss_start = .;
+    *(.bss*)
+    *(COMMON)
+    __bss_end = .;
+  }
+
+  PROVIDE(__stack_top = 0x80020000);
 }

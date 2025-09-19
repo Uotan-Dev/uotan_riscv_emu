@@ -14,12 +14,8 @@
  * limitations under the License.
  */
 
-#include "core/riscv.h"
+#pragma once
 
-extern void ui_start();
+#include <stdint.h>
 
-int main() {
-    rv_init();
-    ui_start();
-    return 0;
-}
+void cpu_start();

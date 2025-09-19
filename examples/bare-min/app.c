@@ -14,12 +14,19 @@
  * limitations under the License.
  */
 
-#include "core/riscv.h"
+#include <stdbool.h>
+#include <stdint.h>
 
-extern void ui_start();
+#define trap(code) asm volatile("mv a0, %0; ebreak" : :"r"(code))
 
 int main() {
-    rv_init();
-    ui_start();
+    volatile uint32_t a = 1, b = 2, c = 3;
+    volatile uint32_t s = a + b;
+    volatile uint32_t p = a * b;
+    volatile uint32_t v = s / p;
+    volatile uint32_t x = s % p;
+    trap(0);
+    while (true)
+        ;
     return 0;
 }
