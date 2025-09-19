@@ -21,6 +21,10 @@
 
 #include "common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define RESET_PC 0x80000000
 
 typedef struct {
@@ -38,6 +42,8 @@ typedef struct {
     bool image_loaded; // whether we have loaded the image
     bool halt;         // whether the machine has halted
     int halt_code;     // halt code
+    uint64_t halt_pc;
+    uint32_t halt_inst;
 } riscv_t;
 
 extern riscv_t rv __attribute((aligned(4096)));
@@ -50,7 +56,13 @@ void rv_load_image(const char *path);
 void rv_load_default_image();
 
 // Halt the machine
-FORCE_INLINE void rv_halt(int code) {
+FORCE_INLINE void rv_halt(int code, uint64_t pc, uint32_t inst) {
     rv.halt = true;
     rv.halt_code = code;
+    rv.halt_pc = pc;
+    rv.halt_inst = inst;
 }
+
+#ifdef __cplusplus
+}
+#endif

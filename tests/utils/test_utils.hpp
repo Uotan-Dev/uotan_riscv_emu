@@ -16,14 +16,9 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <string>
+#include <vector>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void cpu_start();
-
-#ifdef __cplusplus
-}
-#endif
+bool create_dir(const std::string &path);
+bool write_file(const std::string &content, const std::string &path);
+int run_process(const std::vector<std::string> &argv_vec);

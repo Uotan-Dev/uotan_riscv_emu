@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <inttypes.h>
 #include <readline/history.h>
 #include <readline/readline.h>
 #include <stdbool.h>
@@ -56,7 +57,7 @@ static void cmd_clear(char *args) {
 static void cmd_continue(char *args) {
     if (rv.halt) {
         puts("The machine has halted");
-        puts("Please restart.");
+        puts("Please reload image and restart.");
         return;
     }
     if (!rv.image_loaded) {
@@ -64,6 +65,9 @@ static void cmd_continue(char *args) {
         rv_load_default_image();
     }
     cpu_start();
+
+    if (rv.halt)
+        printf("Machine halted with code %d, at PC 0x%" PRIx64 " with inst 0x%" PRIx32 "\n", rv.halt_code, rv.halt_pc, rv.halt_inst);
 }
 
 static void cmd_help(char *args) {
@@ -71,7 +75,13 @@ static void cmd_help(char *args) {
         printf("%-6s %-10s\n", cmd_table[i].name, cmd_table[i].desc);
 }
 
-static void cmd_load(char *args) { rv_load_image(args); }
+static void cmd_load(char *args) {
+    if (rv.halt) {
+        // Reset before load
+        rv_init();
+    }
+    rv_load_image(args);
+}
 
 static void cmd_quit(char *args) {
     // TODO: handle resource here

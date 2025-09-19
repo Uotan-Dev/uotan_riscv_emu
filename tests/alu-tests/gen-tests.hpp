@@ -16,14 +16,6 @@
 
 #pragma once
 
-#include <stdint.h>
+#include <string>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void cpu_start();
-
-#ifdef __cplusplus
-}
-#endif
+void write_alu_test_file(const std::string &path);
