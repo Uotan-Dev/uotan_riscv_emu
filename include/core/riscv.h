@@ -37,6 +37,7 @@ typedef struct {
     // Some status
     bool image_loaded; // whether we have loaded the image
     bool halt;         // whether the machine has halted
+    int halt_code;     // halt code
 } riscv_t;
 
 extern riscv_t rv __attribute((aligned(4096)));
@@ -49,4 +50,7 @@ void rv_load_image(const char *path);
 void rv_load_default_image();
 
 // Halt the machine
-FORCE_INLINE void rv_halt() { rv.halt = true; }
+FORCE_INLINE void rv_halt(int code) {
+    rv.halt = true;
+    rv.halt_code = code;
+}
