@@ -100,7 +100,7 @@ FORCE_INLINE void decode_operand(Decode *s, int *rd, uint64_t *src1,
     // clang-format on
 }
 
-FORCE_INLINE void decode_exec(Decode *s) {
+static inline void decode_exec(Decode *s) {
 #define INSTPAT_INST(s) ((s)->inst)
 
 #define INSTPAT_MATCH(s, name, type, ... /* execute body */)                   \
