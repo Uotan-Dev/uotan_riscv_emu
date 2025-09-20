@@ -22,7 +22,30 @@
 #include "core/mem.h"
 #include "core/riscv.h"
 
-#define R(i) rv.X[i]
+FORCE_INLINE void cpu_mret(Decode *s) {
+    if (rv.privilege != PRIV_M) {
+        rv_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst, &s->npc);
+        return;
+    }
+    rv.PC = rv.MEPC;
+    uint64_t mstatus = rv.MSTATUS;
+
+    // Restore MIE
+    if (mstatus & MSTATUS_MPIE)
+        mstatus |= MSTATUS_MIE;
+    else
+        mstatus &= ~MSTATUS_MIE;
+
+    mstatus |= MSTATUS_MPIE;
+
+    // Restore PRIV level
+    rv.privilege =
+        (privilege_level_t)((mstatus & MSTATUS_MPP) >> MSTATUS_MPP_SHIFT);
+    if (rv.privilege != PRIV_M)
+        mstatus &= ~MSTATUS_MPP;
+
+    rv.MSTATUS = mstatus;
+}
 
 /*
  * The decoding algorithm is taken from NJU emulator
@@ -43,6 +66,8 @@
  *
  * See the Mulan PSL v2 for more details.
  ***************************************************************************************/
+
+#define R(i) rv.X[i]
 
 // clang-format off
 typedef enum {
@@ -102,6 +127,9 @@ FORCE_INLINE void decode_operand(Decode *s, int *rd, uint64_t *src1,
 }
 
 static inline void decode_exec(Decode *s) {
+    // FIXME: function ‘decode_exec’ can never be inlined because it contains a
+    // computed goto
+
 #define INSTPAT_INST(s) ((s)->inst)
 
 #define INSTPAT_MATCH(s, name, type, ... /* execute body */)                   \
@@ -129,7 +157,7 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("??????? ????? ????? 100 ????? 11000 11", blt    , B, if ((int64_t)src1 < (int64_t)src2) s->npc = s->pc + imm);
     INSTPAT("??????? ????? ????? 110 ????? 11000 11", bltu   , B, if (src1 < src2) s->npc = s->pc + imm);
     INSTPAT("??????? ????? ????? 001 ????? 11000 11", bne    , B, if (src1 != src2) s->npc = s->pc + imm);
-    INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, rv_halt(R(10), s->pc, s->inst)); // FIXME
+    INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, rv_exception(CAUSE_BREAKPOINT, 0, &s->npc));
     INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal    , J, R(rd) = s->pc + 4, s->npc = s->pc + imm);
     INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr   , I, uint64_t t = s->pc + 4; s->npc = (src1 + imm) & ~1; R(rd) = t);
     INSTPAT("??????? ????? ????? 000 ????? 00000 11", lb     , I, R(rd) = SEXT(vaddr_read_b(src1 + imm), 8));
@@ -183,7 +211,8 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("0000001 ????? ????? 110 ????? 01110 11", remw   , R, R(rd) = SEXT((int32_t)BITS(src1, 31, 0) % (int32_t)BITS(src2, 31, 0), 32));
 
     // Invalid insturctions
-    INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, rv_halt(1, s->pc, s->inst)); // TODO: Use proper handling (Raise an exception?)
+    INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, rv_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst, &s->npc));
+
     INSTPAT_END();
     // clang-format on
 
@@ -201,8 +230,9 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
 
 void cpu_start() {
     Decode s;
-    while (!rv.halt)
+    while (!rv.halt) {
         cpu_exec_once(&s, rv.PC);
+    }
 }
 
 /* Some tools */

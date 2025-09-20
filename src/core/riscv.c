@@ -40,13 +40,18 @@ void rv_init() {
     rv.MIMPID = MIMPID_DEFAULT;
     // keep other CSRs zero
 
+    // set the privilege level
+    rv.privilege = PRIV_M; // boot in M mode
+
     // set the memory with random junk
     srand(time(NULL));
     memset(rv.memory, rand(), sizeof(rv.memory));
 
+    // set debugger
+    rv.has_debugger = true;
+
     // set some status
     rv.image_loaded = false;
-    rv.halt = false;
 
     Log("RV initialized!");
 }
@@ -89,4 +94,58 @@ void rv_load_default_image() {
 
     memcpy(GUEST_TO_HOST(RESET_PC), builtin_img, sizeof(builtin_img));
     rv.image_loaded = true;
+}
+
+// wrong
+void rv_exception(uint64_t cause, uint64_t tval, uint64_t *pc) {
+    // We only support M mode
+    assert(rv.privilege == PRIV_M);
+
+    // Handle BP
+    if ((unlikely(cause == CAUSE_BREAKPOINT && rv.has_debugger))) {
+        rv.halt = true;
+        rv.halt_code = rv.X[10];
+        rv.halt_pc = *pc;
+        return;
+    }
+
+    rv.MEPC = *pc & ~1ULL; // The low bit of mepc (mepc[0]) is always zero
+    rv.MCAUSE = cause;
+    rv.MTVAL = tval;
+
+    uint64_t mstatus = rv.MSTATUS;
+
+    // Save current MIE to MPIE
+    if (mstatus & MSTATUS_MIE)
+        mstatus |= MSTATUS_MPIE;
+    else
+        mstatus &= ~MSTATUS_MPIE;
+
+    // Save PRIV level to MPP
+    mstatus &= ~MSTATUS_MPP;
+    mstatus |= ((uint64_t)rv.privilege << MSTATUS_MPP_SHIFT);
+
+    // Disable M mode interrupt
+    mstatus &= ~MSTATUS_MIE;
+
+    rv.MSTATUS = mstatus;
+    rv.privilege = PRIV_M;
+
+    uint64_t mtvec = rv.MTVEC;
+    if ((mtvec & 0b11) == 0) {
+        // Direct Mode
+        *pc = mtvec & ~3ULL;
+    } else {
+        if (cause & INTERRUPT_FLAG) {
+            // Vectored Mode, Asynchronous interrupts set pc to BASE+4×cause
+            *pc = (mtvec & ~3ULL) + 4ULL * (cause & 0x3F);
+        } else {
+            *pc = mtvec & ~3ULL;
+        }
+    }
+}
+
+bool rv_check_interrupts() {
+    // TODO
+    return false;
 }
