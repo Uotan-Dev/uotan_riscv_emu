@@ -74,9 +74,7 @@ static void cmd_continue(char *args) {
                rv.halt_code, rv.halt_pc, rv.halt_inst);
 }
 
-static void cmd_info(char *args) {
-    cpu_print_registers();
-}
+static void cmd_info(char *args) { cpu_print_registers(); }
 
 static void cmd_help(char *args) {
     for (size_t i = 0; i < ARRAY_SIZE(cmd_table); i++)
