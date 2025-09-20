@@ -200,9 +200,8 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
 }
 
 void cpu_start() {
-    Decode s;
     while (!rv.halt)
-        cpu_exec_once(&s, rv.PC);
+        cpu_exec_once(&rv.decode, rv.PC);
 }
 
 /* Some tools */

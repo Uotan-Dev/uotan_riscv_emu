@@ -19,7 +19,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#include "common.h"
+#include "core/decode.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -51,22 +51,25 @@ typedef struct {
 
     // Control and Status registers
 #define NR_CSR 4096
-    uint64_t MVENDORID;  // Vendor ID
-    uint64_t MARCHID;    // Architecture ID
-    uint64_t MIMPID;     // Implementation ID
-    uint64_t MHARTID;    // Hardware thread ID
-    uint64_t MSTATUS;    // Machine status register
-    uint64_t MISA;       // ISA and extensions
-    uint64_t MTVEC;      // Machine trap-handler base address
-    uint64_t MSCRATCH;   // Scratch register for machine trap handlers
-    uint64_t MEPC;       // Machine exception program counter
-    uint64_t MCAUSE;     // Machine trap cause
-    uint64_t MTVAL;      // Machine bad address or instruction
+    uint64_t MVENDORID; // Vendor ID
+    uint64_t MARCHID;   // Architecture ID
+    uint64_t MIMPID;    // Implementation ID
+    uint64_t MHARTID;   // Hardware thread ID
+    uint64_t MSTATUS;   // Machine status register
+    uint64_t MISA;      // ISA and extensions
+    uint64_t MTVEC;     // Machine trap-handler base address
+    uint64_t MSCRATCH;  // Scratch register for machine trap handlers
+    uint64_t MEPC;      // Machine exception program counter
+    uint64_t MCAUSE;    // Machine trap cause
+    uint64_t MTVAL;     // Machine bad address or instruction
 
     // Memory
 #define MSIZE 0x8000000
 #define MBASE 0x80000000
     uint8_t memory[MSIZE] __attribute((aligned(4096)));
+
+    // Decoder status
+    Decode decode;
 
     // Some status
     bool image_loaded; // whether we have loaded the image
