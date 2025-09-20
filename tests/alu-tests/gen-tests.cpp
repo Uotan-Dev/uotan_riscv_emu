@@ -22,8 +22,6 @@
 
 #include "gen-tests.hpp"
 
-using namespace std;
-
 // Test value sets for different integer types
 static const int64_t v64[] = {
     static_cast<int64_t>(0x8000000000000000ULL), // INT64_MIN
@@ -107,8 +105,10 @@ static const uint8_t uv8[] = {
     0x80, 0x81, static_cast<uint8_t>(-2), static_cast<uint8_t>(-1), 0, 1, 2,
     0x7E, 0x7F};
 
+static size_t test_id = 0;
+
 // Check if operation should be excluded to avoid undefined behavior
-template <typename T> bool shouldExclude(const string &op, T x, T y) {
+template <typename T> bool shouldExclude(const std::string &op, T x, T y) {
     if (op == "/" || op == "%") {
         if (y == 0)
             return true;
@@ -129,14 +129,26 @@ template <typename T> bool shouldExclude(const string &op, T x, T y) {
 
 // Generate test cases for a specific type and operation
 template <typename T>
-void generateTests(ostream &out, const string &typeName, const T *values,
-                   size_t count, const string &op) {
+void generateTests(std::ostream &out, const std::string &typeName,
+                   const T *values, size_t count, const std::string &op) {
     for (size_t i = 0; i < count; i++) {
         for (size_t j = 0; j < count; j++) {
             if (shouldExclude(op, values[i], values[j]))
                 continue;
 
+            out << "  // Test ID: " << test_id << " - " << typeName << " " << op
+                << " operation\n";
+            out << "  // x=" << static_cast<int64_t>(values[i])
+                << ", y=" << static_cast<int64_t>(values[j]) << "\n";
             out << "  {\n";
+
+            // Add test marker that can be found in disassembly
+            uint32_t imm12 = test_id & 0xFFF;
+            uint32_t word = ((imm12 & 0xFFF) << 20) |
+                            0x13u; // addi rd=0 rs1=0 funct3=0 opcode=0x13
+            out << "    asm volatile(\".word 0x" << std::hex << word << std::dec
+                << "\");\n";
+
             out << "    volatile " << typeName << " x = ";
             if (std::is_signed<T>::value) {
                 out << static_cast<int64_t>(values[i]);
@@ -198,26 +210,32 @@ void generateTests(ostream &out, const string &typeName, const T *values,
             out << ";\n";
             out << "    if (result != expected) trap(-1);\n";
             out << "  }\n\n";
+
+            test_id++;
         }
     }
 }
 
 // Generate all tests for a specific type
 template <typename T>
-void generateAllTests(ostream &out, const string &typeName, const T *values,
-                      size_t count) {
-    vector<string> ops = {"+",  "-",  "*",  "/",  "%", "&",  "|", "^",
-                          "<<", ">>", "==", "!=", "<", "<=", ">", ">="};
+void generateAllTests(std::ostream &out, const std::string &typeName,
+                      const T *values, size_t count) {
+    std::vector<std::string> ops = {
+        "+",  "-",  "*",  "/",  "%", "&", "|",  "^",
+        "<<", ">>", "==", "!=", "<", ">", "<=", ">="};
 
     for (const auto &op : ops) {
         generateTests(out, typeName, values, count, op);
     }
 }
 
-void write_alu_test_file(const string &path) {
-    ofstream file(path);
+void write_alu_test_file(const std::string &path) {
+    test_id = 0;
+
+    std::ofstream file(path);
     if (!file.is_open()) {
-        cerr << "Error: Cannot open file " << path << " for writing" << endl;
+        std::cerr << "Error: Cannot open file " << path << " for writing"
+                  << std::endl;
         return;
     }
 
