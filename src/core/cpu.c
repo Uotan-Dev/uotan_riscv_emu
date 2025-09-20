@@ -15,6 +15,7 @@
  */
 
 #include <assert.h>
+#include <inttypes.h>
 
 #include "core/cpu.h"
 #include "core/decode.h"
@@ -202,4 +203,21 @@ void cpu_start() {
     Decode s;
     while (!rv.halt)
         cpu_exec_once(&s, rv.PC);
+}
+
+/* Some tools */
+
+// clang-format off
+static const char *regs[] = {
+    "$0", "ra", "sp",  "gp",  "tp", "t0", "t1", "t2",
+    "s0", "s1", "a0",  "a1",  "a2", "a3", "a4", "a5",
+    "a6", "a7", "s2",  "s3",  "s4", "s5", "s6", "s7",
+    "s8", "s9", "s10", "s11", "t3", "t4", "t5", "t6"
+};
+// clang-format on
+
+void cpu_print_registers() {
+    for (size_t i = 0; i < NR_GPR; i++)
+        printf("%s\t0x%08" PRIx64 "\n", regs[i], R(i));
+    printf("%s\t0x%08" PRIx64 "\n", "pc", rv.PC);
 }

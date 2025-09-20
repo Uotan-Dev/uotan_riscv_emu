@@ -23,6 +23,7 @@ extern "C" {
 #endif
 
 void cpu_start();
+void cpu_print_registers();
 
 #ifdef __cplusplus
 }

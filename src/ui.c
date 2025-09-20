@@ -35,6 +35,7 @@ typedef struct {
 // Forward declarations of cmds
 static void cmd_clear(char *args);
 static void cmd_continue(char *args);
+static void cmd_info(char *args);
 static void cmd_help(char *args);
 static void cmd_load(char *args);
 static void cmd_quit(char *args);
@@ -45,6 +46,7 @@ static const cmd_t cmd_table[] = {
     {"c", "Continue execution", cmd_continue},
     {"load", "Load a binary for execution", cmd_load},
     {"quit", "Quit the emulator", cmd_quit},
+    {"info", "Print some info", cmd_info},
     {"help", "Print the help msg", cmd_help},
 };
 // clang-format on
@@ -67,7 +69,13 @@ static void cmd_continue(char *args) {
     cpu_start();
 
     if (rv.halt)
-        printf("Machine halted with code %d, at PC 0x%" PRIx64 " with inst 0x%" PRIx32 "\n", rv.halt_code, rv.halt_pc, rv.halt_inst);
+        printf("Machine halted with code %d, at PC 0x%" PRIx64
+               " with inst 0x%" PRIx32 "\n",
+               rv.halt_code, rv.halt_pc, rv.halt_inst);
+}
+
+static void cmd_info(char *args) {
+    cpu_print_registers();
 }
 
 static void cmd_help(char *args) {
