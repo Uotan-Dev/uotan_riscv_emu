@@ -23,6 +23,10 @@
 #include "common.h"
 #include "riscv.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Host memory operations*/
 
 FORCE_INLINE uint64_t host_read(void *addr, size_t len) {
@@ -98,3 +102,7 @@ void vaddr_write_s(uint64_t addr, uint16_t data);
 void vaddr_write_b(uint64_t addr, uint8_t data);
 
 uint64_t vaddr_ifetch(uint64_t addr);
+
+#ifdef __cplusplus
+}
+#endif

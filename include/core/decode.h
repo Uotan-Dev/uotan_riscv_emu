@@ -20,6 +20,10 @@
 
 #include "common.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
     uint64_t pc;
     uint64_t npc;  // next PC
@@ -121,3 +125,7 @@ finish:
 #define INSTPAT_END(name)                                                      \
     concat(__instpat_end_, name) :;                                            \
     }
+
+#ifdef __cplusplus
+}
+#endif
