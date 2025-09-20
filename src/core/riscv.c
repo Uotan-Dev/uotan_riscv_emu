@@ -27,13 +27,20 @@
 riscv_t rv;
 
 void rv_init() {
-    // set integer registers
-    memset(rv.X, 0, sizeof(rv.X));
+    // clear the whole struct
+    memset(&rv, 0, sizeof(rv));
 
     // set the reset address
     rv.PC = RESET_PC;
 
-    // set the memory
+    // set the control and status registers
+    rv.MISA = MISA_I | MISA_M; // RV64IM, Machine Mode only
+    rv.MVENDORID = MVENDORID_DEFAULT;
+    rv.MARCHID = MARCHID_DEFAULT;
+    rv.MIMPID = MIMPID_DEFAULT;
+    // keep other CSRs zero
+
+    // set the memory with random junk
     srand(time(NULL));
     memset(rv.memory, rand(), sizeof(rv.memory));
 

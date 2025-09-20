@@ -77,7 +77,8 @@
 #define ROUNDUP(a, sz) ((((uintptr_t)a) + (sz) - 1) & ~((sz) - 1))
 #define ROUNDDOWN(a, sz) ((((uintptr_t)a)) & ~((sz) - 1))
 
-#include <stdio.h> // IWYU pragma: keep
+#include <inttypes.h> // IWYU pragma: keep
+#include <stdio.h>    // IWYU pragma: keep
 
 #define Log(format, ...)                                                       \
     printf("\33[1;97m[%s,%d,%s] " format "\33[0m\n", __FILE__, __LINE__,       \

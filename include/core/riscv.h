@@ -27,11 +27,41 @@ extern "C" {
 
 #define RESET_PC 0x80000000
 
+#define MVENDORID_DEFAULT                                                      \
+    UINT64_C(0x00000000)                     // 0 = unspecified / non-commercial
+#define MARCHID_DEFAULT UINT64_C(0x00114514) // Magic number for homo
+#define MIMPID_DEFAULT UINT64_C(0x00010000)  // Follows UEMU version
+
+#define MISA_SUPER (1 << ('S' - 'A'))
+#define MISA_USER (1 << ('U' - 'A'))
+#define MISA_I (1 << ('I' - 'A'))
+#define MISA_E (1 << ('E' - 'A'))
+#define MISA_M (1 << ('M' - 'A'))
+#define MISA_A (1 << ('A' - 'A'))
+#define MISA_F (1 << ('F' - 'A'))
+#define MISA_C (1 << ('C' - 'A'))
+
 typedef struct {
     // Interger registers
 #define NR_GPR 32
     uint64_t X[NR_GPR];
-    uint64_t PC; // Program counter
+
+    // Program counter
+    uint64_t PC;
+
+    // Control and Status registers
+#define NR_CSR 4096
+    uint64_t MVENDORID;  // Vendor ID
+    uint64_t MARCHID;    // Architecture ID
+    uint64_t MIMPID;     // Implementation ID
+    uint64_t MHARTID;    // Hardware thread ID
+    uint64_t MSTATUS;    // Machine status register
+    uint64_t MISA;       // ISA and extensions
+    uint64_t MTVEC;      // Machine trap-handler base address
+    uint64_t MSCRATCH;   // Scratch register for machine trap handlers
+    uint64_t MEPC;       // Machine exception program counter
+    uint64_t MCAUSE;     // Machine trap cause
+    uint64_t MTVAL;      // Machine bad address or instruction
 
     // Memory
 #define MSIZE 0x8000000
