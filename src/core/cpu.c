@@ -169,7 +169,7 @@ FORCE_INLINE void _mret(Decode *s) {
         cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
         return;
     }
-    rv.PC = rv.MEPC;
+    s->npc = rv.MEPC;
     uint64_t mstatus = rv.MSTATUS;
 
     // Restore MIE
