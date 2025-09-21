@@ -31,6 +31,8 @@ void cpu_step(size_t step);
 void cpu_print_registers();
 uint64_t *cpu_get_csr(uint32_t csr);
 
+void cpu_raise_exception(exception_t cause, uint64_t tval);
+
 // CSR read, should only be used for instruction simulation
 FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr, bool *succ) {
     // clang-format off

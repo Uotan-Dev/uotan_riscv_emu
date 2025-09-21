@@ -20,7 +20,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "common.h"
+#include "../device/bus.h"
 #include "riscv.h"
 
 #ifdef __cplusplus
@@ -65,8 +65,9 @@ FORCE_INLINE bool paddr_in_pmem(uint64_t addr) {
 
 #define PADDR_READ_IMPL(size, type, len)                                       \
     FORCE_INLINE type paddr_read_##size(uint64_t addr) {                       \
-        assert(paddr_in_pmem(addr));                                           \
-        return *(type *)GUEST_TO_HOST(addr);                                   \
+        if (likely(paddr_in_pmem(addr)))                                       \
+            return *(type *)GUEST_TO_HOST(addr);                               \
+        return bus_read(&rv.bus, addr, len);                                   \
     }
 
 PADDR_READ_IMPL(d, uint64_t, 8)
@@ -78,8 +79,10 @@ PADDR_READ_IMPL(b, uint8_t, 1)
 
 #define PADDR_WRITE_IMPL(size, type, len)                                      \
     FORCE_INLINE void paddr_write_##size(uint64_t addr, type data) {           \
-        assert(paddr_in_pmem(addr));                                           \
-        *(type *)GUEST_TO_HOST(addr) = data;                                   \
+        if (likely(paddr_in_pmem(addr)))                                       \
+            *(type *)GUEST_TO_HOST(addr) = data;                               \
+        else                                                                   \
+            bus_write(&rv.bus, addr, (uint64_t)data, len);                     \
     }
 
 PADDR_WRITE_IMPL(d, uint64_t, 8)

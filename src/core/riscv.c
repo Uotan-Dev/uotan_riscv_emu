@@ -95,3 +95,10 @@ void rv_load_default_image() {
     memcpy(GUEST_TO_HOST(RESET_PC), builtin_img, sizeof(builtin_img));
     rv.image_loaded = true;
 }
+
+void rv_add_device(device_t dev) {
+    assert(dev.name && dev.read && dev.write);
+    Info("Added device %s at [0x%08" PRIx64 ", 0x%08" PRIx64 "]", dev.name,
+         dev.start, dev.end);
+    bus_add_device(&rv.bus, dev);
+}

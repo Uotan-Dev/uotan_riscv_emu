@@ -19,6 +19,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "../device/bus.h"
 #include "core/decode.h"
 
 #ifdef __cplusplus
@@ -156,6 +157,9 @@ typedef struct {
     // Decoder status
     Decode decode;
 
+    // Bus status
+    bus_t bus;
+
     // Debugger properties
     bool has_debugger; // use NEMU sdb-like debugger?
     // exception_t exception;
@@ -185,6 +189,9 @@ FORCE_INLINE void rv_halt(int code, uint64_t pc, uint32_t inst) {
     rv.halt_inst = inst;
     printf("rv_halt() with code %d, at PC 0x%08" PRIx64 "\n", code, pc);
 }
+
+// Add a device
+void rv_add_device(device_t dev);
 
 #ifdef __cplusplus
 }
