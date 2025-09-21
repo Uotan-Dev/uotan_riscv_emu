@@ -350,11 +350,22 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
 }
 
 void cpu_start() {
+    if (rv.halt)
+        rv.halt = false;
     while (!rv.halt)
         cpu_exec_once(&rv.decode, rv.PC);
 }
 
 /* Some tools */
+
+void cpu_step(size_t step) {
+    if (rv.halt)
+        rv.halt = false;
+    for (size_t i = 0; i < step && !rv.halt; i++) {
+        printf("PC: %" PRIx64 "\n", rv.PC);
+        cpu_exec_once(&rv.decode, rv.PC);
+    }
+}
 
 // clang-format off
 static const char *regs[] = {

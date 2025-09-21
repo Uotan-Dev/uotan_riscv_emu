@@ -35,6 +35,7 @@ typedef struct {
 // Forward declarations of cmds
 static void cmd_clear(char *args);
 static void cmd_continue(char *args);
+static void cmd_si(char *args);
 static void cmd_info(char *args);
 static void cmd_help(char *args);
 static void cmd_load(char *args);
@@ -44,6 +45,7 @@ static void cmd_quit(char *args);
 static const cmd_t cmd_table[] = {
     {"clear", "Clear the screen", cmd_clear},
     {"c", "Continue execution", cmd_continue},
+    {"si", "Run a single step", cmd_si},
     {"load", "Load a binary for execution", cmd_load},
     {"quit", "Quit the emulator", cmd_quit},
     {"info", "Print some info", cmd_info},
@@ -59,7 +61,8 @@ static void cmd_clear(char *args) {
 static void cmd_continue(char *args) {
     if (rv.halt) {
         puts("The machine has halted");
-        puts("Please reload image and restart.");
+        puts("You are resuming.");
+        rv.halt = false;
         return;
     }
     if (!rv.image_loaded) {
@@ -67,11 +70,20 @@ static void cmd_continue(char *args) {
         rv_load_default_image();
     }
     cpu_start();
+}
 
-    if (rv.halt)
-        printf("Machine halted with code %d, at PC 0x%" PRIx64
-               " with inst 0x%" PRIx32 "\n",
-               rv.halt_code, rv.halt_pc, rv.halt_inst);
+static void cmd_si(char *args) {
+    if (rv.halt) {
+        puts("The machine has halted");
+        puts("You are resuming.");
+        rv.halt = false;
+        return;
+    }
+    if (!rv.image_loaded) {
+        puts("Image not loaded, using default image");
+        rv_load_default_image();
+    }
+    cpu_step(1);
 }
 
 static void cmd_info(char *args) { cpu_print_registers(); }

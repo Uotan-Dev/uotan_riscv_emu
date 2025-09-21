@@ -27,6 +27,7 @@ extern "C" {
 #endif
 
 void cpu_start();
+void cpu_step(size_t step);
 void cpu_print_registers();
 uint64_t *cpu_get_csr(uint32_t csr);
 
