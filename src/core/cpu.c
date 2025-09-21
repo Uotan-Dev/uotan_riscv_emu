@@ -22,7 +22,55 @@
 #include "core/mem.h"
 #include "core/riscv.h"
 
-#define R(i) rv.X[i]
+FORCE_INLINE void cpu_raise_exception(exception_t cause, uint64_t tval) {
+    // We only support M mode for now
+    assert(rv.privilege == PRIV_M);
+
+    // Handle BP, treat ebreak as nop
+    if ((unlikely(cause == CAUSE_BREAKPOINT && rv.has_debugger))) {
+        rv_halt(rv.X[10], rv.decode.pc, rv.decode.inst);
+        return;
+    }
+
+    rv.MEPC = rv.PC & ~1ULL;
+    rv.MCAUSE = cause;
+    rv.MTVAL = tval;
+
+    uint64_t mstatus = rv.MSTATUS;
+
+    // Save current MIE to MPIE
+    if (mstatus & MSTATUS_MIE)
+        mstatus |= MSTATUS_MPIE;
+    else
+        mstatus &= ~MSTATUS_MPIE;
+    // Save PRIV level to MPP
+    mstatus &= ~MSTATUS_MPP;
+    mstatus |= ((uint64_t)rv.privilege << MSTATUS_MPP_SHIFT);
+    // Disable M mode interrupt
+    mstatus &= ~MSTATUS_MIE;
+
+    rv.MSTATUS = mstatus;
+
+    // Shift to M Mode
+    rv.privilege = PRIV_M;
+
+    uint64_t mtvec = rv.MTVEC;
+    if ((mtvec & 3ULL) == 0) {
+        // Direct Mode
+        rv.decode.npc = mtvec & ~3ULL;
+    } else {
+        if (cause & INTERRUPT_FLAG)
+            // Vectored Mode, Asynchronous interrupts set pc to BASE+4×cause
+            rv.decode.npc = (mtvec & ~3ULL) + 4ULL * (cause & 0x3F);
+        else
+            rv.decode.npc = mtvec & ~3ULL;
+    }
+}
+
+FORCE_INLINE bool cpu_check_interrupts() {
+    // TODO
+    return false;
+}
 
 /*
  * The decoding algorithm is taken from NJU emulator
@@ -43,6 +91,8 @@
  *
  * See the Mulan PSL v2 for more details.
  ***************************************************************************************/
+
+#define R(i) rv.X[i]
 
 // clang-format off
 typedef enum {
@@ -101,7 +151,43 @@ FORCE_INLINE void decode_operand(Decode *s, int *rd, uint64_t *src1,
     // clang-format on
 }
 
+FORCE_INLINE void _ecall(Decode *s) {
+    switch (rv.privilege) {
+        case PRIV_M: cpu_raise_exception(CAUSE_MACHINE_ECALL, s->pc); break;
+        case PRIV_S: cpu_raise_exception(CAUSE_SUPERVISOR_ECALL, s->pc); break;
+        case PRIV_U: cpu_raise_exception(CAUSE_USER_ECALL, s->pc); break;
+        default: __UNREACHABLE;
+    }
+}
+
+FORCE_INLINE void _mret(Decode *s) {
+    if (rv.privilege != PRIV_M) {
+        cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
+        return;
+    }
+    rv.PC = rv.MEPC;
+    uint64_t mstatus = rv.MSTATUS;
+
+    // Restore MIE
+    if (mstatus & MSTATUS_MPIE)
+        mstatus |= MSTATUS_MIE;
+    else
+        mstatus &= ~MSTATUS_MIE;
+
+    mstatus |= MSTATUS_MPIE;
+
+    // Restore PRIV level
+    rv.privilege =
+        (privilege_level_t)((mstatus & MSTATUS_MPP) >> MSTATUS_MPP_SHIFT);
+    mstatus &= ~MSTATUS_MPP;
+
+    rv.MSTATUS = mstatus;
+}
+
 static inline void decode_exec(Decode *s) {
+    // FIXME: function ‘decode_exec’ can never be inlined because it contains a
+    // computed goto
+
 #define INSTPAT_INST(s) ((s)->inst)
 
 #define INSTPAT_MATCH(s, name, type, ... /* execute body */)                   \
@@ -129,7 +215,6 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("??????? ????? ????? 100 ????? 11000 11", blt    , B, if ((int64_t)src1 < (int64_t)src2) s->npc = s->pc + imm);
     INSTPAT("??????? ????? ????? 110 ????? 11000 11", bltu   , B, if (src1 < src2) s->npc = s->pc + imm);
     INSTPAT("??????? ????? ????? 001 ????? 11000 11", bne    , B, if (src1 != src2) s->npc = s->pc + imm);
-    INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, rv_halt(R(10), s->pc, s->inst)); // FIXME
     INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal    , J, R(rd) = s->pc + 4, s->npc = s->pc + imm);
     INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr   , I, uint64_t t = s->pc + 4; s->npc = (src1 + imm) & ~1; R(rd) = t);
     INSTPAT("??????? ????? ????? 000 ????? 00000 11", lb     , I, R(rd) = SEXT(vaddr_read_b(src1 + imm), 8));
@@ -167,6 +252,67 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("0000000 ????? ????? 100 ????? 01100 11", xor    , R, R(rd) = src1 ^ src2);
     INSTPAT("??????? ????? ????? 100 ????? 00100 11", xori   , I, R(rd) = src1 ^ imm);
 
+#define CHK_CSR_OP()                                                           \
+    {                                                                          \
+        if (!succ)                                                             \
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);           \
+    }
+    INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc   ,I,
+        bool succ = true;
+        uint64_t t = cpu_read_csr(imm, &succ);
+        CHK_CSR_OP();
+        cpu_write_csr(imm, t & ~src1, &succ);
+        CHK_CSR_OP();
+        R(rd) = t;
+    );
+    INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci  ,I,
+        uint64_t zimm = BITS(s->inst, 19, 15);
+        bool succ = true;
+        uint64_t t = cpu_read_csr(imm, &succ);
+        CHK_CSR_OP();
+        cpu_write_csr(imm, t & ~zimm, &succ);
+        CHK_CSR_OP();
+        R(rd) = t;
+    );
+    INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , I,
+        bool succ = true;
+        uint64_t t = cpu_read_csr(imm, &succ);
+        CHK_CSR_OP();
+        cpu_write_csr(imm, t | src1, &succ);
+        CHK_CSR_OP();
+        R(rd) = t;
+    );
+    INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , I,
+        uint64_t zimm = BITS(s->inst, 19, 15);
+        bool succ = true;
+        uint64_t t = cpu_read_csr(imm, &succ);
+        CHK_CSR_OP();
+        cpu_write_csr(imm, t | zimm, &succ);
+        CHK_CSR_OP();
+        R(rd) = t;
+    );
+    INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , I,
+        bool succ = true;
+        uint64_t t = cpu_read_csr(imm, &succ);
+        CHK_CSR_OP();
+        cpu_write_csr(imm, src1, &succ);
+        CHK_CSR_OP();
+        R(rd) = t;
+    );
+    INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , I,
+        uint64_t zimm = BITS(s->inst, 19, 15);
+        bool succ = true;
+        uint64_t t = cpu_read_csr(imm, &succ);
+        CHK_CSR_OP();
+        R(rd) = t;
+        cpu_write_csr(imm, zimm, &succ);
+        CHK_CSR_OP();
+    );
+    INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, cpu_raise_exception(CAUSE_BREAKPOINT, 0));
+    INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, _ecall(s));
+    INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N, _mret(s));
+#undef CHK_CSR_OP
+
     // RV64M instructions
     INSTPAT("0000001 ????? ????? 100 ????? 01100 11", div    , R, R(rd) = (int64_t)src1 / (int64_t)src2);
     INSTPAT("0000001 ????? ????? 101 ????? 01100 11", divu   , R, R(rd) = src1 / src2);
@@ -183,7 +329,7 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("0000001 ????? ????? 110 ????? 01110 11", remw   , R, R(rd) = SEXT((int32_t)BITS(src1, 31, 0) % (int32_t)BITS(src2, 31, 0), 32));
 
     // Invalid insturctions
-    INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, rv_halt(1, s->pc, s->inst)); // TODO: Use proper handling (Raise an exception?)
+    INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst));
     INSTPAT_END();
     // clang-format on
 
@@ -219,4 +365,20 @@ void cpu_print_registers() {
     for (size_t i = 0; i < NR_GPR; i++)
         printf("%s\t0x%08" PRIx64 "\n", regs[i], R(i));
     printf("%s\t0x%08" PRIx64 "\n", "pc", rv.PC);
+}
+
+uint64_t *cpu_get_csr(uint32_t csr) {
+    // clang-format off
+    switch (csr & 0xFFF) {
+#define macro(csr_name) case CSR_##csr_name: return &rv.csr_name;
+        macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID)
+        macro(MSTATUS)   macro(MISA)    macro(MTVEC)  macro(MSCRATCH)
+        macro(MEPC)      macro(MCAUSE)  macro(MTVAL)
+#undef macro
+
+        default:
+            printf("Invalid CSR requestde: 0x%" PRIx32 "\n", csr & 0xFFF);
+            assert(0);
+    }
+    // clang-format on
 }

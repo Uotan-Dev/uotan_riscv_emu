@@ -41,6 +41,88 @@ extern "C" {
 #define MISA_F (1 << ('F' - 'A'))
 #define MISA_C (1 << ('C' - 'A'))
 
+// riscv privilege level
+typedef enum : uint64_t {
+    PRIV_U = 0, // User mode
+    PRIV_S = 1, // Supervisor mode
+    PRIV_M = 3  // Machine mode
+} privilege_level_t;
+
+// Exceptions
+typedef enum : uint64_t {
+    CAUSE_MISALIGNED_FETCH = 0,
+    CAUSE_FETCH_ACCESS = 1,
+    CAUSE_ILLEGAL_INSTRUCTION = 2,
+    CAUSE_BREAKPOINT = 3,
+    CAUSE_MISALIGNED_LOAD = 4,
+    CAUSE_LOAD_ACCESS = 5,
+    CAUSE_MISALIGNED_STORE = 6,
+    CAUSE_STORE_ACCESS = 7,
+    CAUSE_USER_ECALL = 8,
+    CAUSE_SUPERVISOR_ECALL = 9,
+    CAUSE_MACHINE_ECALL = 11,
+
+    CAUSE_EXCEPTION_NONE = ~0ULL
+} exception_t;
+
+// Interrupt
+#define INTERRUPT_FLAG (1ULL << 63)
+
+typedef enum : uint64_t {
+    CAUSE_SOFTWARE_INTERRUPT = 0ULL | INTERRUPT_FLAG,
+    CAUSE_TIMER_INTERRUPT = 1ULL | INTERRUPT_FLAG,
+    CAUSE_EXTERNAL_INTERRUPT = 2ULL | INTERRUPT_FLAG,
+
+    CAUSE_INTERRUPT_NONE = ~0ULL
+} interrupt_t;
+
+// The MSTATUS CSR
+#define MSTATUS_SIE_SHIFT 1
+#define MSTATUS_MIE_SHIFT 3
+#define MSTATUS_SPIE_SHIFT 5
+#define MSTATUS_UBE_SHIFT 6
+#define MSTATUS_MPIE_SHIFT 7
+#define MSTATUS_SPP_SHIFT 8
+#define MSTATUS_MPP_SHIFT 11
+#define MSTATUS_MPRV_SHIFT 17
+#define MSTATUS_SUM_SHIFT 18
+#define MSTATUS_MXR_SHIFT 19
+#define MSTATUS_TVM_SHIFT 20
+#define MSTATUS_TW_SHIFT 21
+#define MSTATUS_TSR_SHIFT 22
+#define MSTATUS_SIE (1ULL << MSTATUS_SIE_SHIFT)
+#define MSTATUS_MIE (1ULL << MSTATUS_MIE_SHIFT)
+#define MSTATUS_SPIE (1ULL << MSTATUS_SPIE_SHIFT)
+#define MSTATUS_UBE (1ULL << MSTATUS_UBE_SHIFT)
+#define MSTATUS_MPIE (1ULL << MSTATUS_MPIE_SHIFT)
+#define MSTATUS_SPP (1ULL << MSTATUS_SPP_SHIFT)
+#define MSTATUS_MPP (3ULL << MSTATUS_MPP_SHIFT)
+#define MSTATUS_MPRV (1ULL << MSTATUS_MPRV_SHIFT)
+#define MSTATUS_SUM (1ULL << MSTATUS_SUM_SHIFT)
+#define MSTATUS_MXR (1ULL << MSTATUS_MXR_SHIFT)
+#define MSTATUS_TVM (1ULL << MSTATUS_TVM_SHIFT)
+#define MSTATUS_TW (1ULL << MSTATUS_TW_SHIFT)
+#define MSTATUS_TSR (1ULL << MSTATUS_TSR_SHIFT)
+
+enum {
+    // Machine information registers
+    CSR_MVENDORID = 0xF11, // Vendor ID
+    CSR_MARCHID = 0xF12,   // Architecture ID
+    CSR_MIMPID = 0xF13,    // Implementation ID
+    CSR_MHARTID = 0xF14,   // Hardware thread ID
+
+    // Machine trap setup
+    CSR_MSTATUS = 0x300, // Machine status register
+    CSR_MISA = 0x301,    // ISA and extensions
+    CSR_MTVEC = 0x305,   // Machine trap-handler base address
+
+    // machine trap handling
+    CSR_MSCRATCH = 0x340, // Scratch register for machine trap handlers
+    CSR_MEPC = 0x341,     // Machine exception program counter
+    CSR_MCAUSE = 0x342,   // Machine trap cause
+    CSR_MTVAL = 0x343,    // Machine bad address or instruction
+};
+
 typedef struct {
     // Interger registers
 #define NR_GPR 32
@@ -63,6 +145,9 @@ typedef struct {
     uint64_t MCAUSE;    // Machine trap cause
     uint64_t MTVAL;     // Machine bad address or instruction
 
+    // Privilege level
+    privilege_level_t privilege;
+
     // Memory
 #define MSIZE 0x8000000
 #define MBASE 0x80000000
@@ -71,12 +156,16 @@ typedef struct {
     // Decoder status
     Decode decode;
 
-    // Some status
-    bool image_loaded; // whether we have loaded the image
-    bool halt;         // whether the machine has halted
-    int halt_code;     // halt code
+    // Debugger properties
+    bool has_debugger; // use NEMU sdb-like debugger?
+    // exception_t exception;
+    bool halt;     // whether the machine has halted
+    int halt_code; // halt code
     uint64_t halt_pc;
     uint32_t halt_inst;
+
+    // Some misc status
+    bool image_loaded; // whether we have loaded the image
 } riscv_t;
 
 extern riscv_t rv __attribute((aligned(4096)));
@@ -94,6 +183,7 @@ FORCE_INLINE void rv_halt(int code, uint64_t pc, uint32_t inst) {
     rv.halt_code = code;
     rv.halt_pc = pc;
     rv.halt_inst = inst;
+    printf("rv_halt() with code %d, at PC 0x%08" PRIx64 "\n", code, pc);
 }
 
 #ifdef __cplusplus

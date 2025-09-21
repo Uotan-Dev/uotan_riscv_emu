@@ -40,13 +40,18 @@ void rv_init() {
     rv.MIMPID = MIMPID_DEFAULT;
     // keep other CSRs zero
 
+    // set the privilege level
+    rv.privilege = PRIV_M; // boot in M mode
+
     // set the memory with random junk
     srand(time(NULL));
     memset(rv.memory, rand(), sizeof(rv.memory));
 
+    // enable the debugger
+    rv.has_debugger = true;
+
     // set some status
     rv.image_loaded = false;
-    rv.halt = false;
 
     Log("RV initialized!");
 }
