@@ -20,7 +20,8 @@
 #include <stdint.h>
 
 #include "../device/bus.h"
-#include "core/decode.h"
+#include "../device/clint.h"
+#include "decode.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,6 +43,26 @@ extern "C" {
 #define MISA_F (1 << ('F' - 'A'))
 #define MISA_C (1 << ('C' - 'A'))
 
+#define MIP_USIP (1ULL << 0)  // User software interrupt pending
+#define MIP_SSIP (1ULL << 1)  // Supervisor software interrupt pending
+#define MIP_MSIP (1ULL << 3)  // Machine software interrupt pending
+#define MIP_UTIP (1ULL << 4)  // User timer interrupt pending
+#define MIP_STIP (1ULL << 5)  // Supervisor timer interrupt pending
+#define MIP_MTIP (1ULL << 7)  // Machine timer interrupt pending
+#define MIP_UEIP (1ULL << 8)  // User external interrupt pending
+#define MIP_SEIP (1ULL << 9)  // Supervisor external interrupt pending
+#define MIP_MEIP (1ULL << 11) // Machine external interrupt pending
+
+#define MIE_USIE (1ULL << 0)  // User software interrupt enable
+#define MIE_SSIE (1ULL << 1)  // Supervisor software interrupt enable
+#define MIE_MSIE (1ULL << 3)  // Machine software interrupt enable
+#define MIE_UTIE (1ULL << 4)  // User timer interrupt enable
+#define MIE_STIE (1ULL << 5)  // Supervisor timer interrupt enable
+#define MIE_MTIE (1ULL << 7)  // Machine timer interrupt enable
+#define MIE_UEIE (1ULL << 8)  // User external interrupt enable
+#define MIE_SEIE (1ULL << 9)  // Supervisor external interrupt enable
+#define MIE_MEIE (1ULL << 11) // Machine external interrupt enable
+
 // riscv privilege level
 typedef enum : uint64_t {
     PRIV_U = 0, // User mode
@@ -51,17 +72,17 @@ typedef enum : uint64_t {
 
 // Exceptions
 typedef enum : uint64_t {
-    CAUSE_MISALIGNED_FETCH = 0,
-    CAUSE_FETCH_ACCESS = 1,
-    CAUSE_ILLEGAL_INSTRUCTION = 2,
-    CAUSE_BREAKPOINT = 3,
-    CAUSE_MISALIGNED_LOAD = 4,
-    CAUSE_LOAD_ACCESS = 5,
-    CAUSE_MISALIGNED_STORE = 6,
-    CAUSE_STORE_ACCESS = 7,
-    CAUSE_USER_ECALL = 8,
-    CAUSE_SUPERVISOR_ECALL = 9,
-    CAUSE_MACHINE_ECALL = 11,
+    CAUSE_MISALIGNED_FETCH = 0,    // Instruction address misaligned
+    CAUSE_FETCH_ACCESS = 1,        // Instruction access fault
+    CAUSE_ILLEGAL_INSTRUCTION = 2, // Illegal instruction
+    CAUSE_BREAKPOINT = 3,          // Breakpoint
+    CAUSE_MISALIGNED_LOAD = 4,     // Load address misaligned
+    CAUSE_LOAD_ACCESS = 5,         // Load access fault
+    CAUSE_MISALIGNED_STORE = 6,    // Store/AMO address misaligned
+    CAUSE_STORE_ACCESS = 7,        // Store/AMO access fault
+    CAUSE_USER_ECALL = 8,          // Environment call from U-mode
+    CAUSE_SUPERVISOR_ECALL = 9,    // Environment call from S-mode
+    CAUSE_MACHINE_ECALL = 11,      // Environment call from M-mode
 
     CAUSE_EXCEPTION_NONE = ~0ULL
 } exception_t;
@@ -70,9 +91,20 @@ typedef enum : uint64_t {
 #define INTERRUPT_FLAG (1ULL << 63)
 
 typedef enum : uint64_t {
-    CAUSE_SOFTWARE_INTERRUPT = 0ULL | INTERRUPT_FLAG,
-    CAUSE_TIMER_INTERRUPT = 1ULL | INTERRUPT_FLAG,
-    CAUSE_EXTERNAL_INTERRUPT = 2ULL | INTERRUPT_FLAG,
+    // Software interrupt
+    CAUSE_SUPERVISOR_SOFTWARE = 1ULL | INTERRUPT_FLAG,
+    CAUSE_MACHINE_SOFTWARE = 3ULL | INTERRUPT_FLAG,
+
+    // Timer interrupt
+    CAUSE_SUPERVISOR_TIMER = 5ULL | INTERRUPT_FLAG,
+    CAUSE_MACHINE_TIMER = 7ULL | INTERRUPT_FLAG,
+
+    // External interrupt
+    CAUSE_SUPERVISOR_EXTERNAL = 9ULL | INTERRUPT_FLAG,
+    CAUSE_MACHINE_EXTERNAL = 11ULL | INTERRUPT_FLAG,
+
+    // Counter-overflow interrupt
+    CAUSE_COUNTER_OVERFLOW = 13ULL | INTERRUPT_FLAG,
 
     CAUSE_INTERRUPT_NONE = ~0ULL
 } interrupt_t;
@@ -114,6 +146,7 @@ enum {
 
     // Machine trap setup
     CSR_MSTATUS = 0x300, // Machine status register
+    CSR_MIE = 0x304,     // Machine interrupt-enable register
     CSR_MISA = 0x301,    // ISA and extensions
     CSR_MTVEC = 0x305,   // Machine trap-handler base address
 
@@ -122,6 +155,7 @@ enum {
     CSR_MEPC = 0x341,     // Machine exception program counter
     CSR_MCAUSE = 0x342,   // Machine trap cause
     CSR_MTVAL = 0x343,    // Machine bad address or instruction
+    CSR_MIP = 0x344,      // Machine interrupt pending
 };
 
 typedef struct {
@@ -139,15 +173,20 @@ typedef struct {
     uint64_t MIMPID;    // Implementation ID
     uint64_t MHARTID;   // Hardware thread ID
     uint64_t MSTATUS;   // Machine status register
+    uint64_t MIE;       // Machine interrupt-enable register
     uint64_t MISA;      // ISA and extensions
     uint64_t MTVEC;     // Machine trap-handler base address
     uint64_t MSCRATCH;  // Scratch register for machine trap handlers
     uint64_t MEPC;      // Machine exception program counter
     uint64_t MCAUSE;    // Machine trap cause
     uint64_t MTVAL;     // Machine bad address or instruction
+    uint64_t MIP;       // Machine interrupt pending
 
     // Privilege level
     privilege_level_t privilege;
+
+    // Clint
+    clint_t clint;
 
     // Memory
 #define MSIZE 0x8000000
@@ -192,6 +231,9 @@ FORCE_INLINE void rv_halt(int code, uint64_t pc, uint32_t inst) {
 
 // Add a device
 void rv_add_device(device_t dev);
+
+// Get an interrupt
+interrupt_t rv_get_pending_interrupt();
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,116 @@
+/*
+ * Copyright 2025 Nuo Shen, Nanjing University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <string.h>
+
+#include "core/mem.h"
+#include "core/riscv.h"
+#include "device/clint.h"
+#include "utils/timer.h"
+
+void clint_init() {
+    memset(&rv.clint, 0, sizeof(clint_t));
+
+    rv.clint.mtimecmp = UINT64_MAX;
+    rv_add_device((device_t){
+        .name = "CLINT",
+        .start = CLINT_BASE,
+        .end = CLINT_BASE + CLINT_SIZE - 1ULL,
+        .data = &rv.clint,
+        .read = clint_read,
+        .write = clint_write,
+    });
+
+    // Reset the timer
+    timer_restart();
+}
+
+void clint_tick() {
+    rv.clint.mtime = timer_get_milliseconds() * 1000;
+
+    // A machine timer interrupt becomes pending whenever mtime contains a value
+    // greater than or equal to mtimecmp
+    if (rv.clint.mtime >= rv.clint.mtimecmp)
+        rv.MIP |= MIP_MTIP;
+    else
+        rv.MIP &= ~MIP_MTIP;
+
+    if (rv.clint.msip & 1)
+        rv.MIP |= MIP_MSIP;
+    else
+        rv.MIP &= ~MIP_MSIP;
+}
+
+static inline uint64_t make_mask_bytes(size_t bytes) {
+    if (bytes >= 8)
+        return UINT64_MAX;
+    return (1ULL << (bytes * 8)) - 1ULL;
+}
+
+uint64_t clint_read(const void *data, uint64_t addr, size_t n) {
+    const clint_t *const clint = (const clint_t *)data;
+    const uint64_t mask = make_mask_bytes(n);
+
+    uint64_t offset = 0;
+    uint64_t reg_val = 0;
+
+    if (addr_in_range(addr, CLINT_MSIP_ADDR, sizeof(clint->msip))) {
+        reg_val = clint->msip;
+        offset = addr - CLINT_MSIP_ADDR;
+    } else if (addr_in_range(addr, CLINT_MTIMECMP_ADDR,
+                             sizeof(clint->mtimecmp))) {
+        reg_val = clint->mtimecmp;
+        offset = addr - CLINT_MTIMECMP_ADDR;
+    } else if (addr_in_range(addr, CLINT_MTIME_ADDR, sizeof(clint->mtime))) {
+        reg_val = clint->mtime;
+        offset = addr - CLINT_MTIME_ADDR;
+    } else {
+        return 0;
+    }
+
+    return (reg_val >> (offset * 8)) & mask;
+}
+
+void clint_write(void *data, uint64_t addr, uint64_t value, size_t n) {
+    clint_t *const clint = (clint_t *)data;
+    const uint64_t mask = make_mask_bytes(n);
+
+    uint64_t offset = 0;
+
+    if (addr_in_range(addr, CLINT_MSIP_ADDR, sizeof(clint->msip))) {
+        offset = addr - CLINT_MSIP_ADDR;
+        if (n == 4 && offset == 0) {
+            clint->msip = (uint32_t)(value & 0xFFFFFFFF);
+        } else {
+            uint64_t reg_value = clint->msip;
+            reg_value &= ~(mask << (offset * 8));
+            reg_value |= (value & mask) << (offset * 8);
+            clint->msip = (uint32_t)(reg_value & 0xFFFFFFFF);
+        }
+    } else if (addr_in_range(addr, CLINT_MTIMECMP_ADDR,
+                             sizeof(clint->mtimecmp))) {
+        offset = addr - CLINT_MTIMECMP_ADDR;
+        if (n >= 8 && offset == 0) {
+            clint->mtimecmp = value;
+        } else {
+            uint64_t reg_value = clint->mtimecmp;
+            reg_value &= ~(mask << (offset * 8));
+            reg_value |= (value & mask) << (offset * 8);
+            clint->mtimecmp = reg_value;
+        }
+    }
+    // CLINT_MTIME_ADDR is read-only by convention
+}

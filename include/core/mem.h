@@ -59,8 +59,12 @@ FORCE_INLINE void host_write(void *addr, size_t len, uint64_t data) {
 
 /* Physical address operations */
 
+FORCE_INLINE bool addr_in_range(uint64_t addr, uint64_t base, size_t n) {
+    return addr >= base && addr < base + n;
+}
+
 FORCE_INLINE bool paddr_in_pmem(uint64_t addr) {
-    return addr >= MBASE && addr < (uint64_t)MBASE + MSIZE;
+    return addr_in_range(addr, MBASE, MSIZE);
 }
 
 #define PADDR_READ_IMPL(size, type, len)                                       \

@@ -23,6 +23,8 @@
 #include "common.h"
 #include "core/mem.h"
 #include "core/riscv.h"
+#include "device/bus.h"
+#include "device/clint.h"
 
 riscv_t rv;
 
@@ -43,9 +45,15 @@ void rv_init() {
     // set the privilege level
     rv.privilege = PRIV_M; // boot in M mode
 
-    // set the memory with random junk
+    // fill the memory with random junk
     srand(time(NULL));
     memset(rv.memory, rand(), sizeof(rv.memory));
+
+    // init BUS
+    bus_init(&rv.bus);
+
+    // setup CLINT
+    clint_init();
 
     // enable the debugger
     rv.has_debugger = true;
@@ -101,4 +109,39 @@ void rv_add_device(device_t dev) {
     Info("Added device %s at [0x%08" PRIx64 ", 0x%08" PRIx64 "]", dev.name,
          dev.start, dev.end);
     bus_add_device(&rv.bus, dev);
+}
+
+interrupt_t rv_get_pending_interrupt() {
+    switch (rv.privilege) {
+        case PRIV_M:
+            if ((rv.MSTATUS & MSTATUS_MIE) == 0)
+                return CAUSE_INTERRUPT_NONE;
+            break;
+        default: assert(0); // Only M mode is implemented
+    }
+
+    uint64_t mie = rv.MIE;
+    uint64_t mip = rv.MIP;
+    uint64_t pending = mie & mip;
+    if (pending == 0)
+        return CAUSE_INTERRUPT_NONE;
+
+    // Note: not clearing MIP bits here, they shall either be cleared by
+    // software, PLIC or CLINT, etc.
+#define macro(intr, mask)                                                      \
+    {                                                                          \
+        if (pending & (mask))                                                  \
+            return (intr);                                                     \
+    }
+
+    macro(CAUSE_MACHINE_EXTERNAL, MIP_MEIP);
+    macro(CAUSE_MACHINE_SOFTWARE, MIP_MSIP);
+    macro(CAUSE_MACHINE_TIMER, MIP_MTIP);
+    macro(CAUSE_SUPERVISOR_EXTERNAL, MIP_SEIP);
+    macro(CAUSE_SUPERVISOR_SOFTWARE, MIP_SSIP);
+    macro(CAUSE_SUPERVISOR_TIMER, MIP_STIP);
+
+#undef macro
+
+    return CAUSE_INTERRUPT_NONE;
 }

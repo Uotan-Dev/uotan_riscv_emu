@@ -14,25 +14,29 @@
  * limitations under the License.
  */
 
-#include <stdlib.h>
+#pragma once
 
-#include "core/riscv.h"
-#include "utils/timer.h"
+#include <stddef.h>
+#include <stdint.h>
 
-extern void ui_start();
+#define CLINT_BASE 0x2000000
+#define CLINT_SIZE 0x10000
 
-int main() {
-    if (timer_start(1) != 0) {
-        fprintf(stderr, "timer_start() failed!\n");
-        return -1;
-    }
+// clang-format off
+#define CLINT_MSIP_ADDR     0x02000000
+#define CLINT_MTIMECMP_ADDR 0x02004000
+#define CLINT_MTIME_ADDR    0x0200BFF8
+// clang-format on
 
-    if (atexit(timer_stop) != 0) {
-        fprintf(stderr, "Failed to register exit handler\n");
-        return -1;
-    }
+typedef struct {
+    uint32_t msip;
+    uint64_t mtimecmp;
+    uint64_t mtime;
+} clint_t;
 
-    rv_init();
-    ui_start();
-    return 0;
-}
+void clint_init();
+
+void clint_tick();
+
+uint64_t clint_read(const void *data, uint64_t addr, size_t n);
+void clint_write(void *data, uint64_t addr, uint64_t value, size_t n);

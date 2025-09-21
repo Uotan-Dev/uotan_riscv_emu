@@ -40,7 +40,8 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr, bool *succ) {
 #define macro(csr_name) case CSR_##csr_name: return rv.csr_name;
         macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID)
         macro(MSTATUS)   macro(MISA)    macro(MTVEC)  macro(MSCRATCH)
-        macro(MEPC)      macro(MCAUSE)  macro(MTVAL)
+        macro(MEPC)      macro(MCAUSE)  macro(MTVAL)  macro(MIE)
+        macro(MIP)
 #undef macro
 
         default:
@@ -61,6 +62,8 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value, bool *succ) {
         case CSR_MEPC: rv.MEPC = value & ~1ULL; break;
         case CSR_MCAUSE: rv.MCAUSE = value; break;
         case CSR_MTVAL: rv.MTVAL = value; break;
+        case CSR_MIE: rv.MIE = value; break;
+        case CSR_MIP: rv.MIP = value; break;
         default: *succ = false; break;
     }
 }

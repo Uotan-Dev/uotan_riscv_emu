@@ -58,6 +58,7 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
     // Shift to M Mode
     rv.privilege = PRIV_M;
 
+    rv.decode.npc = rv.MTVEC & ~3ULL;
     uint64_t mtvec = rv.MTVEC;
     if ((mtvec & 3ULL) == 0) {
         // Direct Mode
@@ -71,9 +72,36 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
     }
 }
 
-FORCE_INLINE bool cpu_check_interrupts() {
-    // TODO
-    return false;
+FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
+    assert(intr & INTERRUPT_FLAG);
+
+    privilege_level_t priv = rv.privilege;
+
+    assert(priv == PRIV_M); // M mode only for now
+    rv.privilege = PRIV_M;
+
+    uint64_t mtvec = rv.MTVEC;
+    uint64_t vt_offset = 0;
+    if (mtvec & 1) {
+        uint64_t cause = (uint64_t)intr & ~INTERRUPT_FLAG;
+        vt_offset = cause << 2;
+    }
+
+    rv.decode.npc = (mtvec & ~3ULL) + vt_offset;
+    rv.MEPC = rv.decode.pc & ~1ULL;
+    rv.MCAUSE = intr;
+
+    uint64_t mstatus = rv.MSTATUS;
+    if (mstatus & MSTATUS_MIE)
+        mstatus |= MSTATUS_MPIE;
+    else
+        mstatus &= ~MSTATUS_MPIE;
+    mstatus &= ~MSTATUS_MIE;
+
+    mstatus &= ~MSTATUS_MPP;
+    mstatus |= ((uint64_t)priv << MSTATUS_MPP_SHIFT);
+
+    rv.MSTATUS = mstatus;
 }
 
 /*
@@ -352,20 +380,26 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
 void cpu_start() {
     if (rv.halt)
         rv.halt = false;
-    while (!rv.halt)
-        cpu_exec_once(&rv.decode, rv.PC);
+    cpu_step(-1);
 }
-
-/* Some tools */
 
 void cpu_step(size_t step) {
     if (rv.halt)
         rv.halt = false;
     for (size_t i = 0; i < step && !rv.halt; i++) {
-        printf("PC: %" PRIx64 "\n", rv.PC);
+        clint_tick();
+
+        // handle interrupt
+        interrupt_t intr = rv_get_pending_interrupt();
+        if (unlikely(intr != CAUSE_INTERRUPT_NONE))
+            cpu_process_intr(intr);
+
+        // decode and execute
         cpu_exec_once(&rv.decode, rv.PC);
     }
 }
+
+/* Some tools */
 
 // clang-format off
 static const char *regs[] = {
@@ -388,7 +422,8 @@ uint64_t *cpu_get_csr(uint32_t csr) {
 #define macro(csr_name) case CSR_##csr_name: return &rv.csr_name;
         macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID)
         macro(MSTATUS)   macro(MISA)    macro(MTVEC)  macro(MSCRATCH)
-        macro(MEPC)      macro(MCAUSE)  macro(MTVAL)
+        macro(MEPC)      macro(MCAUSE)  macro(MTVAL)  macro(MIE)
+        macro(MIP)
 #undef macro
 
         default:
