@@ -16,6 +16,7 @@
 
 #include <gtest/gtest.h>
 #include <string>
+#include <unistd.h>
 
 // include test utils
 #include "utils/test_utils.hpp"
@@ -24,6 +25,7 @@
 #include "core/cpu.h"
 #include "core/mem.h"
 #include "core/riscv.h"
+#include "utils/timer.h"
 
 /* Sample Tests */
 
@@ -32,6 +34,27 @@ TEST(SampleTestSuite, BasicAssertion) { EXPECT_TRUE(true); }
 TEST(SampleTestSuite, MathTest) {
     EXPECT_EQ(2 + 2, 4);
     ASSERT_EQ(5 * 5, 25);
+}
+
+/* Timer Tests */
+TEST(TimerTestSuite, TimerTest) {
+    ASSERT_EQ(timer_start(1), 0);
+
+    // wait a little to let sampler publish initial value
+    usleep(50 * 1000);
+
+    timer_restart();    // set base to now
+    usleep(500 * 1000); // sleep 500 ms
+    uint64_t t = timer_get_milliseconds();
+    EXPECT_TRUE(t >= 450 && t <= 550);
+
+    // test longer interval
+    timer_restart();
+    usleep(1500 * 1000); // 1.5s
+    t = timer_get_milliseconds();
+    EXPECT_TRUE(t >= 1450 && t <= 1550);
+
+    timer_stop();
 }
 
 /* M mode Tests */
