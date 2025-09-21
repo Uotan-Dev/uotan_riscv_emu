@@ -22,6 +22,7 @@
 
 // include some emu headers
 #include "core/cpu.h"
+#include "core/mem.h"
 #include "core/riscv.h"
 
 /* Sample Test Suite to try the framework */
@@ -31,6 +32,42 @@ TEST(SampleTestSuite, BasicAssertion) { EXPECT_TRUE(true); }
 TEST(SampleTestSuite, MathTest) {
     EXPECT_EQ(2 + 2, 4);
     ASSERT_EQ(5 * 5, 25);
+}
+
+// M mode tests
+
+#include "m_mode-tests/trap_tests.hpp"
+
+TEST(M_modeTestSuite, TRAP_TEST) {
+    // Disassembly of section .text:
+
+    // 0000000080000000 <_start>:
+    //     80000000:   00000297                auipc   t0,0x0
+    //     80000004:   01c28293                addi    t0,t0,28 # 8000001c
+    //     <trap_handler> 80000008:   30529073                csrw    mtvec,t0
+    //     8000000c:   00a00513                li      a0,10
+    //     80000010:   00000073                ecall
+
+    // 0000000080000014 <done>:
+    //     80000014:   00100073                ebreak
+    //     80000018:   ffdff06f                j       80000014 <done>
+
+    // 000000008000001c <trap_handler>:
+    //     8000001c:   02a50513                addi    a0,a0,42
+    //     80000020:   34102373                csrr    t1,mepc
+    //     80000024:   00430313                addi    t1,t1,4
+    //     80000028:   34131073                csrw    mepc,t1
+    //     8000002c:   30200073                mret
+
+    rv_init();
+    memcpy(GUEST_TO_HOST(RESET_PC), trap_test_firmware_bin,
+           sizeof(trap_test_firmware_bin));
+    rv.image_loaded = true;
+    cpu_step(8);
+    ASSERT_EQ(*cpu_get_csr(CSR_MEPC), 0x80000010);
+    ASSERT_EQ(*cpu_get_csr(CSR_MCAUSE), CAUSE_MACHINE_ECALL);
+    cpu_start();
+    ASSERT_EQ(rv.X[10], 52);
 }
 
 /* ALU Tests */
@@ -155,5 +192,5 @@ TEST(ALUTestSuite, RV64IM_TEST) {
     rv_load_image("firmware.bin");
     cpu_start();
 
-    EXPECT_EQ(rv.halt_code, 0);
+    ASSERT_EQ(rv.halt_code, 0);
 }
