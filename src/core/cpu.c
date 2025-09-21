@@ -216,6 +216,11 @@ FORCE_INLINE void _mret(Decode *s) {
     rv.MSTATUS = mstatus;
 }
 
+FORCE_INLINE void _wfi(Decode *s) {
+    ;
+    // Implement as NOP
+}
+
 static inline void decode_exec(Decode *s) {
     // FIXME: function ‘decode_exec’ can never be inlined because it contains a
     // computed goto
@@ -340,10 +345,12 @@ static inline void decode_exec(Decode *s) {
         cpu_write_csr(imm, zimm, &succ);
         CHK_CSR_OP();
     );
+#undef CHK_CSR_OP
+
     INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, cpu_raise_exception(CAUSE_BREAKPOINT, 0));
     INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, _ecall(s));
     INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N, _mret(s));
-#undef CHK_CSR_OP
+    INSTPAT("0001000 00101 00000 000 00000 11100 11", wfi    , N, _wfi(s));
 
     // RV64M instructions
     INSTPAT("0000001 ????? ????? 100 ????? 01100 11", div    , R, R(rd) = (int64_t)src1 / (int64_t)src2);
