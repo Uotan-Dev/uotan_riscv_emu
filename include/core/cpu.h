@@ -59,6 +59,7 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value, bool *succ) {
             rv.MSTATUS = value & 0x807FFFFF; // Filter some read-only bits
             break;
         case CSR_MTVEC: rv.MTVEC = value; break;
+        case CSR_MSCRATCH: rv.MSCRATCH = value; break;
         case CSR_MEPC: rv.MEPC = value & ~1ULL; break;
         case CSR_MCAUSE: rv.MCAUSE = value; break;
         case CSR_MTVAL: rv.MTVAL = value; break;
