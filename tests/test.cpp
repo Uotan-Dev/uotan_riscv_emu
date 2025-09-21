@@ -25,7 +25,7 @@
 #include "core/mem.h"
 #include "core/riscv.h"
 
-/* Sample Test Suite to try the framework */
+/* Sample Tests */
 
 TEST(SampleTestSuite, BasicAssertion) { EXPECT_TRUE(true); }
 
@@ -34,7 +34,7 @@ TEST(SampleTestSuite, MathTest) {
     ASSERT_EQ(5 * 5, 25);
 }
 
-// M mode tests
+/* M mode Tests */
 
 #include "m_mode-tests/trap_tests.hpp"
 
@@ -68,6 +68,28 @@ TEST(M_modeTestSuite, TRAP_TEST) {
     ASSERT_EQ(*cpu_get_csr(CSR_MCAUSE), CAUSE_MACHINE_ECALL);
     cpu_start();
     ASSERT_EQ(rv.X[10], 52);
+}
+
+/* Bus Tests */
+
+#include "bus-tests/simple-uart.h"
+
+TEST(BusTestSuite, BUS_TEST) {
+    device_t uart;
+    uart.data = NULL;
+    uart.start = SIMPLE_UART_BASE_ADDR;
+    uart.end = SIMPLE_UART_BASE_ADDR + 8;
+    uart.name = "simple_uart";
+    uart.read = simple_uart_read;
+    uart.write = simple_uart_write;
+
+    rv_add_device(uart);
+    uint32_t v = paddr_read_w(SIMPLE_UART_BASE_ADDR);
+    ASSERT_EQ(v, static_cast<uint32_t>(-1));
+    for (char c : "fuck\n") {
+        // Should output "fuck"
+        paddr_write_w(SIMPLE_UART_BASE_ADDR, c);
+    }
 }
 
 /* ALU Tests */
