@@ -26,13 +26,17 @@ FORCE_INLINE void cpu_raise_exception(exception_t cause, uint64_t tval) {
     // We only support M mode for now
     assert(rv.privilege == PRIV_M);
 
-    // Handle BP, treat ebreak as nop
-    if ((unlikely(cause == CAUSE_BREAKPOINT && rv.has_debugger))) {
-        rv_halt(rv.X[10], rv.decode.pc, rv.decode.inst);
-        return;
+    if (rv.has_debugger) {
+        if (unlikely(cause == CAUSE_BREAKPOINT)) {
+            rv_halt(rv.X[10], rv.decode.pc, rv.decode.inst);
+            return;
+        } else if (unlikely(cause == CAUSE_ILLEGAL_INSTRUCTION)) {
+            Warn("An illegal instruction exception has happened!");
+            // rv_halt(-1, rv.decode.pc, rv.decode.inst);
+        }
     }
 
-    rv.MEPC = rv.PC & ~1ULL;
+    rv.MEPC = rv.decode.pc & ~1ULL;
     rv.MCAUSE = cause;
     rv.MTVAL = tval;
 
