@@ -25,6 +25,7 @@
 void cpu_raise_exception(exception_t cause, uint64_t tval) {
     // We only support M mode for now
     assert(rv.privilege == PRIV_M);
+    assert(((uint64_t)cause & INTERRUPT_FLAG) == 0);
 
     if (rv.has_debugger) {
         if (unlikely(cause == CAUSE_BREAKPOINT)) {
@@ -32,7 +33,7 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
             return;
         } else if (unlikely(cause == CAUSE_ILLEGAL_INSTRUCTION)) {
             Warn("An illegal instruction exception has happened!");
-            // rv_halt(-1, rv.decode.pc, rv.decode.inst);
+            rv_halt(-1, rv.decode.pc, rv.decode.inst);
         }
     }
 
@@ -59,21 +60,11 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
     rv.privilege = PRIV_M;
 
     rv.decode.npc = rv.MTVEC & ~3ULL;
-    uint64_t mtvec = rv.MTVEC;
-    if ((mtvec & 3ULL) == 0) {
-        // Direct Mode
-        rv.decode.npc = mtvec & ~3ULL;
-    } else {
-        if (cause & INTERRUPT_FLAG)
-            // Vectored Mode, Asynchronous interrupts set pc to BASE+4×cause
-            rv.decode.npc = (mtvec & ~3ULL) + 4ULL * (cause & 0x3F);
-        else
-            rv.decode.npc = mtvec & ~3ULL;
-    }
 }
 
 FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
-    assert(intr & INTERRUPT_FLAG);
+    assert((uint64_t)intr & INTERRUPT_FLAG);
+    // printf("intr: %llu\n", (unsigned long long)intr & ~INTERRUPT_FLAG);
 
     privilege_level_t priv = rv.privilege;
 
@@ -87,8 +78,10 @@ FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
         vt_offset = cause << 2;
     }
 
-    rv.decode.npc = (mtvec & ~3ULL) + vt_offset;
-    rv.MEPC = rv.decode.pc & ~1ULL;
+    // This is not a part of decode/exec process,
+    // so not using Decode struct here
+    rv.MEPC = rv.PC & ~1ULL;
+    rv.PC = (mtvec & ~3ULL) + vt_offset;
     rv.MCAUSE = intr;
 
     uint64_t mstatus = rv.MSTATUS;
