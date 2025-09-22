@@ -22,79 +22,135 @@
 #include "core/mem.h"
 #include "core/riscv.h"
 
+// Raise an exception
+// This should only be called in the decode / exec proccess
 void cpu_raise_exception(exception_t cause, uint64_t tval) {
     // We only support M mode for now
-    assert(rv.privilege == PRIV_M);
     assert(((uint64_t)cause & INTERRUPT_FLAG) == 0);
 
-    if (rv.has_debugger) {
-        if (unlikely(cause == CAUSE_BREAKPOINT)) {
-            rv_halt(rv.X[10], rv.decode.pc, rv.decode.inst);
-            return;
-        } else if (unlikely(cause == CAUSE_ILLEGAL_INSTRUCTION)) {
-            Warn("An illegal instruction exception has happened!");
-            rv_halt(-1, rv.decode.pc, rv.decode.inst);
+    privilege_level_t priv = rv.privilege;
+    if (((rv.MEDELEG >> cause) & 1) && (priv == PRIV_U || priv == PRIV_S)) {
+        // Shift to S mode
+        rv.privilege = PRIV_S;
+
+        rv.decode.npc = rv.STVEC & ~3ULL;
+        rv.SEPC = rv.decode.pc & ~1ULL;
+        rv.SCAUSE = cause;
+        rv.STVAL = tval;
+
+        uint64_t sstatus = rv.SSTATUS;
+        // Save current SIE to SPIE
+        if (sstatus & SSTATUS_SIE)
+            sstatus |= SSTATUS_SPIE;
+        else
+            sstatus &= ~SSTATUS_SPIE;
+        // Save PRIV level to SPP
+        sstatus &= ~SSTATUS_SPP;
+        sstatus |= ((uint64_t)priv << SSTATUS_SPP_SHIFT);
+        // Disable S mode interrupt
+        sstatus &= ~SSTATUS_SIE;
+        // Update
+        rv.SSTATUS = sstatus;
+    } else {
+        if (rv.has_debugger) {
+            if (unlikely(cause == CAUSE_BREAKPOINT)) {
+                rv_halt(rv.X[10], rv.decode.pc, rv.decode.inst);
+                return;
+            } else if (unlikely(cause == CAUSE_ILLEGAL_INSTRUCTION)) {
+                Warn("An illegal instruction exception has happened!");
+                // rv_halt(-1, rv.decode.pc, rv.decode.inst);
+            }
         }
+        // Shift to M Mode
+        rv.privilege = PRIV_M;
+
+        rv.decode.npc = rv.MTVEC & ~3ULL;
+        rv.MEPC = rv.decode.pc & ~1ULL;
+        rv.MCAUSE = cause;
+        rv.MTVAL = tval;
+
+        uint64_t mstatus = rv.MSTATUS;
+        // Save current MIE to MPIE
+        if (mstatus & MSTATUS_MIE)
+            mstatus |= MSTATUS_MPIE;
+        else
+            mstatus &= ~MSTATUS_MPIE;
+        // Save PRIV level to MPP
+        mstatus &= ~MSTATUS_MPP;
+        mstatus |= ((uint64_t)priv << MSTATUS_MPP_SHIFT);
+        // Disable M mode interrupt
+        mstatus &= ~MSTATUS_MIE;
+        // Update
+        rv.MSTATUS = mstatus;
     }
-
-    rv.MEPC = rv.decode.pc & ~1ULL;
-    rv.MCAUSE = cause;
-    rv.MTVAL = tval;
-
-    uint64_t mstatus = rv.MSTATUS;
-
-    // Save current MIE to MPIE
-    if (mstatus & MSTATUS_MIE)
-        mstatus |= MSTATUS_MPIE;
-    else
-        mstatus &= ~MSTATUS_MPIE;
-    // Save PRIV level to MPP
-    mstatus &= ~MSTATUS_MPP;
-    mstatus |= ((uint64_t)rv.privilege << MSTATUS_MPP_SHIFT);
-    // Disable M mode interrupt
-    mstatus &= ~MSTATUS_MIE;
-
-    rv.MSTATUS = mstatus;
-
-    // Shift to M Mode
-    rv.privilege = PRIV_M;
-
-    rv.decode.npc = rv.MTVEC & ~3ULL;
 }
 
+// Process intr
+// This is not a part of decode/exec process,
+// so not using Decode struct to change PC here
 FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
     assert((uint64_t)intr & INTERRUPT_FLAG);
     // printf("intr: %llu\n", (unsigned long long)intr & ~INTERRUPT_FLAG);
 
     privilege_level_t priv = rv.privilege;
+    uint64_t cause = (uint64_t)intr & ~INTERRUPT_FLAG;
+    bool mideleg_flag = (rv.MIDELEG >> cause) & 1;
 
-    assert(priv == PRIV_M); // M mode only for now
-    rv.privilege = PRIV_M;
+    if (cause == CAUSE_MACHINE_TIMER)
+        mideleg_flag = false;
 
-    uint64_t mtvec = rv.MTVEC;
-    uint64_t vt_offset = 0;
-    if (mtvec & 1) {
-        uint64_t cause = (uint64_t)intr & ~INTERRUPT_FLAG;
-        vt_offset = cause << 2;
+    if (mideleg_flag && (priv == PRIV_U || priv == PRIV_S)) {
+        rv.privilege = PRIV_S;
+        uint64_t vt_offset = 0;
+        if (rv.STVEC & 1)
+            vt_offset = cause << 2;
+        rv.SEPC = rv.PC & ~1ULL;
+        rv.PC = (rv.STVEC & ~3ULL) + vt_offset;
+        rv.SCAUSE = intr;
+
+        uint64_t sstatus = rv.SSTATUS;
+        if (sstatus & SSTATUS_SIE)
+            sstatus |= SSTATUS_SPIE;
+        else
+            sstatus &= ~SSTATUS_SPIE;
+        sstatus &= ~SSTATUS_SIE;
+        sstatus &= ~SSTATUS_SPP;
+        sstatus |= ((uint64_t)priv << SSTATUS_SPP_SHIFT);
+        rv.SSTATUS = sstatus;
+    } else {
+        rv.privilege = PRIV_M;
+        uint64_t vt_offset = 0;
+        if (rv.MTVEC & 1)
+            vt_offset = cause << 2;
+        rv.MEPC = rv.PC & ~1ULL;
+        rv.PC = (rv.MTVEC & ~3ULL) + vt_offset;
+        rv.MCAUSE = intr;
+
+        uint64_t mstatus = rv.MSTATUS;
+        if (mstatus & MSTATUS_MIE)
+            mstatus |= MSTATUS_MPIE;
+        else
+            mstatus &= ~MSTATUS_MPIE;
+        mstatus &= ~MSTATUS_MIE;
+        mstatus &= ~MSTATUS_MPP;
+        mstatus |= ((uint64_t)priv << MSTATUS_MPP_SHIFT);
+        rv.MSTATUS = mstatus;
     }
+}
 
-    // This is not a part of decode/exec process,
-    // so not using Decode struct here
-    rv.MEPC = rv.PC & ~1ULL;
-    rv.PC = (mtvec & ~3ULL) + vt_offset;
-    rv.MCAUSE = intr;
-
-    uint64_t mstatus = rv.MSTATUS;
-    if (mstatus & MSTATUS_MIE)
-        mstatus |= MSTATUS_MPIE;
-    else
-        mstatus &= ~MSTATUS_MPIE;
-    mstatus &= ~MSTATUS_MIE;
-
-    mstatus &= ~MSTATUS_MPP;
-    mstatus |= ((uint64_t)priv << MSTATUS_MPP_SHIFT);
-
-    rv.MSTATUS = mstatus;
+// Updates the sip register based on mip and mideleg
+FORCE_INLINE void cpu_update_sip_reg() {
+    rv.SIP = 0;
+    uint64_t mideleg = rv.MIDELEG, mip = rv.MIP;
+    if (mideleg & (1ULL << (CAUSE_SUPERVISOR_SOFTWARE & ~INTERRUPT_FLAG)))
+        if (mip & MIP_MSIP)
+            rv.SIP |= SIP_SSIP;
+    if (mideleg & (1ULL << (CAUSE_SUPERVISOR_TIMER & ~INTERRUPT_FLAG)))
+        if (mip & MIP_MTIP)
+            rv.SIP |= SIP_STIP;
+    if (mideleg & (1ULL << (CAUSE_SUPERVISOR_EXTERNAL & ~INTERRUPT_FLAG)))
+        if (mip & MIP_MEIP)
+            rv.SIP |= SIP_SEIP;
 }
 
 /*
@@ -193,6 +249,13 @@ FORCE_INLINE void _mret(Decode *s) {
     s->npc = rv.MEPC;
     uint64_t mstatus = rv.MSTATUS;
 
+    // Restore PRIV level
+    rv.privilege =
+        (privilege_level_t)((mstatus & MSTATUS_MPP) >> MSTATUS_MPP_SHIFT);
+
+    if (rv.privilege != PRIV_M)
+        mstatus &= ~MSTATUS_MPRV;
+
     // Restore MIE
     if (mstatus & MSTATUS_MPIE)
         mstatus |= MSTATUS_MIE;
@@ -201,17 +264,45 @@ FORCE_INLINE void _mret(Decode *s) {
 
     mstatus |= MSTATUS_MPIE;
 
-    // Restore PRIV level
-    rv.privilege =
-        (privilege_level_t)((mstatus & MSTATUS_MPP) >> MSTATUS_MPP_SHIFT);
-    mstatus &= ~MSTATUS_MPP;
+    // We don't have U-mode implemented
+    mstatus |= MSTATUS_MPP;
+    // mstatus &= ~MSTATUS_MPP; // Use this for U-mode impl
 
     rv.MSTATUS = mstatus;
 }
 
+FORCE_INLINE void _sret(Decode *s) {
+    // When TSR=1, this operation is not permitted in S-mode
+    if ((rv.privilege == PRIV_S && (rv.MSTATUS & MSTATUS_TSR)) ||
+        rv.privilege == PRIV_U) {
+        cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
+        return;
+    }
+    s->npc = rv.SEPC;
+    uint64_t sstatus = rv.SSTATUS;
+    rv.privilege =
+        (privilege_level_t)((sstatus & SSTATUS_SPP) >> SSTATUS_SPP_SHIFT);
+
+    // Looks weird, but this is what the riscv spec requires
+    if (rv.privilege != PRIV_M)
+        rv.MSTATUS &= ~MSTATUS_MPRV;
+
+    if (sstatus & SSTATUS_SPIE)
+        sstatus |= SSTATUS_SIE;
+    else
+        sstatus &= ~SSTATUS_SIE;
+
+    sstatus |= SSTATUS_SPIE;
+
+    // We don't have U-mode implemented
+    sstatus |= SSTATUS_SPP;
+
+    rv.SSTATUS = sstatus;
+}
+
 FORCE_INLINE void _wfi(Decode *s) {
-    ;
     // Implement as NOP
+    ;
 }
 
 static inline void decode_exec(Decode *s) {
@@ -343,6 +434,7 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, cpu_raise_exception(CAUSE_BREAKPOINT, 0));
     INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, _ecall(s));
     INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N, _mret(s));
+    INSTPAT("0001000 00010 00000 000 00000 11100 11", sret   , N, _sret(s));
     INSTPAT("0001000 00101 00000 000 00000 11100 11", wfi    , N, _wfi(s));
 
     // RV64M instructions
@@ -390,6 +482,7 @@ void cpu_step(size_t step) {
         clint_tick();
 
         // handle interrupt
+        cpu_update_sip_reg();
         interrupt_t intr = rv_get_pending_interrupt();
         if (unlikely(intr != CAUSE_INTERRUPT_NONE))
             cpu_process_intr(intr);

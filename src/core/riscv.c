@@ -113,36 +113,45 @@ void rv_add_device(device_t dev) {
 }
 
 interrupt_t rv_get_pending_interrupt() {
+    // TODO: Receive intr from devices first
+
+    uint64_t m_pending = rv.MIE & rv.MIP & ~rv.MIDELEG;
+    uint64_t s_pending = rv.SIE & rv.SIP;
+    uint64_t pending = 0;
     switch (rv.privilege) {
         case PRIV_M:
-            if ((rv.MSTATUS & MSTATUS_MIE) == 0)
-                return CAUSE_INTERRUPT_NONE;
+            if (rv.MSTATUS & MSTATUS_MIE)
+                pending = m_pending;
             break;
-        default: assert(0); // Only M mode is implemented
+        case PRIV_S:
+            if (rv.MSTATUS & MSTATUS_MIE)
+                pending = m_pending;
+            else if (rv.SSTATUS & SSTATUS_SIE)
+                pending = s_pending;
+            break;
+        case PRIV_U: break;
     }
 
-    uint64_t mie = rv.MIE;
-    uint64_t mip = rv.MIP;
-    uint64_t pending = mie & mip;
     if (pending == 0)
         return CAUSE_INTERRUPT_NONE;
 
-    // Note: not clearing MIP bits here, they shall either be cleared by
-    // software, PLIC or CLINT, etc.
-#define macro(intr, mask)                                                      \
-    {                                                                          \
-        if (pending & (mask))                                                  \
-            return (intr);                                                     \
-    }
+    // External
+    if (pending & MIP_MEIP)
+        return CAUSE_MACHINE_EXTERNAL;
+    if (pending & SIP_SEIP)
+        return CAUSE_SUPERVISOR_EXTERNAL;
 
-    macro(CAUSE_MACHINE_EXTERNAL, MIP_MEIP);
-    macro(CAUSE_MACHINE_SOFTWARE, MIP_MSIP);
-    macro(CAUSE_MACHINE_TIMER, MIP_MTIP);
-    macro(CAUSE_SUPERVISOR_EXTERNAL, MIP_SEIP);
-    macro(CAUSE_SUPERVISOR_SOFTWARE, MIP_SSIP);
-    macro(CAUSE_SUPERVISOR_TIMER, MIP_STIP);
+    // Software
+    if (pending & MIP_MSIP)
+        return CAUSE_MACHINE_SOFTWARE;
+    if (pending & SIP_SSIP)
+        return CAUSE_SUPERVISOR_SOFTWARE;
 
-#undef macro
+    // Timer
+    if (pending & MIP_MTIP)
+        return CAUSE_MACHINE_TIMER;
+    if (pending & SIP_STIP)
+        return CAUSE_SUPERVISOR_TIMER;
 
     return CAUSE_INTERRUPT_NONE;
 }

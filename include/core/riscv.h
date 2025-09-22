@@ -73,26 +73,14 @@ extern "C" {
 #define MSTATUS_TSR (1ULL << MSTATUS_TSR_SHIFT)
 
 // MIP
-#define MIP_USIP (1ULL << 0)  // User software interrupt pending
-#define MIP_SSIP (1ULL << 1)  // Supervisor software interrupt pending
-#define MIP_MSIP (1ULL << 3)  // Machine software interrupt pending
-#define MIP_UTIP (1ULL << 4)  // User timer interrupt pending
-#define MIP_STIP (1ULL << 5)  // Supervisor timer interrupt pending
-#define MIP_MTIP (1ULL << 7)  // Machine timer interrupt pending
-#define MIP_UEIP (1ULL << 8)  // User external interrupt pending
-#define MIP_SEIP (1ULL << 9)  // Supervisor external interrupt pending
-#define MIP_MEIP (1ULL << 11) // Machine external interrupt pending
+#define MIP_MSIP (1ULL << 3)
+#define MIP_MTIP (1ULL << 7)
+#define MIP_MEIP (1ULL << 11)
 
 // MIE
-#define MIE_USIE (1ULL << 0)  // User software interrupt enable
-#define MIE_SSIE (1ULL << 1)  // Supervisor software interrupt enable
-#define MIE_MSIE (1ULL << 3)  // Machine software interrupt enable
-#define MIE_UTIE (1ULL << 4)  // User timer interrupt enable
-#define MIE_STIE (1ULL << 5)  // Supervisor timer interrupt enable
-#define MIE_MTIE (1ULL << 7)  // Machine timer interrupt enable
-#define MIE_UEIE (1ULL << 8)  // User external interrupt enable
-#define MIE_SEIE (1ULL << 9)  // Supervisor external interrupt enable
-#define MIE_MEIE (1ULL << 11) // Machine external interrupt enable
+#define MIE_MSIE (1ULL << 3)
+#define MIE_MTIE (1ULL << 7)
+#define MIE_MEIE (1ULL << 11)
 
 // SSTATUS
 #define SSTATUS_SIE_SHIFT 1
