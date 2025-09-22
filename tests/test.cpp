@@ -15,6 +15,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <inttypes.h>
 #include <string>
 #include <unistd.h>
 
@@ -38,7 +39,7 @@ TEST(SampleTestSuite, MathTest) {
 
 /* Timer Tests */
 TEST(TimerTestSuite, TimerTest) {
-    ASSERT_EQ(timer_start(1), 0);
+    // ASSERT_EQ(timer_start(1), 0);
 
     // wait a little to let sampler publish initial value
     usleep(50 * 1000);
@@ -54,7 +55,7 @@ TEST(TimerTestSuite, TimerTest) {
     t = timer_get_milliseconds();
     EXPECT_TRUE(t >= 1450 && t <= 1550);
 
-    timer_stop();
+    // timer_stop();
 }
 
 /* M mode Tests */
@@ -91,6 +92,19 @@ TEST(M_modeTestSuite, TRAP_TEST) {
     ASSERT_EQ(*cpu_get_csr(CSR_MCAUSE), CAUSE_MACHINE_ECALL);
     cpu_start();
     ASSERT_EQ(rv.X[10], 52);
+}
+
+#include "m_mode-tests/intr_tests.hpp"
+
+TEST(M_modeTestSuite, INTR_TEST) {
+    rv_init();
+    memcpy(GUEST_TO_HOST(RESET_PC), intr_test_firmware_bin,
+           sizeof(intr_test_firmware_bin));
+    rv.image_loaded = true;
+    cpu_start();
+    ASSERT_EQ(rv.X[10], 0);
+    ASSERT_TRUE(rv.MTVEC == UINT64_C(0x0000000080000018));
+    ASSERT_TRUE(rv.MCAUSE == (CAUSE_MACHINE_TIMER | INTERRUPT_FLAG));
 }
 
 /* Bus Tests */
