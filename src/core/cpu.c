@@ -424,6 +424,9 @@ uint64_t *cpu_get_csr(uint32_t csr) {
         macro(MSTATUS)   macro(MISA)    macro(MTVEC)  macro(MSCRATCH)
         macro(MEPC)      macro(MCAUSE)  macro(MTVAL)  macro(MIE)
         macro(MIP)
+        macro(SSTATUS)   macro(SIE)     macro(STVEC)  macro(SSCRATCH)
+        macro(SEPC)      macro(SCAUSE)  macro(STVAL)  macro(SIP)
+        macro(SATP)
 #undef macro
 
         default:

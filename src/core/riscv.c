@@ -36,7 +36,8 @@ void rv_init() {
     rv.PC = RESET_PC;
 
     // set the control and status registers
-    rv.MISA = MISA_I | MISA_M; // RV64IM, Machine Mode only
+    rv.MISA = MISA_I | MISA_M; // RV64IM
+    rv.MISA |= MISA_SUPER;     // Support supervisor mode
     rv.MVENDORID = MVENDORID_DEFAULT;
     rv.MARCHID = MARCHID_DEFAULT;
     rv.MIMPID = MIMPID_DEFAULT;

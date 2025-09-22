@@ -34,6 +34,7 @@ extern "C" {
 #define MARCHID_DEFAULT UINT64_C(0x00114514) // Magic number for homo
 #define MIMPID_DEFAULT UINT64_C(0x00010000)  // Follows UEMU version
 
+// MISA
 #define MISA_SUPER (1 << ('S' - 'A'))
 #define MISA_USER (1 << ('U' - 'A'))
 #define MISA_I (1 << ('I' - 'A'))
@@ -43,6 +44,35 @@ extern "C" {
 #define MISA_F (1 << ('F' - 'A'))
 #define MISA_C (1 << ('C' - 'A'))
 
+// MSTATUS
+#define MSTATUS_SIE_SHIFT 1
+#define MSTATUS_MIE_SHIFT 3
+#define MSTATUS_SPIE_SHIFT 5
+#define MSTATUS_UBE_SHIFT 6
+#define MSTATUS_MPIE_SHIFT 7
+#define MSTATUS_SPP_SHIFT 8
+#define MSTATUS_MPP_SHIFT 11
+#define MSTATUS_MPRV_SHIFT 17
+#define MSTATUS_SUM_SHIFT 18
+#define MSTATUS_MXR_SHIFT 19
+#define MSTATUS_TVM_SHIFT 20
+#define MSTATUS_TW_SHIFT 21
+#define MSTATUS_TSR_SHIFT 22
+#define MSTATUS_SIE (1ULL << MSTATUS_SIE_SHIFT)
+#define MSTATUS_MIE (1ULL << MSTATUS_MIE_SHIFT)
+#define MSTATUS_SPIE (1ULL << MSTATUS_SPIE_SHIFT)
+#define MSTATUS_UBE (1ULL << MSTATUS_UBE_SHIFT)
+#define MSTATUS_MPIE (1ULL << MSTATUS_MPIE_SHIFT)
+#define MSTATUS_SPP (1ULL << MSTATUS_SPP_SHIFT)
+#define MSTATUS_MPP (3ULL << MSTATUS_MPP_SHIFT)
+#define MSTATUS_MPRV (1ULL << MSTATUS_MPRV_SHIFT)
+#define MSTATUS_SUM (1ULL << MSTATUS_SUM_SHIFT)
+#define MSTATUS_MXR (1ULL << MSTATUS_MXR_SHIFT)
+#define MSTATUS_TVM (1ULL << MSTATUS_TVM_SHIFT)
+#define MSTATUS_TW (1ULL << MSTATUS_TW_SHIFT)
+#define MSTATUS_TSR (1ULL << MSTATUS_TSR_SHIFT)
+
+// MIP
 #define MIP_USIP (1ULL << 0)  // User software interrupt pending
 #define MIP_SSIP (1ULL << 1)  // Supervisor software interrupt pending
 #define MIP_MSIP (1ULL << 3)  // Machine software interrupt pending
@@ -53,6 +83,7 @@ extern "C" {
 #define MIP_SEIP (1ULL << 9)  // Supervisor external interrupt pending
 #define MIP_MEIP (1ULL << 11) // Machine external interrupt pending
 
+// MIE
 #define MIE_USIE (1ULL << 0)  // User software interrupt enable
 #define MIE_SSIE (1ULL << 1)  // Supervisor software interrupt enable
 #define MIE_MSIE (1ULL << 3)  // Machine software interrupt enable
@@ -62,6 +93,30 @@ extern "C" {
 #define MIE_UEIE (1ULL << 8)  // User external interrupt enable
 #define MIE_SEIE (1ULL << 9)  // Supervisor external interrupt enable
 #define MIE_MEIE (1ULL << 11) // Machine external interrupt enable
+
+// SSTATUS
+#define SSTATUS_SIE_SHIFT 1
+#define SSTATUS_SPIE_SHIFT 5
+#define SSTATUS_UBE_SHIFT 6
+#define SSTATUS_SPP_SHIFT 8
+#define SSTATUS_SUM_SHIFT 18
+#define SSTATUS_MXR_SHIFT 19
+#define SSTATUS_SIE (1 << SSTATUS_SIE_SHIFT)
+#define SSTATUS_SPIE (1 << SSTATUS_SPIE_SHIFT)
+#define SSTATUS_UBE (1 << SSTATUS_UBE_SHIFT)
+#define SSTATUS_SPP (1 << SSTATUS_SPP_SHIFT)
+#define SSTATUS_SUM (1 << SSTATUS_SUM_SHIFT)
+#define SSTATUS_MXR (1 << SSTATUS_MXR_SHIFT)
+
+// SIP
+#define SIP_SSIP (1ULL << 1)
+#define SIP_STIP (1ULL << 5)
+#define SIP_SEIP (1ULL << 9)
+
+// SIE
+#define SIE_SSIE (1ULL << 1)
+#define SIE_STIE (1ULL << 5)
+#define SIE_SEIE (1ULL << 9)
 
 // riscv privilege level
 typedef enum : uint64_t {
@@ -109,34 +164,6 @@ typedef enum : uint64_t {
     CAUSE_INTERRUPT_NONE = ~0ULL
 } interrupt_t;
 
-// The MSTATUS CSR
-#define MSTATUS_SIE_SHIFT 1
-#define MSTATUS_MIE_SHIFT 3
-#define MSTATUS_SPIE_SHIFT 5
-#define MSTATUS_UBE_SHIFT 6
-#define MSTATUS_MPIE_SHIFT 7
-#define MSTATUS_SPP_SHIFT 8
-#define MSTATUS_MPP_SHIFT 11
-#define MSTATUS_MPRV_SHIFT 17
-#define MSTATUS_SUM_SHIFT 18
-#define MSTATUS_MXR_SHIFT 19
-#define MSTATUS_TVM_SHIFT 20
-#define MSTATUS_TW_SHIFT 21
-#define MSTATUS_TSR_SHIFT 22
-#define MSTATUS_SIE (1ULL << MSTATUS_SIE_SHIFT)
-#define MSTATUS_MIE (1ULL << MSTATUS_MIE_SHIFT)
-#define MSTATUS_SPIE (1ULL << MSTATUS_SPIE_SHIFT)
-#define MSTATUS_UBE (1ULL << MSTATUS_UBE_SHIFT)
-#define MSTATUS_MPIE (1ULL << MSTATUS_MPIE_SHIFT)
-#define MSTATUS_SPP (1ULL << MSTATUS_SPP_SHIFT)
-#define MSTATUS_MPP (3ULL << MSTATUS_MPP_SHIFT)
-#define MSTATUS_MPRV (1ULL << MSTATUS_MPRV_SHIFT)
-#define MSTATUS_SUM (1ULL << MSTATUS_SUM_SHIFT)
-#define MSTATUS_MXR (1ULL << MSTATUS_MXR_SHIFT)
-#define MSTATUS_TVM (1ULL << MSTATUS_TVM_SHIFT)
-#define MSTATUS_TW (1ULL << MSTATUS_TW_SHIFT)
-#define MSTATUS_TSR (1ULL << MSTATUS_TSR_SHIFT)
-
 enum {
     // Machine information registers
     CSR_MVENDORID = 0xF11, // Vendor ID
@@ -146,16 +173,33 @@ enum {
 
     // Machine trap setup
     CSR_MSTATUS = 0x300, // Machine status register
-    CSR_MIE = 0x304,     // Machine interrupt-enable register
     CSR_MISA = 0x301,    // ISA and extensions
+    CSR_MEDELEG = 0x302, // Machine exception delegate register
+    CSR_MIDELEG = 0x303, // Machine interrupt delegate register
+    CSR_MIE = 0x304,     // Machine interrupt-enable register
     CSR_MTVEC = 0x305,   // Machine trap-handler base address
 
-    // machine trap handling
+    // Machine trap handling
     CSR_MSCRATCH = 0x340, // Scratch register for machine trap handlers
     CSR_MEPC = 0x341,     // Machine exception program counter
     CSR_MCAUSE = 0x342,   // Machine trap cause
     CSR_MTVAL = 0x343,    // Machine bad address or instruction
     CSR_MIP = 0x344,      // Machine interrupt pending
+
+    // Supervisor trap setup
+    CSR_SSTATUS = 0x100, // Supervisor status register
+    CSR_SIE = 0x104,     // Supervisor interrupt-enable register
+    CSR_STVEC = 0x105,   // Supervisor trap-handler base address
+
+    // Supervisor trap handling
+    CSR_SSCRATCH = 0x140, // Supervisor register for machine trap handlers
+    CSR_SEPC = 0x141,     // Supervisor exception program counter
+    CSR_SCAUSE = 0x142,   // Supervisor trap cause
+    CSR_STVAL = 0x143,    // Supervisor bad address or instruction
+    CSR_SIP = 0x144,      // Supervisor interrupt pending
+
+    // Supervisor protection and translation
+    CSR_SATP = 0x180, // Supervisor address translation and protection
 };
 
 typedef struct {
@@ -168,19 +212,32 @@ typedef struct {
 
     // Control and Status registers
 #define NR_CSR 4096
+
     uint64_t MVENDORID; // Vendor ID
     uint64_t MARCHID;   // Architecture ID
     uint64_t MIMPID;    // Implementation ID
     uint64_t MHARTID;   // Hardware thread ID
     uint64_t MSTATUS;   // Machine status register
-    uint64_t MIE;       // Machine interrupt-enable register
     uint64_t MISA;      // ISA and extensions
+    uint64_t MEDELEG;   // Machine exception delegate register
+    uint64_t MIDELEG;   // Machine interrupt delegate register
+    uint64_t MIE;       // Machine interrupt-enable register
     uint64_t MTVEC;     // Machine trap-handler base address
     uint64_t MSCRATCH;  // Scratch register for machine trap handlers
     uint64_t MEPC;      // Machine exception program counter
     uint64_t MCAUSE;    // Machine trap cause
     uint64_t MTVAL;     // Machine bad address or instruction
     uint64_t MIP;       // Machine interrupt pending
+
+    uint64_t SSTATUS;  // Supervisor status register
+    uint64_t SIE;      // Supervisor interrupt-enable register
+    uint64_t STVEC;    // Supervisor trap-handler base address
+    uint64_t SSCRATCH; // Supervisor register for machine trap handlers
+    uint64_t SEPC;     // Supervisor exception program counter
+    uint64_t SCAUSE;   // Supervisor trap cause
+    uint64_t STVAL;    // Supervisor bad address or instruction
+    uint64_t SIP;      // Supervisor interrupt pending
+    uint64_t SATP;     // Supervisor address translation and protection
 
     // Privilege level
     privilege_level_t privilege;

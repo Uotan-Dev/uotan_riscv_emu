@@ -38,10 +38,16 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr, bool *succ) {
     // clang-format off
     switch (csr & 0xFFF) {
 #define macro(csr_name) case CSR_##csr_name: return rv.csr_name;
+        // M-mode
         macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID)
         macro(MSTATUS)   macro(MISA)    macro(MTVEC)  macro(MSCRATCH)
         macro(MEPC)      macro(MCAUSE)  macro(MTVAL)  macro(MIE)
         macro(MIP)
+
+        // S-mode
+        macro(SSTATUS)   macro(SIE)     macro(STVEC)  macro(SSCRATCH)
+        macro(SEPC)      macro(SCAUSE)  macro(STVAL)  macro(SIP)
+        macro(SATP)
 #undef macro
 
         default:
@@ -54,19 +60,26 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr, bool *succ) {
 
 // CSR write, should only be used for instruction simulation
 FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value, bool *succ) {
+    // clang-format off
     switch (csr & 0xFFF) {
+#define macro(csr_name) case CSR_##csr_name: rv.csr_name = value; break;
+        // M-mode
         case CSR_MSTATUS:
             rv.MSTATUS = value & 0x807FFFFF; // Filter some read-only bits
             break;
-        case CSR_MTVEC: rv.MTVEC = value; break;
-        case CSR_MSCRATCH: rv.MSCRATCH = value; break;
         case CSR_MEPC: rv.MEPC = value & ~1ULL; break;
-        case CSR_MCAUSE: rv.MCAUSE = value; break;
-        case CSR_MTVAL: rv.MTVAL = value; break;
-        case CSR_MIE: rv.MIE = value; break;
-        case CSR_MIP: rv.MIP = value; break;
+        macro(MTVEC) macro(MSCRATCH) macro(MCAUSE) macro(MTVAL)
+        macro(MIE)   macro(MIP)
+
+        // S-mode
+        macro(SSTATUS)   macro(SIE)     macro(STVEC)  macro(SSCRATCH)
+        macro(SEPC)      macro(SCAUSE)  macro(STVAL)  macro(SIP)
+        macro(SATP)
+#undef macro
+
         default: *succ = false; break;
     }
+    // clang-format on
 }
 
 #ifdef __cplusplus
