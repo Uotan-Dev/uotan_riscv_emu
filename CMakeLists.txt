@@ -58,7 +58,7 @@ FetchContent_MakeAvailable(googletest)
 file(GLOB_RECURSE TEST_SOURCES "tests/*.c" "tests/*.cpp")
 
 add_executable(run_tests ${TEST_SOURCES})
-target_link_libraries(run_tests PRIVATE riscv_sim_lib GTest::gtest_main)
+target_link_libraries(run_tests PRIVATE riscv_sim_lib GTest::gtest_main readline ncurses)
 
 # Add the test executable to CTest's list of tests.
 include(GoogleTest)

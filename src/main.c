@@ -42,7 +42,7 @@ static void parse_args(int argc, char *argv[]) {
     // clang-format on
 
     int opt;
-    while ((opt = getopt_long(argc, argv, "h", long_options, NULL)) != 1) {
+    while ((opt = getopt_long(argc, argv, "h", long_options, NULL)) != -1) {
         switch (opt) {
             case 'h':
                 print_usage(argv[0]);

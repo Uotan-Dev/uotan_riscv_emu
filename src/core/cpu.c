@@ -21,6 +21,7 @@
 #include "core/decode.h"
 #include "core/mem.h"
 #include "core/riscv.h"
+#include "ui/ui.h"
 
 // Raise an exception
 // This should only be called in the decode / exec proccess
@@ -476,7 +477,7 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
 }
 
 void cpu_start() {
-    while (true) {
+    while (!unlikely(rv.shutdown)) {
         rv.last_exception = CAUSE_EXCEPTION_NONE;
         clint_tick();
         cpu_update_sip_reg();
@@ -485,6 +486,8 @@ void cpu_start() {
             cpu_process_intr(intr);
         cpu_exec_once(&rv.decode, rv.PC);
     }
+    Info("Machine has shutdown, Starting the UI");
+    ui_start();
 }
 
 /* Some tools */

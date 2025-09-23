@@ -25,6 +25,7 @@
 #include "core/riscv.h"
 #include "device/bus.h"
 #include "device/clint.h"
+#include "device/sifive_test.h"
 
 riscv_t rv;
 
@@ -59,9 +60,15 @@ void rv_init(const void *buf, size_t buf_size) {
     // setup CLINT
     clint_init();
 
+    // setup SiFive Test
+    sifive_test_init();
+
     // Load kernel
     assert(buf && buf_size && buf_size <= MSIZE);
     memcpy(GUEST_TO_HOST(RESET_PC), buf, buf_size);
+
+    // Misc
+    rv.shutdown = false;
 
     Log("RV initialized!");
 }
@@ -115,4 +122,12 @@ interrupt_t rv_get_pending_interrupt() {
         return CAUSE_SUPERVISOR_TIMER;
 
     return CAUSE_INTERRUPT_NONE;
+}
+
+void rv_shutdown(int code, shutdown_cause_t cause) {
+    rv.shutdown = true;
+    rv.shutdown_code = code;
+    rv.shutdown_cause = cause;
+    printf("shutdown with code %d and cause %d\n", code, (int)cause);
+    
 }

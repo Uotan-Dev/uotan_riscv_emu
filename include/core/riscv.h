@@ -204,6 +204,11 @@ enum {
     CSR_SATP = 0x180, // Supervisor address translation and protection
 };
 
+typedef enum : int {
+    SHUTDOWN_CAUSE_GUEST_PANIC,
+    SHUTDOWN_CAUSE_GUEST_SHUTDOWN
+} shutdown_cause_t;
+
 typedef struct {
     // Interger registers
 #define NR_GPR 32
@@ -260,16 +265,26 @@ typedef struct {
 
     // Bus status
     bus_t bus;
+
+    // Misc
+    bool shutdown;
+    int shutdown_code;
+    shutdown_cause_t shutdown_cause;
 } riscv_t;
 
 extern riscv_t rv __attribute((aligned(4096)));
 
 // Initialize the machine
 void rv_init(const void *buf, size_t buf_size);
+
 // Add a device
 void rv_add_device(device_t dev);
+
 // Get an interrupt
 interrupt_t rv_get_pending_interrupt();
+
+// Shutdown the machine
+void rv_shutdown(int code, shutdown_cause_t cause);
 
 #ifdef __cplusplus
 }
