@@ -69,18 +69,14 @@ int main(int argc, char *argv[]) {
     // Load the bin_file
     void *buf = NULL;
     size_t buf_size = 0;
-    if (unlikely(!bin_file && bin_file[0] == '\0')) {
-        static const uint32_t builtin_img[] = {
-            0x00000297, // auipc t0,0
-            0x00028823, // sb  zero,16(t0)
-            0x0102c503, // lbu a0,16(t0)
-            0x0000006f, // j 0
-        };
-        buf_size = sizeof(builtin_img);
+    if (unlikely(!bin_file || bin_file[0] == '\0')) {
+        extern const uint8_t bare_min_firmware_bin[];
+        extern size_t bare_min_firmware_bin_len;
+        buf_size = bare_min_firmware_bin_len;
         buf = malloc(buf_size);
         assert(buf);
-        memcpy(buf, builtin_img, sizeof(builtin_img));
-        Log("Loaded builtin_img from %p", builtin_img);
+        memcpy(buf, bare_min_firmware_bin, buf_size);
+        Log("Loaded builtin_img from %p", bare_min_firmware_bin);
     } else {
         FILE *fp = fopen(bin_file, "rb");
         if (fp == NULL) {
