@@ -322,15 +322,6 @@ FORCE_INLINE void _sfence_vma(Decode *s) {
         }                                                                      \
     } while (0)
 
-#define LOAD(rd, addr, type, sz_type, sz)                                      \
-    do {                                                                       \
-        type __v = vaddr_read_##sz_type(addr);                                 \
-        if (rv.last_exception != CAUSE_LOAD_ACCESS &&                          \
-            rv.last_exception != CAUSE_LOAD_PAGEFAULT) {                       \
-            R(rd) = (uint64_t)__v;                                             \
-        }                                                                      \
-    } while (0)
-
 static inline void decode_exec(Decode *s) {
     // FIXME: function ‘decode_exec’ can never be inlined because it contains a
     // computed goto
@@ -401,7 +392,6 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("0000000 ????? ????? 100 ????? 01100 11", xor    , R, R(rd) = src1 ^ src2);
     INSTPAT("??????? ????? ????? 100 ????? 00100 11", xori   , I, R(rd) = src1 ^ imm);
     INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc   ,I,
-        bool succ = true;
         uint64_t t = cpu_read_csr(imm);
         cpu_write_csr(imm, t & ~src1);
         R(rd) = t;
@@ -419,20 +409,17 @@ static inline void decode_exec(Decode *s) {
     );
     INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , I,
         uint64_t zimm = BITS(s->inst, 19, 15);
-        bool succ = true;
         uint64_t t = cpu_read_csr(imm);
         cpu_write_csr(imm, t | zimm);
         R(rd) = t;
     );
     INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , I,
-        bool succ = true;
         uint64_t t = cpu_read_csr(imm);
         cpu_write_csr(imm, src1);
         R(rd) = t;
     );
     INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , I,
         uint64_t zimm = BITS(s->inst, 19, 15);
-        bool succ = true;
         uint64_t t = cpu_read_csr(imm);
         R(rd) = t;
         cpu_write_csr(imm, zimm);
