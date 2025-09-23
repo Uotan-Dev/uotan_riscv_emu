@@ -19,7 +19,7 @@
 #include <assert.h>
 #include <stdint.h>
 
-#include "common.h"
+#include "mem.h"
 #include "riscv.h"
 
 #ifdef __cplusplus
@@ -51,8 +51,8 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr, bool *succ) {
 #undef macro
 
         default:
-            *succ = false;
-            return -1;
+            *succ = true;
+            return 0;
     }
     // clang-format on
     __UNREACHABLE;
@@ -72,12 +72,25 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value, bool *succ) {
         macro(MIE)   macro(MIP)
 
         // S-mode
+        case CSR_SATP:
+            {
+                // Implementations are not required to support all MODE settings,
+                // and if satp is written with an unsupported MODE, 
+                // the entire write has no effect;
+                // no fields in satp are modified.
+                uint64_t mode = GET_SATP_MODE(value);
+                if (mode == 0 || mode == SATP_MODE_SV39)
+                    rv.SATP = value;
+            }
+            break;
         macro(SSTATUS)   macro(SIE)     macro(STVEC)  macro(SSCRATCH)
         macro(SEPC)      macro(SCAUSE)  macro(STVAL)  macro(SIP)
-        macro(SATP)
 #undef macro
 
-        default: *succ = false; break;
+        default:
+            *succ = true;
+            // Ignore the write
+            break;
     }
     // clang-format on
 }

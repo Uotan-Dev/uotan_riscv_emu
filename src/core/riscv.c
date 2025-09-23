@@ -51,7 +51,10 @@ void rv_init() {
     memset(rv.memory, rand(), sizeof(rv.memory));
 
     // init BUS
-    bus_init(&rv.bus);
+    bus_init();
+
+    // reset last exception
+    rv.last_exception = CAUSE_EXCEPTION_NONE;
 
     // setup CLINT
     clint_init();
@@ -109,7 +112,7 @@ void rv_add_device(device_t dev) {
     assert(dev.name && dev.read && dev.write);
     Info("Added device %s at [0x%08" PRIx64 ", 0x%08" PRIx64 "]", dev.name,
          dev.start, dev.end);
-    bus_add_device(&rv.bus, dev);
+    bus_add_device(dev);
 }
 
 interrupt_t rv_get_pending_interrupt() {

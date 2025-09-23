@@ -71,7 +71,7 @@ FORCE_INLINE bool paddr_in_pmem(uint64_t addr) {
     FORCE_INLINE type paddr_read_##size(uint64_t addr) {                       \
         if (likely(paddr_in_pmem(addr)))                                       \
             return *(type *)GUEST_TO_HOST(addr);                               \
-        return bus_read(&rv.bus, addr, len);                                   \
+        return bus_read(addr, len);                                            \
     }
 
 PADDR_READ_IMPL(d, uint64_t, 8)
@@ -86,7 +86,7 @@ PADDR_READ_IMPL(b, uint8_t, 1)
         if (likely(paddr_in_pmem(addr)))                                       \
             *(type *)GUEST_TO_HOST(addr) = data;                               \
         else                                                                   \
-            bus_write(&rv.bus, addr, (uint64_t)data, len);                     \
+            bus_write(addr, (uint64_t)data, len);                              \
     }
 
 PADDR_WRITE_IMPL(d, uint64_t, 8)
@@ -108,7 +108,58 @@ void vaddr_write_w(uint64_t addr, uint32_t data);
 void vaddr_write_s(uint64_t addr, uint16_t data);
 void vaddr_write_b(uint64_t addr, uint8_t data);
 
-uint64_t vaddr_ifetch(uint64_t addr);
+uint32_t vaddr_ifetch(uint64_t addr);
+
+/* Paging */
+
+#define SATP_MODE_BARE 0ULL
+#define SATP_MODE_SV39 8ULL
+
+#define PAGE_SHIFT 12ULL
+#define PAGE_SIZE (1ULL << PAGE_SHIFT)
+#define PTE_SIZE 8ULL
+#define VPN_BITS 9ULL
+#define SV39_LEVELS 3
+#define SV39_VA_BITS 39
+#define SV39_VA_MASK ((1ULL << SV39_VA_BITS) - 1)
+#define SV39_SEXT_MASK (~SV39_VA_MASK)
+
+// PTE fields
+#define PTE_V (1ULL << 0)
+#define PTE_R (1ULL << 1)
+#define PTE_W (1ULL << 2)
+#define PTE_X (1ULL << 3)
+#define PTE_U (1ULL << 4)
+#define PTE_G (1ULL << 5)
+#define PTE_A (1ULL << 6)
+#define PTE_D (1ULL << 7)
+#define PTE_PPN_SHIFT 10
+#define PTE_PPN_BITS 44ULL
+#define PTE_PPN_MASK (((1ULL << PTE_PPN_BITS) - 1ULL) << PTE_PPN_SHIFT)
+
+// VA fields
+#define VA_VPN2_SHIFT 30
+#define VA_VPN1_SHIFT 21
+#define VA_VPN0_SHIFT 12
+#define VA_OFFSET_SHIFT 0
+#define VA_VPN_MASK ((1ULL << VPN_BITS) - 1)
+#define VA_OFFSET_MASK ((1ULL << PAGE_SHIFT) - 1)
+
+// Memory access type
+typedef enum {
+    ACCESS_INSN = 0,
+    ACCESS_LOAD = 1,
+    ACCESS_STORE = 2
+} mmu_access_t;
+
+// MMU translate result
+typedef enum {
+    TRANSLATE_OK = 0,
+    TRANSLATE_FETCH_PAGE_FAULT = 1,
+    TRANSLATE_LOAD_PAGE_FAULT = 2,
+    TRANSLATE_STORE_PAGE_FAULT = 3,
+    TRANSLATE_ACCESS_FAULT = 4
+} mmu_result_t;
 
 #ifdef __cplusplus
 }

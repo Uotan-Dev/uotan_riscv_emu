@@ -106,6 +106,17 @@ extern "C" {
 #define SIE_STIE (1ULL << 5)
 #define SIE_SEIE (1ULL << 9)
 
+// SATP
+#define SATP_MODE_SHIFT 60
+#define SATP_ASID_SHIFT 44
+#define SATP_PPN_SHIFT 0
+#define SATP_PPN_MASK (((1ULL << 44) - 1) << SATP_PPN_SHIFT)
+#define SATP_ASID_MASK (((1ULL << 16) - 1) << SATP_ASID_SHIFT)
+#define SATP_MODE_MASK ((15ULL) << SATP_MODE_SHIFT) // 4 bits for mode
+#define GET_SATP_MODE(satp) ((satp & SATP_MODE_MASK) >> SATP_MODE_SHIFT)
+#define GET_SATP_ASID(satp) ((satp & SATP_ASID_MASK) >> SATP_ASID_SHIFT)
+#define GET_SATP_PPN(satp) ((satp & SATP_PPN_MASK) >> SATP_PPN_SHIFT)
+
 // riscv privilege level
 typedef enum : uint64_t {
     PRIV_U = 0, // User mode
@@ -126,6 +137,9 @@ typedef enum : uint64_t {
     CAUSE_USER_ECALL = 8,          // Environment call from U-mode
     CAUSE_SUPERVISOR_ECALL = 9,    // Environment call from S-mode
     CAUSE_MACHINE_ECALL = 11,      // Environment call from M-mode
+    CAUSE_INSN_PAGEFAULT = 12,     // Instruction page fault
+    CAUSE_LOAD_PAGEFAULT = 13,     // Load page fault
+    CAUSE_STORE_PAGEFAULT = 15,    // Store/AMO page fault
 
     CAUSE_EXCEPTION_NONE = ~0ULL
 } exception_t;
@@ -229,6 +243,9 @@ typedef struct {
 
     // Privilege level
     privilege_level_t privilege;
+
+    // Last exception
+    exception_t last_exception; // this is now only used in memory system
 
     // Clint
     clint_t clint;

@@ -58,7 +58,7 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
                 return;
             } else if (unlikely(cause == CAUSE_ILLEGAL_INSTRUCTION)) {
                 Warn("An illegal instruction exception has happened!");
-                // rv_halt(-1, rv.decode.pc, rv.decode.inst);
+                rv_halt(-1, rv.decode.pc, rv.decode.inst);
             }
         }
         // Shift to M Mode
@@ -83,6 +83,8 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
         // Update
         rv.MSTATUS = mstatus;
     }
+
+    rv.last_exception = cause;
 }
 
 // Process intr
@@ -305,6 +307,38 @@ FORCE_INLINE void _wfi(Decode *s) {
     ;
 }
 
+FORCE_INLINE void _sfence_vma(Decode *s) {
+    // TODO: TLB
+    ;
+}
+
+#define LOAD(rd, addr, type, sz_type, sz)                                      \
+    do {                                                                       \
+        type __v = vaddr_read_##sz_type(addr);                                 \
+        if (rv.last_exception != CAUSE_LOAD_ACCESS &&                          \
+            rv.last_exception != CAUSE_LOAD_PAGEFAULT) {                       \
+            R(rd) = (uint64_t)__v;                                             \
+        }                                                                      \
+    } while (0)
+
+#define LOAD_SEXT(rd, addr, type, sz_type, sz)                                 \
+    do {                                                                       \
+        type __v = vaddr_read_##sz_type(addr);                                 \
+        if (rv.last_exception != CAUSE_LOAD_ACCESS &&                          \
+            rv.last_exception != CAUSE_LOAD_PAGEFAULT) {                       \
+            R(rd) = SEXT(__v, sz);                                             \
+        }                                                                      \
+    } while (0)
+
+#define LOAD(rd, addr, type, sz_type, sz)                                      \
+    do {                                                                       \
+        type __v = vaddr_read_##sz_type(addr);                                 \
+        if (rv.last_exception != CAUSE_LOAD_ACCESS &&                          \
+            rv.last_exception != CAUSE_LOAD_PAGEFAULT) {                       \
+            R(rd) = (uint64_t)__v;                                             \
+        }                                                                      \
+    } while (0)
+
 static inline void decode_exec(Decode *s) {
     // FIXME: function ‘decode_exec’ can never be inlined because it contains a
     // computed goto
@@ -338,14 +372,14 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("??????? ????? ????? 001 ????? 11000 11", bne    , B, if (src1 != src2) s->npc = s->pc + imm);
     INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal    , J, R(rd) = s->pc + 4, s->npc = s->pc + imm);
     INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr   , I, uint64_t t = s->pc + 4; s->npc = (src1 + imm) & ~1ULL; R(rd) = t);
-    INSTPAT("??????? ????? ????? 000 ????? 00000 11", lb     , I, R(rd) = SEXT(vaddr_read_b(src1 + imm), 8));
-    INSTPAT("??????? ????? ????? 100 ????? 00000 11", lbu    , I, R(rd) = vaddr_read_b(src1 + imm));
-    INSTPAT("??????? ????? ????? 011 ????? 00000 11", ld     , I, R(rd) = vaddr_read_d(src1 + imm));
-    INSTPAT("??????? ????? ????? 001 ????? 00000 11", lh     , I, R(rd) = SEXT(vaddr_read_s(src1 + imm), 16));
-    INSTPAT("??????? ????? ????? 101 ????? 00000 11", lhu    , I, R(rd) = vaddr_read_s(src1 + imm));
+    INSTPAT("??????? ????? ????? 000 ????? 00000 11", lb     , I, LOAD_SEXT(rd, src1 + imm, uint8_t, b, 8));
+    INSTPAT("??????? ????? ????? 100 ????? 00000 11", lbu    , I, LOAD(rd, src1 + imm, uint8_t, b, 8));
+    INSTPAT("??????? ????? ????? 011 ????? 00000 11", ld     , I, LOAD(rd, src1 + imm, uint64_t, d, 64));
+    INSTPAT("??????? ????? ????? 001 ????? 00000 11", lh     , I, LOAD_SEXT(rd, src1 + imm, uint16_t, s, 16));
+    INSTPAT("??????? ????? ????? 101 ????? 00000 11", lhu    , I, LOAD(rd, src1 + imm, uint16_t, s, 16));
     INSTPAT("??????? ????? ????? ??? ????? 01101 11", lui    , U, R(rd) = SEXT(BITS(imm, 31, 12) << 12, 32));
-    INSTPAT("??????? ????? ????? 010 ????? 00000 11", lw     , I, R(rd) = SEXT(vaddr_read_w(src1 + imm), 32));
-    INSTPAT("??????? ????? ????? 110 ????? 00000 11", lwu    , I, R(rd) = vaddr_read_w(src1 + imm));
+    INSTPAT("??????? ????? ????? 010 ????? 00000 11", lw     , I, LOAD_SEXT(rd, src1 + imm, uint32_t, w, 32));
+    INSTPAT("??????? ????? ????? 110 ????? 00000 11", lwu    , I, LOAD(rd, src1 + imm, uint32_t, w, 32));
     INSTPAT("0000000 ????? ????? 110 ????? 01100 11", or     , R, R(rd) = src1 | src2);
     INSTPAT("??????? ????? ????? 110 ????? 00100 11", ori    , I, R(rd) = src1 | imm);
     INSTPAT("??????? ????? ????? 000 ????? 01000 11", sb     , S, vaddr_write_b(src1 + imm, src2));
@@ -431,11 +465,12 @@ static inline void decode_exec(Decode *s) {
     );
 #undef CHK_CSR_OP
 
-    INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak , N, cpu_raise_exception(CAUSE_BREAKPOINT, 0));
-    INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall  , N, _ecall(s));
-    INSTPAT("0011000 00010 00000 000 00000 11100 11", mret   , N, _mret(s));
-    INSTPAT("0001000 00010 00000 000 00000 11100 11", sret   , N, _sret(s));
-    INSTPAT("0001000 00101 00000 000 00000 11100 11", wfi    , N, _wfi(s));
+    INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak     , N, cpu_raise_exception(CAUSE_BREAKPOINT, 0));
+    INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall      , N, _ecall(s));
+    INSTPAT("0011000 00010 00000 000 00000 11100 11", mret       , N, _mret(s));
+    INSTPAT("0001001 ????? ????? 000 00000 11100 11", sfence.vma , R, _sfence_vma(s));
+    INSTPAT("0001000 00010 00000 000 00000 11100 11", sret       , N, _sret(s));
+    INSTPAT("0001000 00101 00000 000 00000 11100 11", wfi        , N, _wfi(s));
 
     // RV64M instructions
     INSTPAT("0000001 ????? ????? 100 ????? 01100 11", div    , R, R(rd) = (int64_t)src1 / (int64_t)src2);
@@ -479,6 +514,8 @@ void cpu_step(size_t step) {
     if (rv.halt)
         rv.halt = false;
     for (size_t i = 0; i < step && !rv.halt; i++) {
+        rv.last_exception = CAUSE_EXCEPTION_NONE;
+
         clint_tick();
 
         // handle interrupt

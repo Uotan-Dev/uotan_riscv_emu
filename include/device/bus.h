@@ -16,8 +16,11 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#include "common.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -47,10 +50,11 @@ struct __bus {
     size_t num_devices;
 };
 
-void bus_init(bus_t *bus);
-void bus_add_device(bus_t *bus, device_t dev);
-uint64_t bus_read(bus_t *bus, uint64_t addr, size_t n);
-void bus_write(bus_t *bus, uint64_t addr, uint64_t value, size_t n);
+void bus_init();
+void bus_add_device(device_t dev);
+uint64_t bus_read(uint64_t addr, size_t n);
+void bus_write(uint64_t addr, uint64_t value, size_t n);
+size_t bus_check_addr(uint64_t addr);
 
 #ifdef __cplusplus
 }
