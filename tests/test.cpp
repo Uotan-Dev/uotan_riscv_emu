@@ -185,7 +185,7 @@ TEST(ALUTestSuite, RV64IM_TEST) {
     // clang-format on
     write_file(boot_s, "boot.S");
 
-    std::string cc = "riscv64-linux-gnu-gcc";
+    std::string cc = "riscv64-unknown-elf-gcc";
     // clang-format off
     std::vector<std::string> base_args = {
         cc,
@@ -238,7 +238,7 @@ TEST(ALUTestSuite, RV64IM_TEST) {
     {
         // clang-format off
         std::vector<std::string> args = {
-            "riscv64-linux-gnu-objcopy",
+            "riscv64-unknown-elf-objcopy",
             "-O", "binary",
             "firmware.elf", "firmware.bin"
         };

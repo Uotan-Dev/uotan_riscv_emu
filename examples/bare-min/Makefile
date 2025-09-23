@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-CROSS ?= riscv64-linux-gnu-
+CROSS ?= riscv64-unknown-elf-
 CC_RISCV = $(CROSS)gcc
 LD_RISCV = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
