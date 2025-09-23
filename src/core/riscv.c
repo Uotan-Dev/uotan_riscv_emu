@@ -129,5 +129,4 @@ void rv_shutdown(int code, shutdown_cause_t cause) {
     rv.shutdown_code = code;
     rv.shutdown_cause = cause;
     printf("shutdown with code %d and cause %d\n", code, (int)cause);
-    
 }

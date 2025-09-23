@@ -476,7 +476,7 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     rv.PC = s->npc;
 }
 
-void cpu_start() {
+void __cpu_start() {
     while (!unlikely(rv.shutdown)) {
         rv.last_exception = CAUSE_EXCEPTION_NONE;
         clint_tick();
@@ -486,6 +486,10 @@ void cpu_start() {
             cpu_process_intr(intr);
         cpu_exec_once(&rv.decode, rv.PC);
     }
+}
+
+void cpu_start() {
+    __cpu_start();
     Info("Machine has shutdown, Starting the UI");
     ui_start();
 }

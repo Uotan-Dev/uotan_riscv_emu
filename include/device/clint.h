@@ -19,6 +19,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define CLINT_BASE 0x2000000
 #define CLINT_SIZE 0x10000
 
@@ -37,3 +41,7 @@ typedef struct {
 void clint_init();
 
 void clint_tick();
+
+#ifdef __cplusplus
+}
+#endif

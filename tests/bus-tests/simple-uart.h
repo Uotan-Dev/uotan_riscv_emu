@@ -25,8 +25,8 @@ extern "C" {
 
 #define SIMPLE_UART_BASE_ADDR 0x1000
 
-uint64_t simple_uart_read(const void *data, uint64_t addr, size_t n);
-void simple_uart_write(void *data, uint64_t addr, uint64_t value, size_t n);
+uint64_t simple_uart_read(uint64_t addr, size_t n);
+void simple_uart_write(uint64_t addr, uint64_t value, size_t n);
 
 #ifdef __cplusplus
 }

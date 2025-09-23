@@ -29,8 +29,13 @@ _start:
     # After returning from the trap, we should land here.
     # The value in a0 should now be 10 + 42 = 52.
 done:
-    ebreak # Trigger a break point
-    j done
+    li t0, 0x100000
+    li t1, 0x5555
+    slli a0, a0, 16
+    or a0, a0, t1
+    sw a0, 0(t0)
+loop:
+    j loop
 
 trap_handler:
     # Add 42 to a0 to signal that we were here.

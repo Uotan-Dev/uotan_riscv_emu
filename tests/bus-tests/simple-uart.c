@@ -19,13 +19,13 @@
 
 #include "simple-uart.h"
 
-uint64_t simple_uart_read(const void *data, uint64_t addr, size_t n) {
+uint64_t simple_uart_read(uint64_t addr, size_t n) {
     uint64_t off = addr - SIMPLE_UART_BASE_ADDR;
     assert(off == 0);
     return -1;
 }
 
-void simple_uart_write(void *data, uint64_t addr, uint64_t value, size_t n) {
+void simple_uart_write(uint64_t addr, uint64_t value, size_t n) {
     uint64_t off = addr - SIMPLE_UART_BASE_ADDR;
     assert(off == 0 && n == 4);
     putchar((int)value);

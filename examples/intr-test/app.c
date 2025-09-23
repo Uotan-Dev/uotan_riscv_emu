@@ -27,6 +27,13 @@ static volatile uint64_t success_flag = 0;
 
 extern void trap(void);
 
+#define POWER_OFF_ADDR 0x100000
+#define shutdown(code)                                                         \
+    do {                                                                       \
+        volatile uint32_t *const power_off_reg = (uint32_t *)POWER_OFF_ADDR;   \
+        *power_off_reg = ((uint32_t)(code) << 16) | 0x5555;                    \
+    } while (0)
+
 void __cust_trap_handler() {
     // set success_flag here
     success_flag = 1;
@@ -57,14 +64,15 @@ int main(void) {
     *mtimecmp = now + DELAY;
 
     // wait for interrupt
-    for (volatile uint64_t i = 0; i < 10000000ULL; i++) {
+    for (volatile uint64_t i = 0; i < 100000ULL; i++) {
         if (success_flag)
             break;
         asm volatile("wfi");
     }
 
     int code = success_flag == 1 ? 0 : -1;
-    asm volatile("mv a0, %0; ebreak" : : "r"(code));
+    shutdown(code);
+    // asm volatile("mv a0, %0; ebreak" : : "r"(code));
 
     while (true)
         asm volatile("wfi");

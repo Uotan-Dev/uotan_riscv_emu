@@ -19,6 +19,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #define SIFIVE_TEST_BASE 0x100000
 #define SIFIVE_TEST_SIZE 0x1000
 
@@ -29,3 +33,7 @@
 #define SIFIVE_TEST_FINISHER_FAIL 0x7777
 
 void sifive_test_init();
+
+#ifdef __cplusplus
+}
+#endif

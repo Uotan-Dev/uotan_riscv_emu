@@ -208,7 +208,7 @@ void generateTests(std::ostream &out, const std::string &typeName,
                 out << static_cast<uint64_t>(expected) << "ULL";
             }
             out << ";\n";
-            out << "    if (result != expected) trap(-1);\n";
+            out << "    if (result != expected) shutdown(-1);\n";
             out << "  }\n\n";
 
             test_id++;
@@ -244,10 +244,18 @@ void write_alu_test_file(const std::string &path) {
 
     file << "#include <stdint.h>\n\n";
 
-    file << "#define trap(code) asm volatile(\"mv a0, %0; ebreak\" : "
-            ":\"r\"(code))\n\n";
+    file << "#define POWER_OFF_ADDR 0x100000\n"
+            "#define shutdown(code)                                            "
+            "             \\\n"
+            "    do {                                                          "
+            "             \\\n"
+            "        volatile uint32_t *const power_off_reg = (uint32_t "
+            "*)POWER_OFF_ADDR;   \\\n"
+            "        *power_off_reg = ((uint32_t)(code) << 16) | 0x5555;       "
+            "             \\\n"
+            "    } while (0)\n\n";
 
-    file << "int main(void) {\n\n";
+    file << "int main() {\n\n";
 
     // Generate tests for all integer types
     file << "  // Testing int8_t operations\n";
@@ -275,7 +283,7 @@ void write_alu_test_file(const std::string &path) {
     generateAllTests(file, "uint64_t", uv64, sizeof(uv64) / sizeof(uv64[0]));
 
     file << "  // All tests passed\n";
-    file << "  trap(0);\n";
+    file << "  shutdown(0);\n";
     file << "  return 0;\n";
     file << "}\n";
 

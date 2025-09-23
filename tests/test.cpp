@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <fstream>
 #include <gtest/gtest.h>
 #include <inttypes.h>
 #include <string>
@@ -23,10 +24,10 @@
 #include "utils/test_utils.hpp"
 
 // include some emu headers
-#include "core/cpu.h"
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "utils/timer.h"
+extern "C" void __cpu_start();
 
 /* Sample Tests */
 
@@ -38,6 +39,7 @@ TEST(SampleTestSuite, MathTest) {
 }
 
 /* Timer Tests */
+
 TEST(TimerTestSuite, TimerTest) {
     // ASSERT_EQ(timer_start(1), 0);
 
@@ -63,37 +65,50 @@ TEST(TimerTestSuite, TimerTest) {
 #include "m_mode-tests/trap_tests.hpp"
 
 TEST(M_modeTestSuite, TRAP_TEST) {
-    // Disassembly of section .text:
+    // clang-format off
 
+    // Disassembly of section .text:
+    //
     // 0000000080000000 <_start>:
     //     80000000:   00000297                auipc   t0,0x0
-    //     80000004:   01c28293                addi    t0,t0,28 # 8000001c
-    //     <trap_handler> 80000008:   30529073                csrw    mtvec,t0
+    //     80000004:   03028293                addi    t0,t0,48 # 80000030 <trap_handler>
+    //     80000008:   30529073                csrw    mtvec,t0
     //     8000000c:   00a00513                li      a0,10
     //     80000010:   00000073                ecall
-
+    //
     // 0000000080000014 <done>:
-    //     80000014:   00100073                ebreak
-    //     80000018:   ffdff06f                j       80000014 <done>
+    //     80000014:   001002b7                lui     t0,0x100
+    //     80000018:   00005337                lui     t1,0x5
+    //     8000001c:   5553031b                addiw   t1,t1,1365 # 5555 <_start-0x7fffaaab>
+    //     80000020:   01051513                slli    a0,a0,0x10
+    //     80000024:   00656533                or      a0,a0,t1
+    //     80000028:   00a2a023                sw      a0,0(t0) # 100000 <_start-0x7ff00000>
+    //
+    // 000000008000002c <loop>:
+    //     8000002c:   0000006f                j       8000002c <loop>
+    //
+    // 0000000080000030 <trap_handler>:
+    //     80000030:   02a50513                addi    a0,a0,42
+    //     80000034:   34102373                csrr    t1,mepc
+    //     80000038:   00430313                addi    t1,t1,4
+    //     8000003c:   34131073                csrw    mepc,t1
+    //     80000040:   30200073                mret
 
-    // 000000008000001c <trap_handler>:
-    //     8000001c:   02a50513                addi    a0,a0,42
-    //     80000020:   34102373                csrr    t1,mepc
-    //     80000024:   00430313                addi    t1,t1,4
-    //     80000028:   34131073                csrw    mepc,t1
-    //     8000002c:   30200073                mret
+    // clang-format on
 
     rv_init(trap_test_firmware_bin, sizeof(trap_test_firmware_bin));
-    cpu_start();
-    ASSERT_EQ(rv.X[10], 52);
+    __cpu_start();
+    ASSERT_EQ(rv.shutdown_code, 52);
+    ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
 }
 
 #include "m_mode-tests/intr_tests.hpp"
 
 TEST(M_modeTestSuite, INTR_TEST) {
     rv_init(intr_test_firmware_bin, sizeof(intr_test_firmware_bin));
-    cpu_start();
-    ASSERT_EQ(rv.X[10], 0);
+    __cpu_start();
+    ASSERT_EQ(rv.shutdown_code, 0);
+    ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
     ASSERT_TRUE(rv.MTVEC == UINT64_C(0x0000000080000018));
     ASSERT_TRUE(rv.MCAUSE == (CAUSE_MACHINE_TIMER | INTERRUPT_FLAG));
 }
@@ -104,7 +119,6 @@ TEST(M_modeTestSuite, INTR_TEST) {
 
 TEST(BusTestSuite, BUS_TEST) {
     device_t uart;
-    uart.data = NULL;
     uart.start = SIMPLE_UART_BASE_ADDR;
     uart.end = SIMPLE_UART_BASE_ADDR + 8;
     uart.name = "simple_uart";
@@ -238,16 +252,19 @@ TEST(ALUTestSuite, RV64IM_TEST) {
         ASSERT_EQ(rc, 0);
     }
 
-    FILE *fp = fopen("firmware.bin", "rb");
-    ASSERT_NE(fp, nullptr);
-    fseek(fp, 0, SEEK_END);
-    long size = ftell(fp);
-    ASSERT_NE(size, 0);
-    void *buf = malloc(size);
-    ASSERT_NE(buf, nullptr);
-    rv_init(buf, size);
-    free(buf);
-    cpu_start();
+    std::ifstream file("firmware.bin", std::ios::binary);
+    assert(file.is_open());
+    file.seekg(0, std::ios::end);
+    std::streampos size = file.tellg();
+    assert(size > 0);
+    file.seekg(0, std::ios::beg);
+    std::vector<char> buffer(size);
+    file.read(buffer.data(), size);
+    assert(file.good() || file.eof());
+    rv_init(buffer.data(), buffer.size());
 
-    // ASSERT_EQ(rv.halt_code, 0);
+    __cpu_start();
+
+    ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
+    ASSERT_EQ(rv.shutdown_code, 0);
 }

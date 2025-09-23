@@ -17,7 +17,12 @@
 #include <stdbool.h>
 #include <stdint.h>
 
-#define trap(code) asm volatile("mv a0, %0; ebreak" : :"r"(code))
+#define POWER_OFF_ADDR 0x100000
+
+static inline void shutdown(int code) {
+    volatile uint32_t *const power_off_reg = (uint32_t *)POWER_OFF_ADDR;
+    *power_off_reg = ((uint32_t)code << 16) | 0x5555;
+}
 
 int main() {
     volatile uint32_t a = 1, b = 2, c = 3;
@@ -25,7 +30,7 @@ int main() {
     volatile uint32_t p = a * b;
     volatile uint32_t v = s / p;
     volatile uint32_t x = s % p;
-    trap(0);
+    shutdown(0);
     while (true)
         ;
     return 0;
