@@ -20,7 +20,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "../device/bus.h"
 #include "riscv.h"
 
 #ifdef __cplusplus
@@ -28,30 +27,6 @@ extern "C" {
 #endif
 
 /* Host memory operations*/
-
-FORCE_INLINE uint64_t host_read(void *addr, size_t len) {
-    // clang-format off
-    switch (len) {
-        case 1: return *(uint8_t *)addr;
-        case 2: return *(uint16_t *)addr;
-        case 4: return *(uint32_t *)addr;
-        case 8: return *(uint64_t *)addr;
-        default: __UNREACHABLE;
-    }
-    // clang-format on
-}
-
-FORCE_INLINE void host_write(void *addr, size_t len, uint64_t data) {
-    // clang-format off
-    switch (len) {
-        case 1: *(uint8_t *)addr = data; return;
-        case 2: *(uint16_t *)addr = data; return;
-        case 4: *(uint32_t *)addr = data; return;
-        case 8: *(uint64_t *)addr = data; return;
-        default: __UNREACHABLE;
-    }
-    // clang-format on
-}
 
 #define GUEST_TO_HOST(paddr) ((void *)(rv.memory + ((uint64_t)(paddr) - MBASE)))
 #define HOST_TO_GUEST(haddr)                                                   \
@@ -66,35 +41,6 @@ FORCE_INLINE bool addr_in_range(uint64_t addr, uint64_t base, size_t n) {
 FORCE_INLINE bool paddr_in_pmem(uint64_t addr) {
     return addr_in_range(addr, MBASE, MSIZE);
 }
-
-#define PADDR_READ_IMPL(size, type, len)                                       \
-    FORCE_INLINE type paddr_read_##size(uint64_t addr) {                       \
-        if (likely(paddr_in_pmem(addr)))                                       \
-            return *(type *)GUEST_TO_HOST(addr);                               \
-        return bus_read(addr, len);                                            \
-    }
-
-PADDR_READ_IMPL(d, uint64_t, 8)
-PADDR_READ_IMPL(w, uint32_t, 4)
-PADDR_READ_IMPL(s, uint16_t, 2)
-PADDR_READ_IMPL(b, uint8_t, 1)
-
-#undef PADDR_READ_IMPL
-
-#define PADDR_WRITE_IMPL(size, type, len)                                      \
-    FORCE_INLINE void paddr_write_##size(uint64_t addr, type data) {           \
-        if (likely(paddr_in_pmem(addr)))                                       \
-            *(type *)GUEST_TO_HOST(addr) = data;                               \
-        else                                                                   \
-            bus_write(addr, (uint64_t)data, len);                              \
-    }
-
-PADDR_WRITE_IMPL(d, uint64_t, 8)
-PADDR_WRITE_IMPL(w, uint32_t, 4)
-PADDR_WRITE_IMPL(s, uint16_t, 2)
-PADDR_WRITE_IMPL(b, uint8_t, 1)
-
-#undef PADDR_WRITE_IMPL
 
 /* Virtual address operations */
 

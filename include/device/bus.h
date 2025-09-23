@@ -51,7 +51,7 @@ void bus_init();
 void bus_add_device(device_t dev);
 uint64_t bus_read(uint64_t addr, size_t n);
 void bus_write(uint64_t addr, uint64_t value, size_t n);
-size_t bus_check_addr(uint64_t addr);
+uint32_t bus_ifetch(uint64_t addr);
 
 #ifdef __cplusplus
 }

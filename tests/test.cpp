@@ -24,7 +24,6 @@
 #include "utils/test_utils.hpp"
 
 // include some emu headers
-#include "core/mem.h"
 #include "core/riscv.h"
 #include "utils/timer.h"
 extern "C" void __cpu_start();
@@ -125,12 +124,16 @@ TEST(BusTestSuite, BUS_TEST) {
     uart.read = simple_uart_read;
     uart.write = simple_uart_write;
 
+    void *dummy = malloc(8);
+    assert(dummy);
+    rv_init(dummy, 8);
+    free(dummy);
     rv_add_device(uart);
-    uint32_t v = paddr_read_w(SIMPLE_UART_BASE_ADDR);
+    uint32_t v = bus_read(SIMPLE_UART_BASE_ADDR, 4);
     ASSERT_EQ(v, static_cast<uint32_t>(-1));
     for (char c : "fuck\n") {
         // Should output "fuck"
-        paddr_write_w(SIMPLE_UART_BASE_ADDR, c);
+        bus_write(SIMPLE_UART_BASE_ADDR, c, 4);
     }
 }
 

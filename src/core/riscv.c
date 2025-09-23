@@ -25,6 +25,7 @@
 #include "core/riscv.h"
 #include "device/bus.h"
 #include "device/clint.h"
+#include "device/dram.h"
 #include "device/sifive_test.h"
 
 riscv_t rv;
@@ -47,21 +48,23 @@ void rv_init(const void *buf, size_t buf_size) {
     // set the privilege level
     rv.privilege = PRIV_M; // boot in M mode
 
-    // fill the memory with random junk
-    srand(time(NULL));
-    memset(rv.memory, rand(), sizeof(rv.memory));
-
     // init BUS
     bus_init();
+    // setup DRAM
+    dram_init();
+    // setup CLINT
+    clint_init();
+    // setup SiFive Test
+    sifive_test_init();
+
+    // We always put DRAM as the first device
+    if (unlikely(strcmp(rv.bus.devices[0].name, "DRAM"))) {
+        Error("DRAM is not the first device");
+        exit(EXIT_FAILURE);
+    }
 
     // reset last exception
     rv.last_exception = CAUSE_EXCEPTION_NONE;
-
-    // setup CLINT
-    clint_init();
-
-    // setup SiFive Test
-    sifive_test_init();
 
     // Load kernel
     assert(buf && buf_size && buf_size <= MSIZE);

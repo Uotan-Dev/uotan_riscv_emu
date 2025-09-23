@@ -30,34 +30,53 @@ void bus_add_device(device_t dev) {
     bus->devices[bus->num_devices++] = dev;
 }
 
-uint64_t bus_read(uint64_t addr, size_t n) {
-    size_t i = bus_check_addr(addr);
-    if (i >= rv.bus.num_devices) {
-        Warn("bus_read() error, addr 0x%08" PRIu64 "", addr);
-        cpu_raise_exception(CAUSE_LOAD_ACCESS, addr);
-        return 0;
-    }
-    device_t *dev = &rv.bus.devices[i];
-    return dev->read(addr, n);
-}
+#define BUS_DRAM_IDX 0
+#define BUS_IDX_INVALID SIZE_MAX
 
-void bus_write(uint64_t addr, uint64_t value, size_t n) {
-    size_t i = bus_check_addr(addr);
-    if (i >= rv.bus.num_devices) {
-        Warn("bus_write() error, addr 0x%08" PRIu64 "", addr);
-        cpu_raise_exception(CAUSE_STORE_ACCESS, addr);
-        return;
-    }
-    device_t *dev = &rv.bus.devices[i];
-    dev->write(addr, value, n);
-}
-
-size_t bus_check_addr(uint64_t addr) {
-    bus_t *bus = &rv.bus;
-    for (size_t i = 0; i < bus->num_devices; i++) {
-        device_t *dev = &bus->devices[i];
+// Get idx for non-DRAM devices
+static inline size_t bus_get_idx(uint64_t addr) {
+    for (size_t i = BUS_DRAM_IDX + 1; i < rv.bus.num_devices; i++) {
+        device_t *dev = &rv.bus.devices[i];
         if (addr >= dev->start && addr <= dev->end)
             return i;
     }
-    return (size_t)-1;
+    return BUS_IDX_INVALID;
+}
+
+uint64_t bus_read(uint64_t addr, size_t n) {
+    // DRAM is always at idx 0
+    // See src/core/riscv.c
+    if (likely(paddr_in_pmem(addr)))
+        return rv.bus.devices[BUS_DRAM_IDX].read(addr, n);
+    size_t i = bus_get_idx(addr);
+    if (unlikely(i == BUS_IDX_INVALID)) {
+        fprintf(stderr, "bus_read() error, addr 0x%08" PRIu64 "\n", addr);
+        cpu_raise_exception(CAUSE_LOAD_ACCESS, addr);
+        return 0;
+    }
+    assert(rv.bus.devices[i].read);
+    return rv.bus.devices[i].read(addr, n);
+}
+
+uint32_t bus_ifetch(uint64_t addr) {
+    if (likely(paddr_in_pmem(addr)))
+        return rv.bus.devices[BUS_DRAM_IDX].read(addr, 4);
+    fprintf(stderr, "bus_ifetch() error, addr 0x%08" PRIu64 "\n", addr);
+    cpu_raise_exception(CAUSE_FETCH_ACCESS, addr);
+    return 0;
+}
+
+void bus_write(uint64_t addr, uint64_t value, size_t n) {
+    if (likely(paddr_in_pmem(addr))) {
+        rv.bus.devices[0].write(addr, value, n);
+        return;
+    }
+    size_t i = bus_get_idx(addr);
+    if (unlikely(i == BUS_IDX_INVALID)) {
+        fprintf(stderr, "bus_write() error, addr 0x%08" PRIu64 "\n", addr);
+        cpu_raise_exception(CAUSE_STORE_ACCESS, addr);
+        return;
+    }
+    assert(rv.bus.devices[i].write);
+    rv.bus.devices[i].write(addr, value, n);
 }

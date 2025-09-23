@@ -15,6 +15,8 @@
  */
 
 #include "core/mem.h"
+#include "core/cpu.h"
+#include "device/bus.h"
 
 FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
                                           mmu_access_t type) {
@@ -40,12 +42,12 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
         uint64_t vpn_part =
             (va >> (PAGE_SHIFT + i * VPN_BITS)) & ((1ULL << VPN_BITS) - 1);
         pte_addr = pt_base + vpn_part * PTE_SIZE;
-        pte = paddr_read_d(pte_addr);
+        pte = bus_read(pte_addr, 8);
         if (rv.last_exception == CAUSE_LOAD_ACCESS)
             goto access_fault;
 
         // Check if the PTE is valid
-        if (!(pte & PTE_V) || !(pte & PTE_R) && (pte & PTE_W))
+        if (!(pte & PTE_V) || (!(pte & PTE_R) && (pte & PTE_W)))
             goto page_fault;
 
         if ((pte & PTE_R) || (pte & PTE_X)) {
@@ -67,9 +69,9 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
     }
 
     // Check U bit
-    if (rv.privilege == PRIV_U && (pte & PTE_U) == 0)
+    if (rv.privilege == PRIV_U && !(pte & PTE_U))
         goto page_fault;
-    if (rv.privilege == PRIV_S && (pte & PTE_U) == 1 &&
+    if (rv.privilege == PRIV_S && (pte & PTE_U) &&
         (rv.MSTATUS & SSTATUS_SUM) == 0)
         goto page_fault;
 
@@ -100,7 +102,7 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
     if (type == ACCESS_STORE)
         new_pte |= PTE_D;
     if (new_pte != pte) {
-        paddr_write_d(pte_addr, new_pte);
+        bus_write(pte_addr, new_pte, 8);
         if (rv.last_exception == CAUSE_STORE_ACCESS)
             goto access_fault;
     }
@@ -129,37 +131,59 @@ access_fault:
     return TRANSLATE_ACCESS_FAULT;
 }
 
-#define VADDR_READ_IMPL(size, type)                                            \
+FORCE_INLINE void vaddr_raise_pagefault(mmu_result_t r, uint64_t addr) {
+    switch (r) {
+        case TRANSLATE_FETCH_PAGE_FAULT:
+            cpu_raise_exception(CAUSE_INSN_PAGEFAULT, addr);
+            break;
+        case TRANSLATE_LOAD_PAGE_FAULT:
+            cpu_raise_exception(CAUSE_LOAD_PAGEFAULT, addr);
+            break;
+        case TRANSLATE_STORE_PAGE_FAULT:
+            cpu_raise_exception(CAUSE_STORE_PAGEFAULT, addr);
+            break;
+        default: break;
+    }
+}
+
+#define VADDR_READ_IMPL(size, type, n)                                         \
     type vaddr_read_##size(uint64_t addr) {                                    \
         uint64_t paddr;                                                        \
         mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_LOAD);           \
-        if (r != TRANSLATE_OK)                                                 \
+        if (r != TRANSLATE_OK) {                                               \
+            vaddr_raise_pagefault(r, addr);                                    \
             return 0;                                                          \
-        return paddr_read_##size(paddr);                                       \
+        }                                                                      \
+        return bus_read(paddr, n);                                             \
     }
 
-VADDR_READ_IMPL(d, uint64_t)
-VADDR_READ_IMPL(w, uint32_t)
-VADDR_READ_IMPL(s, uint16_t)
-VADDR_READ_IMPL(b, uint8_t)
+VADDR_READ_IMPL(d, uint64_t, 8)
+VADDR_READ_IMPL(w, uint32_t, 4)
+VADDR_READ_IMPL(s, uint16_t, 2)
+VADDR_READ_IMPL(b, uint8_t, 1)
 
-#define VADDR_WRITE_IMPL(size, type)                                           \
+#define VADDR_WRITE_IMPL(size, type, n)                                        \
     void vaddr_write_##size(uint64_t addr, type data) {                        \
         uint64_t paddr;                                                        \
         mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_STORE);          \
-        if (r == TRANSLATE_OK)                                                 \
-            paddr_write_##size(paddr, data);                                   \
+        if (r != TRANSLATE_OK) {                                               \
+            vaddr_raise_pagefault(r, addr);                                    \
+            return;                                                            \
+        }                                                                      \
+        bus_write(paddr, data, n);                                             \
     }
 
-VADDR_WRITE_IMPL(d, uint64_t)
-VADDR_WRITE_IMPL(w, uint32_t)
-VADDR_WRITE_IMPL(s, uint16_t)
-VADDR_WRITE_IMPL(b, uint8_t)
+VADDR_WRITE_IMPL(d, uint64_t, 8)
+VADDR_WRITE_IMPL(w, uint32_t, 4)
+VADDR_WRITE_IMPL(s, uint16_t, 2)
+VADDR_WRITE_IMPL(b, uint8_t, 1)
 
 uint32_t vaddr_ifetch(uint64_t addr) {
     uint64_t paddr;
     mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_INSN);
-    if (r != TRANSLATE_OK)
+    if (r != TRANSLATE_OK) {
+        vaddr_raise_pagefault(r, addr);
         return 0;
-    return paddr_read_w(addr);
+    }
+    return bus_ifetch(addr);
 }
