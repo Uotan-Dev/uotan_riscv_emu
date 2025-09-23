@@ -260,40 +260,14 @@ typedef struct {
 
     // Bus status
     bus_t bus;
-
-    // Debugger properties
-    bool has_debugger; // use NEMU sdb-like debugger?
-    // exception_t exception;
-    bool halt;     // whether the machine has halted
-    int halt_code; // halt code
-    uint64_t halt_pc;
-    uint32_t halt_inst;
-
-    // Some misc status
-    bool image_loaded; // whether we have loaded the image
 } riscv_t;
 
 extern riscv_t rv __attribute((aligned(4096)));
 
 // Initialize the machine
-void rv_init();
-
-// Load a image
-void rv_load_image(const char *path);
-void rv_load_default_image();
-
-// Halt the machine
-FORCE_INLINE void rv_halt(int code, uint64_t pc, uint32_t inst) {
-    rv.halt = true;
-    rv.halt_code = code;
-    rv.halt_pc = pc;
-    rv.halt_inst = inst;
-    printf("rv_halt() with code %d, at PC 0x%08" PRIx64 "\n", code, pc);
-}
-
+void rv_init(const void *buf, size_t buf_size);
 // Add a device
 void rv_add_device(device_t dev);
-
 // Get an interrupt
 interrupt_t rv_get_pending_interrupt();
 

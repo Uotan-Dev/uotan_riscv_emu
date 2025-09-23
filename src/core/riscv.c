@@ -28,7 +28,7 @@
 
 riscv_t rv;
 
-void rv_init() {
+void rv_init(const void *buf, size_t buf_size) {
     // clear the whole struct
     memset(&rv, 0, sizeof(rv));
 
@@ -59,53 +59,11 @@ void rv_init() {
     // setup CLINT
     clint_init();
 
-    // enable the debugger
-    rv.has_debugger = true;
-
-    // set some status
-    rv.image_loaded = false;
+    // Load kernel
+    assert(buf && buf_size && buf_size <= MSIZE);
+    memcpy(GUEST_TO_HOST(RESET_PC), buf, buf_size);
 
     Log("RV initialized!");
-}
-
-void rv_load_image(const char *path) {
-    if (path == NULL || *path == '\0')
-        goto fail;
-
-    FILE *fp = fopen(path, "rb");
-    if (fp == NULL)
-        goto fail;
-
-    fseek(fp, 0, SEEK_END);
-    long size = ftell(fp);
-    if (size == 0)
-        goto fail;
-    Log("Loading image %s of size %ld...", path, size);
-    fseek(fp, 0, SEEK_SET);
-    unsigned long res = fread(GUEST_TO_HOST(RESET_PC), size, 1, fp);
-    assert(res == 1);
-
-    fclose(fp);
-    rv.image_loaded = true;
-    return;
-
-fail:
-    Error("Loading image failed");
-}
-
-void rv_load_default_image() {
-    // clang-format off
-    static const uint32_t builtin_img[] = {
-        0x00000297, // auipc t0,0
-        0x00028823, // sb  zero,16(t0)
-        0x0102c503, // lbu a0,16(t0)
-        0x00100073, // ebreak
-        0x00000000,
-    };
-    // clang-format on
-
-    memcpy(GUEST_TO_HOST(RESET_PC), builtin_img, sizeof(builtin_img));
-    rv.image_loaded = true;
 }
 
 void rv_add_device(device_t dev) {

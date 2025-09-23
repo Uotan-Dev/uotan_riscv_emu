@@ -20,8 +20,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "common.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -30,15 +28,14 @@ extern "C" {
 typedef struct __bus bus_t;
 
 // Read / Write function for a device
-typedef uint64_t (*read_func_t)(const void *data, uint64_t addr, size_t n);
-typedef void (*write_func_t)(void *data, uint64_t addr, uint64_t value,
-                             size_t n);
+typedef uint64_t (*read_func_t)(uint64_t addr, size_t n);
+typedef void (*write_func_t)(uint64_t addr, uint64_t value, size_t n);
 
 typedef struct {
     const char *name;
     uint64_t start;
     uint64_t end;
-    void *data;
+    // void *data;
     read_func_t read;
     write_func_t write;
 } device_t;

@@ -38,7 +38,7 @@ uint64_t bus_read(uint64_t addr, size_t n) {
         return 0;
     }
     device_t *dev = &rv.bus.devices[i];
-    return dev->read(dev->data, addr, n);
+    return dev->read(addr, n);
 }
 
 void bus_write(uint64_t addr, uint64_t value, size_t n) {
@@ -49,7 +49,7 @@ void bus_write(uint64_t addr, uint64_t value, size_t n) {
         return;
     }
     device_t *dev = &rv.bus.devices[i];
-    dev->write(dev->data, addr, value, n);
+    dev->write(addr, value, n);
 }
 
 size_t bus_check_addr(uint64_t addr) {

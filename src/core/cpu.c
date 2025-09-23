@@ -52,15 +52,6 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
         // Update
         rv.SSTATUS = sstatus;
     } else {
-        if (rv.has_debugger) {
-            if (unlikely(cause == CAUSE_BREAKPOINT)) {
-                rv_halt(rv.X[10], rv.decode.pc, rv.decode.inst);
-                return;
-            } else if (unlikely(cause == CAUSE_ILLEGAL_INSTRUCTION)) {
-                Warn("An illegal instruction exception has happened!");
-                rv_halt(-1, rv.decode.pc, rv.decode.inst);
-            }
-        }
         // Shift to M Mode
         rv.privilege = PRIV_M;
 
@@ -408,65 +399,43 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("??????? ????? ????? 010 ????? 01000 11", sw     , S, vaddr_write_w(src1 + imm, BITS(src2, 31, 0)));
     INSTPAT("0000000 ????? ????? 100 ????? 01100 11", xor    , R, R(rd) = src1 ^ src2);
     INSTPAT("??????? ????? ????? 100 ????? 00100 11", xori   , I, R(rd) = src1 ^ imm);
-
-#define CHK_CSR_OP()                                                           \
-    {                                                                          \
-        if (!succ)                                                             \
-            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);           \
-    }
     INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc   ,I,
         bool succ = true;
-        uint64_t t = cpu_read_csr(imm, &succ);
-        CHK_CSR_OP();
-        cpu_write_csr(imm, t & ~src1, &succ);
-        CHK_CSR_OP();
+        uint64_t t = cpu_read_csr(imm);
+        cpu_write_csr(imm, t & ~src1);
         R(rd) = t;
     );
     INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci  ,I,
         uint64_t zimm = BITS(s->inst, 19, 15);
-        bool succ = true;
-        uint64_t t = cpu_read_csr(imm, &succ);
-        CHK_CSR_OP();
-        cpu_write_csr(imm, t & ~zimm, &succ);
-        CHK_CSR_OP();
+        uint64_t t = cpu_read_csr(imm);
+        cpu_write_csr(imm, t & ~zimm);
         R(rd) = t;
     );
     INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , I,
-        bool succ = true;
-        uint64_t t = cpu_read_csr(imm, &succ);
-        CHK_CSR_OP();
-        cpu_write_csr(imm, t | src1, &succ);
-        CHK_CSR_OP();
+        uint64_t t = cpu_read_csr(imm);
+        cpu_write_csr(imm, t | src1);
         R(rd) = t;
     );
     INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , I,
         uint64_t zimm = BITS(s->inst, 19, 15);
         bool succ = true;
-        uint64_t t = cpu_read_csr(imm, &succ);
-        CHK_CSR_OP();
-        cpu_write_csr(imm, t | zimm, &succ);
-        CHK_CSR_OP();
+        uint64_t t = cpu_read_csr(imm);
+        cpu_write_csr(imm, t | zimm);
         R(rd) = t;
     );
     INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , I,
         bool succ = true;
-        uint64_t t = cpu_read_csr(imm, &succ);
-        CHK_CSR_OP();
-        cpu_write_csr(imm, src1, &succ);
-        CHK_CSR_OP();
+        uint64_t t = cpu_read_csr(imm);
+        cpu_write_csr(imm, src1);
         R(rd) = t;
     );
     INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , I,
         uint64_t zimm = BITS(s->inst, 19, 15);
         bool succ = true;
-        uint64_t t = cpu_read_csr(imm, &succ);
-        CHK_CSR_OP();
+        uint64_t t = cpu_read_csr(imm);
         R(rd) = t;
-        cpu_write_csr(imm, zimm, &succ);
-        CHK_CSR_OP();
+        cpu_write_csr(imm, zimm);
     );
-#undef CHK_CSR_OP
-
     INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak     , N, cpu_raise_exception(CAUSE_BREAKPOINT, 0));
     INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall      , N, _ecall(s));
     INSTPAT("0011000 00010 00000 000 00000 11100 11", mret       , N, _mret(s));
@@ -507,26 +476,13 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
 }
 
 void cpu_start() {
-    if (rv.halt)
-        rv.halt = false;
-    cpu_step(-1);
-}
-
-void cpu_step(size_t step) {
-    if (rv.halt)
-        rv.halt = false;
-    for (size_t i = 0; i < step && !rv.halt; i++) {
+    while (true) {
         rv.last_exception = CAUSE_EXCEPTION_NONE;
-
         clint_tick();
-
-        // handle interrupt
         cpu_update_sip_reg();
         interrupt_t intr = rv_get_pending_interrupt();
         if (unlikely(intr != CAUSE_INTERRUPT_NONE))
             cpu_process_intr(intr);
-
-        // decode and execute
         cpu_exec_once(&rv.decode, rv.PC);
     }
 }
@@ -560,10 +516,7 @@ uint64_t *cpu_get_csr(uint32_t csr) {
         macro(SEPC)      macro(SCAUSE)  macro(STVAL)  macro(SIP)
         macro(SATP)
 #undef macro
-
-        default:
-            printf("Invalid CSR requestde: 0x%" PRIx32 "\n", csr & 0xFFF);
-            assert(0);
+        default: assert(0);
     }
     // clang-format on
 }

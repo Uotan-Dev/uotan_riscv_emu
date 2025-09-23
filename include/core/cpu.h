@@ -27,14 +27,13 @@ extern "C" {
 #endif
 
 void cpu_start();
-void cpu_step(size_t step);
 void cpu_print_registers();
 uint64_t *cpu_get_csr(uint32_t csr);
 
 void cpu_raise_exception(exception_t cause, uint64_t tval);
 
 // CSR read, should only be used for instruction simulation
-FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr, bool *succ) {
+FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
     // clang-format off
     switch (csr & 0xFFF) {
 #define macro(csr_name) case CSR_##csr_name: return rv.csr_name;
@@ -50,16 +49,15 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr, bool *succ) {
         macro(SATP)
 #undef macro
 
-        default:
-            *succ = true;
-            return 0;
+        // CSR not implemented
+        default: return 0;
     }
     // clang-format on
     __UNREACHABLE;
 }
 
 // CSR write, should only be used for instruction simulation
-FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value, bool *succ) {
+FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
     // clang-format off
     switch (csr & 0xFFF) {
 #define macro(csr_name) case CSR_##csr_name: rv.csr_name = value; break;
@@ -87,10 +85,8 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value, bool *succ) {
         macro(SEPC)      macro(SCAUSE)  macro(STVAL)  macro(SIP)
 #undef macro
 
-        default:
-            *succ = true;
-            // Ignore the write
-            break;
+        // CSR not implemented
+        default: break;
     }
     // clang-format on
 }

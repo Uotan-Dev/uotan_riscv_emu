@@ -37,6 +37,3 @@ typedef struct {
 void clint_init();
 
 void clint_tick();
-
-uint64_t clint_read(const void *data, uint64_t addr, size_t n);
-void clint_write(void *data, uint64_t addr, uint64_t value, size_t n);

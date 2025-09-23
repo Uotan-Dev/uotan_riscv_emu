@@ -21,47 +21,14 @@
 #include "device/clint.h"
 #include "utils/timer.h"
 
-void clint_init() {
-    memset(&rv.clint, 0, sizeof(clint_t));
-
-    rv.clint.mtimecmp = UINT64_MAX;
-    rv_add_device((device_t){
-        .name = "CLINT",
-        .start = CLINT_BASE,
-        .end = CLINT_BASE + CLINT_SIZE - 1ULL,
-        .data = &rv.clint,
-        .read = clint_read,
-        .write = clint_write,
-    });
-
-    // Reset the timer
-    timer_restart();
-}
-
-void clint_tick() {
-    rv.clint.mtime = timer_get_milliseconds() * 1000;
-
-    // A machine timer interrupt becomes pending whenever mtime contains a value
-    // greater than or equal to mtimecmp
-    if (rv.clint.mtime >= rv.clint.mtimecmp)
-        rv.MIP |= MIP_MTIP;
-    else
-        rv.MIP &= ~MIP_MTIP;
-
-    if (rv.clint.msip & 1)
-        rv.MIP |= MIP_MSIP;
-    else
-        rv.MIP &= ~MIP_MSIP;
-}
-
 static inline uint64_t make_mask_bytes(size_t bytes) {
     if (bytes >= 8)
         return UINT64_MAX;
     return (1ULL << (bytes * 8)) - 1ULL;
 }
 
-uint64_t clint_read(const void *data, uint64_t addr, size_t n) {
-    const clint_t *const clint = (const clint_t *)data;
+static uint64_t clint_read(uint64_t addr, size_t n) {
+    const clint_t *const clint = &rv.clint;
     const uint64_t mask = make_mask_bytes(n);
 
     uint64_t offset = 0;
@@ -84,8 +51,8 @@ uint64_t clint_read(const void *data, uint64_t addr, size_t n) {
     return (reg_val >> (offset * 8)) & mask;
 }
 
-void clint_write(void *data, uint64_t addr, uint64_t value, size_t n) {
-    clint_t *const clint = (clint_t *)data;
+static void clint_write(uint64_t addr, uint64_t value, size_t n) {
+    clint_t *const clint = &rv.clint;
     const uint64_t mask = make_mask_bytes(n);
 
     uint64_t offset = 0;
@@ -113,4 +80,36 @@ void clint_write(void *data, uint64_t addr, uint64_t value, size_t n) {
         }
     }
     // CLINT_MTIME_ADDR is read-only by convention
+}
+
+void clint_init() {
+    memset(&rv.clint, 0, sizeof(clint_t));
+
+    rv.clint.mtimecmp = UINT64_MAX;
+    rv_add_device((device_t){
+        .name = "CLINT",
+        .start = CLINT_BASE,
+        .end = CLINT_BASE + CLINT_SIZE - 1ULL,
+        .read = clint_read,
+        .write = clint_write,
+    });
+
+    // Reset the timer
+    timer_restart();
+}
+
+void clint_tick() {
+    rv.clint.mtime = timer_get_milliseconds() * 1000;
+
+    // A machine timer interrupt becomes pending whenever mtime contains a value
+    // greater than or equal to mtimecmp
+    if (rv.clint.mtime >= rv.clint.mtimecmp)
+        rv.MIP |= MIP_MTIP;
+    else
+        rv.MIP &= ~MIP_MTIP;
+
+    if (rv.clint.msip & 1)
+        rv.MIP |= MIP_MSIP;
+    else
+        rv.MIP &= ~MIP_MSIP;
 }
