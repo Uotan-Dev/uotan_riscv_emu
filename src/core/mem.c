@@ -22,7 +22,7 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
                                           mmu_access_t type) {
     // TODO: Try TLB first
 
-    uint64_t satp = rv.SATP;
+    uint64_t satp = cpu_read_csr(CSR_SATP);
     uint64_t satp_mode = GET_SATP_MODE(satp);
 
     // SATP Mode is bare
@@ -32,8 +32,9 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
     }
 
     uint64_t priv = (uint64_t)rv.privilege;
-    if (type != ACCESS_INSN && (rv.MSTATUS & MSTATUS_MPRV))
-        priv = (rv.MSTATUS & MSTATUS_MPP) >> MSTATUS_MPP_SHIFT;
+    uint64_t mstatus = cpu_read_csr(CSR_MSTATUS);
+    if (type != ACCESS_INSN && (mstatus & MSTATUS_MPRV))
+        priv = (mstatus & MSTATUS_MPP) >> MSTATUS_MPP_SHIFT;
     if (priv == (uint64_t)PRIV_M) {
         *pa = va;
         return TRANSLATE_OK;
@@ -79,8 +80,7 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
     // Check U bit
     if (rv.privilege == PRIV_U && !(pte & PTE_U))
         goto page_fault;
-    if (rv.privilege == PRIV_S && (pte & PTE_U) &&
-        (rv.MSTATUS & MSTATUS_SUM) == 0)
+    if (rv.privilege == PRIV_S && (pte & PTE_U) && (mstatus & MSTATUS_SUM) == 0)
         goto page_fault;
 
     bool readable = (pte & PTE_R);
@@ -88,7 +88,7 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
     bool executable = (pte & PTE_X);
 
     // Make executable readable
-    if (executable && (rv.MSTATUS & MSTATUS_MXR))
+    if (executable && (mstatus & MSTATUS_MXR))
         readable = true;
 
     switch (type) {

@@ -35,14 +35,14 @@ extern "C" {
 #define MIMPID_DEFAULT UINT64_C(0x00010000)  // Follows UEMU version
 
 // MISA
-#define MISA_SUPER (1 << ('S' - 'A'))
-#define MISA_USER (1 << ('U' - 'A'))
-#define MISA_I (1 << ('I' - 'A'))
-#define MISA_E (1 << ('E' - 'A'))
-#define MISA_M (1 << ('M' - 'A'))
-#define MISA_A (1 << ('A' - 'A'))
-#define MISA_F (1 << ('F' - 'A'))
-#define MISA_C (1 << ('C' - 'A'))
+#define MISA_SUPER (1ULL << ('S' - 'A'))
+#define MISA_USER (1ULL << ('U' - 'A'))
+#define MISA_I (1ULL << ('I' - 'A'))
+#define MISA_E (1ULL << ('E' - 'A'))
+#define MISA_M (1ULL << ('M' - 'A'))
+#define MISA_A (1ULL << ('A' - 'A'))
+#define MISA_F (1ULL << ('F' - 'A'))
+#define MISA_C (1ULL << ('C' - 'A'))
 
 // MSTATUS
 #define MSTATUS_SIE_SHIFT 1
@@ -52,12 +52,16 @@ extern "C" {
 #define MSTATUS_MPIE_SHIFT 7
 #define MSTATUS_SPP_SHIFT 8
 #define MSTATUS_MPP_SHIFT 11
+#define MSTATUS_FS_SHIFT 13
+#define MSTATUS_XS_SHIFT 15
 #define MSTATUS_MPRV_SHIFT 17
 #define MSTATUS_SUM_SHIFT 18
 #define MSTATUS_MXR_SHIFT 19
 #define MSTATUS_TVM_SHIFT 20
 #define MSTATUS_TW_SHIFT 21
 #define MSTATUS_TSR_SHIFT 22
+#define MSTATUS_UXL_SHIFT 32
+#define MSTATUS_SD_SHIFT 63
 #define MSTATUS_SIE (1ULL << MSTATUS_SIE_SHIFT)
 #define MSTATUS_MIE (1ULL << MSTATUS_MIE_SHIFT)
 #define MSTATUS_SPIE (1ULL << MSTATUS_SPIE_SHIFT)
@@ -65,12 +69,16 @@ extern "C" {
 #define MSTATUS_MPIE (1ULL << MSTATUS_MPIE_SHIFT)
 #define MSTATUS_SPP (1ULL << MSTATUS_SPP_SHIFT)
 #define MSTATUS_MPP (3ULL << MSTATUS_MPP_SHIFT)
+#define MSTATUS_FS (3ULL << MSTATUS_FS_SHIFT)
+#define MSTATUS_XS (3ULL << MSTATUS_XS_SHIFT)
 #define MSTATUS_MPRV (1ULL << MSTATUS_MPRV_SHIFT)
 #define MSTATUS_SUM (1ULL << MSTATUS_SUM_SHIFT)
 #define MSTATUS_MXR (1ULL << MSTATUS_MXR_SHIFT)
 #define MSTATUS_TVM (1ULL << MSTATUS_TVM_SHIFT)
 #define MSTATUS_TW (1ULL << MSTATUS_TW_SHIFT)
 #define MSTATUS_TSR (1ULL << MSTATUS_TSR_SHIFT)
+#define MSTATUS_UXL (3ULL << MSTATUS_UXL_SHIFT)
+#define MSTATUS_SD (1ULL << MSTATUS_SD_SHIFT)
 
 // MIP
 #define MIP_MSIP (1ULL << 3)
@@ -87,14 +95,23 @@ extern "C" {
 #define SSTATUS_SPIE_SHIFT 5
 #define SSTATUS_UBE_SHIFT 6
 #define SSTATUS_SPP_SHIFT 8
+#define SSTATUS_FS_SHIFT 13
+#define SSTATUS_XS_SHIFT 15
 #define SSTATUS_SUM_SHIFT 18
 #define SSTATUS_MXR_SHIFT 19
-#define SSTATUS_SIE (1 << SSTATUS_SIE_SHIFT)
-#define SSTATUS_SPIE (1 << SSTATUS_SPIE_SHIFT)
-#define SSTATUS_UBE (1 << SSTATUS_UBE_SHIFT)
-#define SSTATUS_SPP (1 << SSTATUS_SPP_SHIFT)
-#define SSTATUS_SUM (1 << SSTATUS_SUM_SHIFT)
-#define SSTATUS_MXR (1 << SSTATUS_MXR_SHIFT)
+#define SSTATUS_SD_SHIFT 63
+#define SSTATUS_SIE (1ULL << SSTATUS_SIE_SHIFT)
+#define SSTATUS_SPIE (1ULL << SSTATUS_SPIE_SHIFT)
+#define SSTATUS_UBE (1ULL << SSTATUS_UBE_SHIFT)
+#define SSTATUS_SPP (1ULL << SSTATUS_SPP_SHIFT)
+#define SSTATUS_FS (3ULL << SSTATUS_FS_SHIFT)
+#define SSTATUS_XS (3ULL << SSTATUS_XS_SHIFT)
+#define SSTATUS_SUM (1ULL << SSTATUS_SUM_SHIFT)
+#define SSTATUS_MXR (1ULL << SSTATUS_MXR_SHIFT)
+#define SSTATUS_SD (1ULL << SSTATUS_SD_SHIFT)
+#define SSTATUS_MASK                                                           \
+    (MSTATUS_SIE | MSTATUS_SPIE | MSTATUS_UBE | MSTATUS_SPP | MSTATUS_FS |     \
+     MSTATUS_XS | MSTATUS_SUM | MSTATUS_MXR | MSTATUS_UXL | MSTATUS_SD)
 
 // SIP
 #define SIP_SSIP (1ULL << 1)
@@ -218,6 +235,8 @@ typedef struct {
     uint64_t PC;
 
     // Control and Status registers
+    // Instruction implementations should not write these fields directly, see
+    // include/core/cpu.h for a set of valid functions
 #define NR_CSR 4096
 
     uint64_t MVENDORID; // Vendor ID
@@ -236,15 +255,17 @@ typedef struct {
     uint64_t MTVAL;     // Machine bad address or instruction
     uint64_t MIP;       // Machine interrupt pending
 
-    uint64_t SSTATUS;  // Supervisor status register
-    uint64_t SIE;      // Supervisor interrupt-enable register
+    // SSTATUS, SIE, SIP are commented out because they will be inferred
+    // from M-mode CSRs uint64_t SSTATUS;  // Supervisor status register
+
+    // uint64_t SIE;      // Supervisor interrupt-enable register
     uint64_t STVEC;    // Supervisor trap-handler base address
     uint64_t SSCRATCH; // Supervisor register for machine trap handlers
     uint64_t SEPC;     // Supervisor exception program counter
     uint64_t SCAUSE;   // Supervisor trap cause
     uint64_t STVAL;    // Supervisor bad address or instruction
-    uint64_t SIP;      // Supervisor interrupt pending
-    uint64_t SATP;     // Supervisor address translation and protection
+    // uint64_t SIP;      // Supervisor interrupt pending
+    uint64_t SATP; // Supervisor address translation and protection
 
     // Privilege level
     privilege_level_t privilege;

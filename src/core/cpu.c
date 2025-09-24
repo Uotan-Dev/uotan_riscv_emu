@@ -34,12 +34,12 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
         // Shift to S mode
         rv.privilege = PRIV_S;
 
-        rv.decode.npc = rv.STVEC & ~3ULL;
-        rv.SEPC = rv.decode.pc & ~1ULL;
-        rv.SCAUSE = cause;
-        rv.STVAL = tval;
+        rv.decode.npc = cpu_read_csr(CSR_STVEC) & ~3ULL;
+        cpu_write_csr(CSR_SEPC, rv.decode.pc);
+        cpu_write_csr(CSR_SCAUSE, cause);
+        cpu_write_csr(CSR_STVAL, tval);
 
-        uint64_t sstatus = rv.SSTATUS;
+        uint64_t sstatus = cpu_read_csr(CSR_SSTATUS);
         // Save current SIE to SPIE
         if (sstatus & SSTATUS_SIE)
             sstatus |= SSTATUS_SPIE;
@@ -51,17 +51,17 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
         // Disable S mode interrupt
         sstatus &= ~SSTATUS_SIE;
         // Update
-        rv.SSTATUS = sstatus;
+        cpu_write_csr(CSR_SSTATUS, sstatus);
     } else {
         // Shift to M Mode
         rv.privilege = PRIV_M;
 
-        rv.decode.npc = rv.MTVEC & ~3ULL;
-        rv.MEPC = rv.decode.pc & ~1ULL;
-        rv.MCAUSE = cause;
-        rv.MTVAL = tval;
+        rv.decode.npc = cpu_read_csr(CSR_MTVEC) & ~3ULL;
+        cpu_write_csr(CSR_MEPC, rv.decode.pc);
+        cpu_write_csr(CSR_MCAUSE, cause);
+        cpu_write_csr(CSR_MTVAL, tval);
 
-        uint64_t mstatus = rv.MSTATUS;
+        uint64_t mstatus = cpu_read_csr(CSR_MSTATUS);
         // Save current MIE to MPIE
         if (mstatus & MSTATUS_MIE)
             mstatus |= MSTATUS_MPIE;
@@ -73,7 +73,7 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
         // Disable M mode interrupt
         mstatus &= ~MSTATUS_MIE;
         // Update
-        rv.MSTATUS = mstatus;
+        cpu_write_csr(CSR_MSTATUS, mstatus);
     }
 
     rv.last_exception = cause;
@@ -88,7 +88,7 @@ FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
 
     privilege_level_t priv = rv.privilege;
     uint64_t cause = (uint64_t)intr & ~INTERRUPT_FLAG;
-    bool mideleg_flag = (rv.MIDELEG >> cause) & 1;
+    bool mideleg_flag = (cpu_read_csr(CSR_MIDELEG) >> cause) & 1;
 
     if (cause == CAUSE_MACHINE_TIMER)
         mideleg_flag = false;
@@ -96,13 +96,14 @@ FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
     if (mideleg_flag && (priv == PRIV_U || priv == PRIV_S)) {
         rv.privilege = PRIV_S;
         uint64_t vt_offset = 0;
-        if (rv.STVEC & 1)
+        uint64_t stvec = cpu_read_csr(CSR_STVEC);
+        if (stvec & 1)
             vt_offset = cause << 2;
-        rv.SEPC = rv.PC & ~1ULL;
-        rv.PC = (rv.STVEC & ~3ULL) + vt_offset;
-        rv.SCAUSE = intr;
+        cpu_write_csr(CSR_SEPC, rv.PC);
+        rv.PC = (stvec & ~3ULL) + vt_offset;
+        cpu_write_csr(CSR_SCAUSE, intr);
 
-        uint64_t sstatus = rv.SSTATUS;
+        uint64_t sstatus = cpu_read_csr(CSR_SSTATUS);
         if (sstatus & SSTATUS_SIE)
             sstatus |= SSTATUS_SPIE;
         else
@@ -110,17 +111,18 @@ FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
         sstatus &= ~SSTATUS_SIE;
         sstatus &= ~SSTATUS_SPP;
         sstatus |= ((uint64_t)priv << SSTATUS_SPP_SHIFT);
-        rv.SSTATUS = sstatus;
+        cpu_write_csr(CSR_SSTATUS, sstatus);
     } else {
         rv.privilege = PRIV_M;
         uint64_t vt_offset = 0;
-        if (rv.MTVEC & 1)
+        uint64_t mtvec = cpu_read_csr(CSR_MTVEC);
+        if (mtvec & 1)
             vt_offset = cause << 2;
-        rv.MEPC = rv.PC & ~1ULL;
-        rv.PC = (rv.MTVEC & ~3ULL) + vt_offset;
-        rv.MCAUSE = intr;
+        cpu_write_csr(CSR_MEPC, rv.PC);
+        rv.PC = (mtvec & ~3ULL) + vt_offset;
+        cpu_write_csr(CSR_MCAUSE, intr);
 
-        uint64_t mstatus = rv.MSTATUS;
+        uint64_t mstatus = cpu_read_csr(CSR_MSTATUS);
         if (mstatus & MSTATUS_MIE)
             mstatus |= MSTATUS_MPIE;
         else
@@ -128,23 +130,8 @@ FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
         mstatus &= ~MSTATUS_MIE;
         mstatus &= ~MSTATUS_MPP;
         mstatus |= ((uint64_t)priv << MSTATUS_MPP_SHIFT);
-        rv.MSTATUS = mstatus;
+        cpu_write_csr(CSR_MSTATUS, mstatus);
     }
-}
-
-// Updates the sip register based on mip and mideleg
-FORCE_INLINE void cpu_update_sip_reg() {
-    rv.SIP = 0;
-    uint64_t mideleg = rv.MIDELEG, mip = rv.MIP;
-    if (mideleg & (1ULL << (CAUSE_SUPERVISOR_SOFTWARE & ~INTERRUPT_FLAG)))
-        if (mip & MIP_MSIP)
-            rv.SIP |= SIP_SSIP;
-    if (mideleg & (1ULL << (CAUSE_SUPERVISOR_TIMER & ~INTERRUPT_FLAG)))
-        if (mip & MIP_MTIP)
-            rv.SIP |= SIP_STIP;
-    if (mideleg & (1ULL << (CAUSE_SUPERVISOR_EXTERNAL & ~INTERRUPT_FLAG)))
-        if (mip & MIP_MEIP)
-            rv.SIP |= SIP_SEIP;
 }
 
 /*
@@ -240,8 +227,8 @@ FORCE_INLINE void _mret(Decode *s) {
         cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
         return;
     }
-    s->npc = rv.MEPC;
-    uint64_t mstatus = rv.MSTATUS;
+    s->npc = cpu_read_csr(CSR_MEPC);
+    uint64_t mstatus = cpu_read_csr(CSR_MSTATUS);
 
     // Restore PRIV level
     rv.privilege =
@@ -262,7 +249,7 @@ FORCE_INLINE void _mret(Decode *s) {
     mstatus |= MSTATUS_MPP;
     // mstatus &= ~MSTATUS_MPP; // Use this for U-mode impl
 
-    rv.MSTATUS = mstatus;
+    cpu_write_csr(CSR_MSTATUS, mstatus);
 }
 
 FORCE_INLINE void _sret(Decode *s) {
@@ -272,14 +259,14 @@ FORCE_INLINE void _sret(Decode *s) {
         cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
         return;
     }
-    s->npc = rv.SEPC;
-    uint64_t sstatus = rv.SSTATUS;
+    s->npc = cpu_read_csr(CSR_SEPC);
+    uint64_t sstatus = cpu_read_csr(CSR_SSTATUS);
     rv.privilege =
         (privilege_level_t)((sstatus & SSTATUS_SPP) >> SSTATUS_SPP_SHIFT);
 
     // Looks weird, but this is what the riscv spec requires
     if (rv.privilege != PRIV_M)
-        rv.MSTATUS &= ~MSTATUS_MPRV;
+        cpu_write_csr(CSR_MSTATUS, cpu_read_csr(CSR_MSTATUS) & ~MSTATUS_MPRV);
 
     if (sstatus & SSTATUS_SPIE)
         sstatus |= SSTATUS_SIE;
@@ -291,7 +278,7 @@ FORCE_INLINE void _sret(Decode *s) {
     // We don't have U-mode implemented
     sstatus |= SSTATUS_SPP;
 
-    rv.SSTATUS = sstatus;
+    cpu_write_csr(CSR_SSTATUS, sstatus);
 }
 
 FORCE_INLINE void _wfi(Decode *s) {
@@ -467,7 +454,6 @@ void __cpu_exec_once() {
     if (!unlikely(rv.shutdown)) {
         rv.last_exception = CAUSE_EXCEPTION_NONE;
         clint_tick();
-        cpu_update_sip_reg();
         interrupt_t intr = rv_get_pending_interrupt();
         if (unlikely(intr != CAUSE_INTERRUPT_NONE))
             cpu_process_intr(intr);
@@ -480,7 +466,6 @@ void __cpu_start() {
     while (!unlikely(rv.shutdown)) {
         rv.last_exception = CAUSE_EXCEPTION_NONE;
         clint_tick();
-        cpu_update_sip_reg();
         interrupt_t intr = rv_get_pending_interrupt();
         if (unlikely(intr != CAUSE_INTERRUPT_NONE))
             cpu_process_intr(intr);
@@ -509,21 +494,4 @@ void cpu_print_registers() {
     for (size_t i = 0; i < NR_GPR; i++)
         printf("%s\t0x%08" PRIx64 "\n", regs[i], R(i));
     printf("%s\t0x%08" PRIx64 "\n", "pc", rv.PC);
-}
-
-uint64_t *cpu_get_csr(uint32_t csr) {
-    // clang-format off
-    switch (csr & 0xFFF) {
-#define macro(csr_name) case CSR_##csr_name: return &rv.csr_name;
-        macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID)
-        macro(MSTATUS)   macro(MISA)    macro(MTVEC)  macro(MSCRATCH)
-        macro(MEPC)      macro(MCAUSE)  macro(MTVAL)  macro(MIE)
-        macro(MIP)
-        macro(SSTATUS)   macro(SIE)     macro(STVEC)  macro(SSCRATCH)
-        macro(SEPC)      macro(SCAUSE)  macro(STVAL)  macro(SIP)
-        macro(SATP)
-#undef macro
-        default: assert(0);
-    }
-    // clang-format on
 }

@@ -28,30 +28,37 @@ extern "C" {
 
 void cpu_start();
 void cpu_print_registers();
-uint64_t *cpu_get_csr(uint32_t csr);
 
 void cpu_raise_exception(exception_t cause, uint64_t tval);
 
 // CSR read, should only be used for instruction simulation
 FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
     // clang-format off
+#define macro(csr_name)                                                        \
+    case CSR_##csr_name: return rv.csr_name;
+
     switch (csr & 0xFFF) {
-#define macro(csr_name) case CSR_##csr_name: return rv.csr_name;
         // M-mode
-        macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID)
-        macro(MSTATUS)   macro(MISA)    macro(MTVEC)  macro(MSCRATCH)
-        macro(MEPC)      macro(MCAUSE)  macro(MTVAL)  macro(MIE)
-        macro(MIP)
+        case CSR_MSTATUS:
+            return rv.MSTATUS | 0x200000000ULL;
+
+        macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID) macro(MIP)
+        macro(MISA) macro(MTVEC) macro(MSCRATCH) macro(MEPC) macro(MCAUSE)
+        macro(MTVAL) macro(MIE)
 
         // S-mode
-        macro(SSTATUS)   macro(SIE)     macro(STVEC)  macro(SSCRATCH)
-        macro(SEPC)      macro(SCAUSE)  macro(STVAL)  macro(SIP)
+        case CSR_SSTATUS: return rv.MSTATUS & SSTATUS_MASK;
+        case CSR_SIE: return rv.MIE & rv.MIDELEG;
+        case CSR_SIP: return rv.MIP & rv.MIDELEG;
+
+        macro(STVEC) macro(SSCRATCH) macro(SEPC) macro(SCAUSE) macro(STVAL)
         macro(SATP)
-#undef macro
 
         // CSR not implemented
         default: return 0;
     }
+
+#undef macro
     // clang-format on
     __UNREACHABLE;
 }
@@ -59,35 +66,57 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
 // CSR write, should only be used for instruction simulation
 FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
     // clang-format off
+#define macro(csr_name)                                                        \
+    case CSR_##csr_name: rv.csr_name = value; break;
+
     switch (csr & 0xFFF) {
-#define macro(csr_name) case CSR_##csr_name: rv.csr_name = value; break;
         // M-mode
-        case CSR_MSTATUS:
-            rv.MSTATUS = value & 0x807FFFFF; // Filter some read-only bits
-            break;
-        case CSR_MEPC: rv.MEPC = value & ~1ULL; break;
-        macro(MTVEC) macro(MSCRATCH) macro(MCAUSE) macro(MTVAL)
-        macro(MIE)   macro(MIP)
+        case CSR_MEPC:
+            rv.MEPC = value & ~3ULL;
+            break; // support only IALIGN=32
+
+        macro(MTVEC) macro(MSCRATCH) macro(MCAUSE) macro(MTVAL) macro(MIE)
+        macro(MIP) macro(MSTATUS)
 
         // S-mode
-        case CSR_SATP:
-            {
-                // Implementations are not required to support all MODE settings,
-                // and if satp is written with an unsupported MODE, 
-                // the entire write has no effect;
-                // no fields in satp are modified.
-                uint64_t mode = GET_SATP_MODE(value);
-                if (mode == 0 || mode == SATP_MODE_SV39)
-                    rv.SATP = value;
-            }
+        case CSR_SEPC:
+            rv.SEPC = value & ~3ULL;
+            break; // support only IALIGN=32
+        case CSR_SATP: {
+            // Implementations are not required to support all MODE settings,
+            // and if satp is written with an unsupported MODE,
+            // the entire write has no effect;
+            // no fields in satp are modified.
+            uint64_t mode = GET_SATP_MODE(value);
+            if (mode == 0 || mode == SATP_MODE_SV39)
+                rv.SATP = value;
             break;
-        macro(SSTATUS)   macro(SIE)     macro(STVEC)  macro(SSCRATCH)
-        macro(SEPC)      macro(SCAUSE)  macro(STVAL)  macro(SIP)
-#undef macro
+        }
+        case CSR_SSTATUS: {
+            uint64_t v = (rv.MSTATUS & ~SSTATUS_MASK) | (value & SSTATUS_MASK);
+            rv.MSTATUS = v;
+            break;
+        }
+        case CSR_SIE: {
+            uint64_t v = (rv.MIE & ~rv.MIDELEG) | (value & rv.MIDELEG);
+            rv.MIE = v;
+            break;
+        }
+        case CSR_SIP: {
+            uint64_t x = rv.MIDELEG & SIP_SSIP;
+            uint64_t v = (rv.MIP & ~x) | (value & x);
+            rv.MIP = v;
+            break;
+        }
+
+        macro(STVEC) macro(SSCRATCH) macro(SCAUSE) macro(STVAL)
 
         // CSR not implemented
         default: break;
     }
+
+#undef macro
+
     // clang-format on
 }
 

@@ -21,6 +21,7 @@
 #include <time.h>
 
 #include "common.h"
+#include "core/cpu.h"
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "device/bus.h"
@@ -86,18 +87,19 @@ void rv_add_device(device_t dev) {
 interrupt_t rv_get_pending_interrupt() {
     // TODO: Receive intr from devices first
 
-    uint64_t m_pending = rv.MIE & rv.MIP & ~rv.MIDELEG;
-    uint64_t s_pending = rv.SIE & rv.SIP;
+    uint64_t m_pending = cpu_read_csr(CSR_MIE) & cpu_read_csr(CSR_MIP) &
+                         ~cpu_read_csr(CSR_MIDELEG);
+    uint64_t s_pending = cpu_read_csr(CSR_SIE) & cpu_read_csr(CSR_SIP);
     uint64_t pending = 0;
     switch (rv.privilege) {
         case PRIV_M:
-            if (rv.MSTATUS & MSTATUS_MIE)
+            if (cpu_read_csr(CSR_MSTATUS) & MSTATUS_MIE)
                 pending = m_pending;
             break;
         case PRIV_S:
-            if (rv.MSTATUS & MSTATUS_MIE)
+            if (cpu_read_csr(CSR_MSTATUS) & MSTATUS_MIE)
                 pending = m_pending;
-            else if (rv.SSTATUS & SSTATUS_SIE)
+            else if (cpu_read_csr(CSR_SSTATUS) & SSTATUS_SIE)
                 pending = s_pending;
             break;
         case PRIV_U: break;
