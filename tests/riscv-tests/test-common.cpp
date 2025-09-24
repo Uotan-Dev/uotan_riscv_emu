@@ -20,6 +20,7 @@
 #include <vector>
 
 #include "../utils/test_utils.hpp"
+#include "core/cpu.h"
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "test-common.hpp"
@@ -34,7 +35,7 @@ bool test_binary(std::string bin) {
     rv_init(buffer.data(), buffer.size());
     const auto time_start = std::chrono::high_resolution_clock::now();
     bool timeout = false, failed_on_exception = false;
-    uint64_t a0 = -1;
+    uint64_t a0 = -1, gp = -1;
 
     auto get_milliseconds = [&time_start]() -> uint64_t {
         auto now = std::chrono::high_resolution_clock::now();
@@ -49,6 +50,7 @@ bool test_binary(std::string bin) {
             static_cast<volatile uint8_t *>(GUEST_TO_HOST(RISCV_TEST_TOHOST));
         assert(p);
         if (*p) [[unlikely]] {
+            gp = rv.X[3];  // Read gp register
             a0 = rv.X[10]; // Read a0 register
             break;
         }
@@ -73,11 +75,15 @@ bool test_binary(std::string bin) {
     } else {
         std::cerr << "===========================\n";
         std::cerr << bin << " Finished with non-zero a0 (a0=" << a0 << ")\n";
+        std::cerr << "gp:" << gp << std::endl;
     }
     std::cerr << "failed at pc 0x" << std::hex << std::setw(16)
               << std::setfill('0') << static_cast<uint64_t>(rv.PC) << std::dec
               << std::setfill(' ') << std::endl;
     std::cerr << "===========================\n";
+
+    puts("More info:");
+    cpu_print_registers();
 
     return false;
 }
