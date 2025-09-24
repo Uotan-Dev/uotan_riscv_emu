@@ -51,8 +51,11 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
         uint64_t vpn_part =
             (va >> (PAGE_SHIFT + i * VPN_BITS)) & ((1ULL << VPN_BITS) - 1);
         pte_addr = pt_base + vpn_part * PTE_SIZE;
-        pte = bus_read(pte_addr, 8);
-        if (rv.last_exception == CAUSE_LOAD_ACCESS)
+        extern uint64_t dram_read(uint64_t addr, size_t n);
+        // dram_read() performs no check
+        if (likely(paddr_in_pmem(pte_addr)))
+            pte = dram_read(pte_addr, 8);
+        else
             goto access_fault;
 
         // Check if the PTE is valid
@@ -110,8 +113,11 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
     if (type == ACCESS_STORE)
         new_pte |= PTE_D;
     if (new_pte != pte) {
-        bus_write(pte_addr, new_pte, 8);
-        if (rv.last_exception == CAUSE_STORE_ACCESS)
+        extern void dram_write(uint64_t addr, uint64_t value, size_t n);
+        // dram_write() performs no check
+        if (likely(paddr_in_pmem(pte_addr)))
+            dram_write(pte_addr, new_pte, 8);
+        else
             goto access_fault;
     }
 
@@ -136,7 +142,13 @@ page_fault:
     __UNREACHABLE;
 
 access_fault:
-    return TRANSLATE_ACCESS_FAULT;
+    switch (type) {
+        case ACCESS_INSN: return TRANSLATE_FETCH_ACCESS_FAULT;
+        case ACCESS_LOAD: return TRANSLATE_LOAD_ACCESS_FAULT;
+        case ACCESS_STORE: return TRANSLATE_STORE_ACCESS_FAULT;
+    }
+
+    __UNREACHABLE;
 }
 
 FORCE_INLINE void vaddr_raise_pagefault(mmu_result_t r, uint64_t addr) {
@@ -149,6 +161,15 @@ FORCE_INLINE void vaddr_raise_pagefault(mmu_result_t r, uint64_t addr) {
             break;
         case TRANSLATE_STORE_PAGE_FAULT:
             cpu_raise_exception(CAUSE_STORE_PAGEFAULT, addr);
+            break;
+        case TRANSLATE_FETCH_ACCESS_FAULT:
+            cpu_raise_exception(CAUSE_FETCH_ACCESS, addr);
+            break;
+        case TRANSLATE_LOAD_ACCESS_FAULT:
+            cpu_raise_exception(CAUSE_LOAD_ACCESS, addr);
+            break;
+        case TRANSLATE_STORE_ACCESS_FAULT:
+            cpu_raise_exception(CAUSE_STORE_ACCESS, addr);
             break;
         default: break;
     }

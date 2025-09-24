@@ -50,7 +50,7 @@ uint64_t bus_read(uint64_t addr, size_t n) {
         return rv.bus.devices[BUS_DRAM_IDX].read(addr, n);
     size_t i = bus_get_idx(addr);
     if (unlikely(i == BUS_IDX_INVALID)) {
-        fprintf(stderr, "bus_read() error, addr 0x%08" PRIu64 "\n", addr);
+        fprintf(stderr, "bus_read() error, addr 0x%08" PRIx64 "\n", addr);
         cpu_raise_exception(CAUSE_LOAD_ACCESS, addr);
         return 0;
     }
@@ -61,7 +61,7 @@ uint64_t bus_read(uint64_t addr, size_t n) {
 uint32_t bus_ifetch(uint64_t addr) {
     if (likely(paddr_in_pmem(addr)))
         return rv.bus.devices[BUS_DRAM_IDX].read(addr, 4);
-    fprintf(stderr, "bus_ifetch() error, addr 0x%08" PRIu64 "\n", addr);
+    fprintf(stderr, "bus_ifetch() error, addr 0x%08" PRIx64 "\n", addr);
     cpu_raise_exception(CAUSE_FETCH_ACCESS, addr);
     return 0;
 }
@@ -73,7 +73,7 @@ void bus_write(uint64_t addr, uint64_t value, size_t n) {
     }
     size_t i = bus_get_idx(addr);
     if (unlikely(i == BUS_IDX_INVALID)) {
-        fprintf(stderr, "bus_write() error, addr 0x%08" PRIu64 "\n", addr);
+        fprintf(stderr, "bus_write() error, addr 0x%08" PRIx64 "\n", addr);
         cpu_raise_exception(CAUSE_STORE_ACCESS, addr);
         return;
     }
