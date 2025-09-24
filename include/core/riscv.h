@@ -43,6 +43,7 @@ extern "C" {
 #define MISA_A (1ULL << ('A' - 'A'))
 #define MISA_F (1ULL << ('F' - 'A'))
 #define MISA_C (1ULL << ('C' - 'A'))
+#define MISA_XLEN_64 (2ULL << 62)
 
 // MSTATUS
 #define MSTATUS_SIE_SHIFT 1
