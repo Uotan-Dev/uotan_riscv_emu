@@ -463,6 +463,19 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     rv.PC = s->npc;
 }
 
+void __cpu_exec_once() {
+    if (!unlikely(rv.shutdown)) {
+        rv.last_exception = CAUSE_EXCEPTION_NONE;
+        clint_tick();
+        cpu_update_sip_reg();
+        interrupt_t intr = rv_get_pending_interrupt();
+        if (unlikely(intr != CAUSE_INTERRUPT_NONE))
+            cpu_process_intr(intr);
+        cpu_exec_once(&rv.decode, rv.PC);
+    }
+}
+
+// This can also be called directly from test
 void __cpu_start() {
     while (!unlikely(rv.shutdown)) {
         rv.last_exception = CAUSE_EXCEPTION_NONE;

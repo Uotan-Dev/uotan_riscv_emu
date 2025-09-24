@@ -12,16 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 # Set the minimum required version of CMake.
 cmake_minimum_required(VERSION 3.14)
-
 project(riscv_sim VERSION 1.0 LANGUAGES C CXX)
 
 # Set the C++ standard to C++20.
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 17)
-
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -Wall -Werror")
@@ -34,7 +33,6 @@ file(GLOB_RECURSE SOURCES "src/*.c" "src/*.cpp")
 list(FILTER SOURCES EXCLUDE REGEX ".*/main\\.c$")
 add_library(riscv_sim_lib ${SOURCES})
 target_include_directories(riscv_sim_lib PUBLIC include)
-
 set_property(TARGET riscv_sim_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # Create the main executable.
@@ -43,9 +41,84 @@ add_executable(riscv-sim ${APP_SOURCES})
 target_link_libraries(riscv-sim PRIVATE riscv_sim_lib pthread m readline ncurses)
 set_property(TARGET riscv-sim PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
+# --- RISC-V Assembly Build Function ---
+cmake_policy(SET CMP0153 OLD) # FIXME
+
+function(build_asm asm_path out_path target_name)
+    # Create output directories
+    file(MAKE_DIRECTORY "${out_path}/bin")
+    file(MAKE_DIRECTORY "${out_path}/dumped")
+    
+    # Find all assembly files
+    file(GLOB asm_files "${asm_path}")
+    
+    set(binary_files)
+    set(dump_files)
+    
+    foreach(file ${asm_files})
+        get_filename_component(filename ${file} NAME_WE)
+        set(filename_bin "${filename}.bin")
+        set(filename_dump "${filename}.dump")
+        set(temp_elf "${CMAKE_BINARY_DIR}/temp_${filename}")
+        set(output_bin "${out_path}/bin/${filename_bin}")
+        set(output_dump "${out_path}/dumped/${filename_dump}")
+        
+        # Add custom command to compile assembly to ELF
+        add_custom_command(
+            OUTPUT ${temp_elf}
+            COMMAND riscv64-unknown-elf-gcc
+                -T${CMAKE_SOURCE_DIR}/riscv-tests/env/p/link.ld
+                -I${CMAKE_SOURCE_DIR}/riscv-tests/env/p
+                -I${CMAKE_SOURCE_DIR}/riscv-tests/isa/macros/scalar
+                -nostdlib -ffreestanding -march=rv64im_zicsr -mabi=lp64 -nostartfiles -O0
+                -o ${temp_elf}
+                ${file}
+            DEPENDS ${file}
+            COMMENT "Compiling ${filename}.S to ELF"
+            VERBATIM
+        )
+        
+        # Add custom command to convert ELF to binary
+        add_custom_command(
+            OUTPUT ${output_bin}
+            COMMAND riscv64-unknown-elf-objcopy -O binary ${temp_elf} ${output_bin}
+            DEPENDS ${temp_elf}
+            COMMENT "Converting ${filename} to binary"
+            VERBATIM
+        )
+        
+        # Add custom command to dump assembly
+        add_custom_command(
+            OUTPUT ${output_dump}
+            COMMAND riscv64-unknown-elf-objdump --disassemble-all ${temp_elf} > ${output_dump}
+            DEPENDS ${temp_elf}
+            COMMENT "Dumping ${filename} assembly"
+            VERBATIM
+        )
+        
+        list(APPEND binary_files ${output_bin})
+        list(APPEND dump_files ${output_dump})
+    endforeach()
+    
+    # Create a target that depends on all generated files
+    add_custom_target(${target_name} ALL
+        DEPENDS ${binary_files} ${dump_files}
+        COMMENT "Building RISC-V assembly tests for ${target_name}"
+    )
+endfunction()
+
+# Build RISC-V test binaries
+build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64mi/*.S" 
+          "${CMAKE_BINARY_DIR}/testbins/rv64mi" 
+          "riscv_tests_rv64mi")
+
+# You can add more test suites as needed
+# build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64ui/*.S" 
+#           "${CMAKE_BINARY_DIR}/testbins/rv64ui" 
+#           "riscv_tests_rv64ui")
+
 # --- Google Test Integration ---
 enable_testing()
-
 include(FetchContent)
 FetchContent_Declare(
   googletest
@@ -56,10 +129,12 @@ FetchContent_MakeAvailable(googletest)
 
 # Find all your test source files.
 file(GLOB_RECURSE TEST_SOURCES "tests/*.c" "tests/*.cpp")
-
 add_executable(run_tests ${TEST_SOURCES})
 target_link_libraries(run_tests PRIVATE riscv_sim_lib GTest::gtest_main readline ncurses)
 
 # Add the test executable to CTest's list of tests.
 include(GoogleTest)
 gtest_discover_tests(run_tests)
+
+# Make tests depend on RISC-V test binaries
+add_dependencies(run_tests riscv_tests_rv64mi)

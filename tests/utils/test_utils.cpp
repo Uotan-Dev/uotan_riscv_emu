@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cassert>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
@@ -97,4 +98,16 @@ int run_process(const std::vector<std::string> &argv_vec) {
         return 128 + WTERMSIG(status);
     }
     return -1;
+}
+
+void load_file(const std::string &path, std::vector<char> &buffer) {
+    std::ifstream file(path, std::ios::binary);
+    assert(file.is_open());
+    file.seekg(0, std::ios::end);
+    std::streampos size = file.tellg();
+    assert(static_cast<size_t>(size) > 0);
+    file.seekg(0, std::ios::beg);
+    buffer.resize(static_cast<size_t>(size));
+    file.read(buffer.data(), static_cast<size_t>(size));
+    assert(file.good() || file.eof());
 }

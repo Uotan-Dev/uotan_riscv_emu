@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-#include <fstream>
 #include <gtest/gtest.h>
 #include <inttypes.h>
 #include <string>
@@ -137,6 +136,48 @@ TEST(BusTestSuite, BUS_TEST) {
     }
 }
 
+/* https://github.com/riscv-software-src/riscv-tests */
+
+#include "riscv-tests/test-common.hpp"
+
+TEST(RISVTestSuite, RV64MI_TEST) {
+    // clang-format off
+    std::vector<std::string> files = {
+        "testbins/rv64mi/bin/breakpoint.bin",
+        "testbins/rv64mi/bin/csr.bin",
+        "testbins/rv64mi/bin/instret_overflow.bin",
+        "testbins/rv64mi/bin/ld-misaligned.bin",
+        "testbins/rv64mi/bin/lh-misaligned.bin",
+        "testbins/rv64mi/bin/lw-misaligned.bin",
+        "testbins/rv64mi/bin/ma_addr.bin",
+        "testbins/rv64mi/bin/ma_fetch.bin",
+        "testbins/rv64mi/bin/mcsr.bin",
+        "testbins/rv64mi/bin/pmpaddr.bin",
+        "testbins/rv64mi/bin/sbreak.bin",
+        "testbins/rv64mi/bin/scall.bin",
+        "testbins/rv64mi/bin/sd-misaligned.bin",
+        "testbins/rv64mi/bin/sh-misaligned.bin",
+        "testbins/rv64mi/bin/sw-misaligned.bin",
+        "testbins/rv64mi/bin/zicntr.bin"
+    };
+    // clang-format on
+
+    std::vector<std::string> failed_files;
+
+    for (const auto &f : files) {
+        std::cout << "Testing: " << f << std::endl;
+        bool r = test_binary(f);
+        std::cout << (r ? "Passed " : "Failed ") << f << std::endl;
+        if (!r)
+            failed_files.emplace_back(f);
+        EXPECT_TRUE(r);
+    }
+
+    std::cerr << "Failed tests" << std::endl;
+    for (const auto &f : failed_files)
+        std::cerr << f << std::endl;
+}
+
 /* ALU Tests */
 
 #include "alu-tests/gen-tests.hpp"
@@ -255,15 +296,8 @@ TEST(ALUTestSuite, RV64IM_TEST) {
         ASSERT_EQ(rc, 0);
     }
 
-    std::ifstream file("firmware.bin", std::ios::binary);
-    assert(file.is_open());
-    file.seekg(0, std::ios::end);
-    std::streampos size = file.tellg();
-    assert(size > 0);
-    file.seekg(0, std::ios::beg);
-    std::vector<char> buffer(size);
-    file.read(buffer.data(), size);
-    assert(file.good() || file.eof());
+    std::vector<char> buffer;
+    load_file("firmware.bin", buffer);
     rv_init(buffer.data(), buffer.size());
 
     __cpu_start();

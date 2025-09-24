@@ -17,9 +17,5 @@
 #pragma once
 
 #include <string>
-#include <vector>
 
-bool create_dir(const std::string &path);
-bool write_file(const std::string &content, const std::string &path);
-int run_process(const std::vector<std::string> &argv_vec);
-void load_file(const std::string &path, std::vector<char> &buffer);
+bool test_binary(std::string bin);
