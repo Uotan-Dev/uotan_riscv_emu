@@ -555,8 +555,48 @@ static const char *regs[] = {
 };
 // clang-format on
 
+static const char *csrs[] = {
+    [CSR_MVENDORID] = "mvendorid",
+    [CSR_MARCHID] = "marchid",
+    [CSR_MIMPID] = "mimpid",
+    [CSR_MHARTID] = "mhartid",
+    [CSR_MSTATUS] = "mstatus",
+    [CSR_MISA] = "misa",
+    [CSR_MEDELEG] = "medeleg",
+    [CSR_MIDELEG] = "mideleg",
+    [CSR_MIE] = "mie",
+    [CSR_MTVEC] = "mtvec",
+    [CSR_MSCRATCH] = "mscratch",
+    [CSR_MEPC] = "mepc",
+    [CSR_MCAUSE] = "mcause",
+    [CSR_MTVAL] = "mtval",
+    [CSR_MIP] = "mip",
+    [CSR_SSTATUS] = "sstatus",
+    [CSR_SIE] = "sie",
+    [CSR_STVEC] = "stvec",
+    [CSR_SSCRATCH] = "sscratch",
+    [CSR_SEPC] = "sepc",
+    [CSR_SCAUSE] = "scause",
+    [CSR_STVAL] = "stval",
+    [CSR_SIP] = "sip",
+    [CSR_SATP] = "satp",
+};
+
 void cpu_print_registers() {
     for (size_t i = 0; i < NR_GPR; i++)
         printf("%s\t0x%08" PRIx64 "\n", regs[i], R(i));
     printf("%s\t0x%08" PRIx64 "\n", "pc", rv.PC);
+
+    const int implemented_csrs[] = {
+        CSR_MVENDORID, CSR_MARCHID, CSR_MIMPID,  CSR_MHARTID,  CSR_MSTATUS,
+        CSR_MISA,      CSR_MEDELEG, CSR_MIDELEG, CSR_MIE,      CSR_MTVEC,
+        CSR_MSCRATCH,  CSR_MEPC,    CSR_MCAUSE,  CSR_MTVAL,    CSR_MIP,
+        CSR_SSTATUS,   CSR_SIE,     CSR_STVEC,   CSR_SSCRATCH, CSR_SEPC,
+        CSR_SCAUSE,    CSR_STVAL,   CSR_SIP,     CSR_SATP};
+    for (size_t i = 0; i < ARRAY_SIZE(implemented_csrs); i++)
+        printf("%s\t0x%08" PRIx64 "\n", csrs[implemented_csrs[i]],
+               cpu_read_csr(implemented_csrs[i]));
+
+    printf("priv: %" PRIu64 "\n", (uint64_t)rv.privilege);
+    // printf("last exception: 0x%08" PRIx64 "\n", (uint64_t)rv.last_exception);
 }
