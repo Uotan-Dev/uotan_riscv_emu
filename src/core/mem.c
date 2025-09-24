@@ -81,9 +81,9 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
     }
 
     // Check U bit
-    if (rv.privilege == PRIV_U && !(pte & PTE_U))
+    if (priv == PRIV_U && !(pte & PTE_U))
         goto page_fault;
-    if (rv.privilege == PRIV_S && (pte & PTE_U) && (mstatus & MSTATUS_SUM) == 0)
+    if (priv == PRIV_S && (pte & PTE_U) && (mstatus & MSTATUS_SUM) == 0)
         goto page_fault;
 
     bool readable = (pte & PTE_R);
@@ -214,5 +214,5 @@ uint32_t vaddr_ifetch(uint64_t addr) {
         vaddr_raise_pagefault(r, addr);
         return 0;
     }
-    return bus_ifetch(addr);
+    return bus_ifetch(paddr);
 }
