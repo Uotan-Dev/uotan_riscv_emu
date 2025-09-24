@@ -42,8 +42,6 @@ target_link_libraries(riscv-sim PRIVATE riscv_sim_lib pthread m readline ncurses
 set_property(TARGET riscv-sim PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # --- RISC-V Assembly Build Function ---
-cmake_policy(SET CMP0153 OLD) # FIXME
-
 function(build_asm asm_path out_path target_name)
     # Create output directories
     file(MAKE_DIRECTORY "${out_path}/bin")
@@ -59,7 +57,7 @@ function(build_asm asm_path out_path target_name)
         get_filename_component(filename ${file} NAME_WE)
         set(filename_bin "${filename}.bin")
         set(filename_dump "${filename}.dump")
-        set(temp_elf "${CMAKE_BINARY_DIR}/temp_${filename}")
+        set(temp_elf "${CMAKE_BINARY_DIR}/temp_${target_name}_${filename}")
         set(output_bin "${out_path}/bin/${filename_bin}")
         set(output_dump "${out_path}/dumped/${filename_dump}")
         
@@ -74,7 +72,7 @@ function(build_asm asm_path out_path target_name)
                 -o ${temp_elf}
                 ${file}
             DEPENDS ${file}
-            COMMENT "Compiling ${filename}.S to ELF"
+            COMMENT "Compiling ${filename}.S to ELF for ${target_name}"
             VERBATIM
         )
         
@@ -83,7 +81,7 @@ function(build_asm asm_path out_path target_name)
             OUTPUT ${output_bin}
             COMMAND riscv64-unknown-elf-objcopy -O binary ${temp_elf} ${output_bin}
             DEPENDS ${temp_elf}
-            COMMENT "Converting ${filename} to binary"
+            COMMENT "Converting ${filename} to binary for ${target_name}"
             VERBATIM
         )
         
@@ -92,7 +90,7 @@ function(build_asm asm_path out_path target_name)
             OUTPUT ${output_dump}
             COMMAND riscv64-unknown-elf-objdump --disassemble-all ${temp_elf} > ${output_dump}
             DEPENDS ${temp_elf}
-            COMMENT "Dumping ${filename} assembly"
+            COMMENT "Dumping ${filename} assembly for ${target_name}"
             VERBATIM
         )
         
@@ -108,9 +106,13 @@ function(build_asm asm_path out_path target_name)
 endfunction()
 
 # Build RISC-V test binaries
-build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64mi/*.S" 
-          "${CMAKE_BINARY_DIR}/testbins/rv64mi" 
+build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64mi/*.S"
+          "${CMAKE_BINARY_DIR}/testbins/rv64mi"
           "riscv_tests_rv64mi")
+
+build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64si/*.S"
+          "${CMAKE_BINARY_DIR}/testbins/rv64si"
+          "riscv_tests_rv64si")
 
 # You can add more test suites as needed
 # build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64ui/*.S" 

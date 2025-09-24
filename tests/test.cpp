@@ -178,6 +178,35 @@ TEST(RISVTestSuite, RV64MI_TEST) {
         std::cerr << f << std::endl;
 }
 
+TEST(RISVTestSuite, RV64SI_TEST) {
+    // clang-format off
+    std::vector<std::string> files = {
+        "testbins/rv64si/bin/csr.bin",
+        "testbins/rv64si/bin/dirty.bin",
+        "testbins/rv64si/bin/icache-alias.bin",
+        "testbins/rv64si/bin/ma_fetch.bin",
+        "testbins/rv64si/bin/sbreak.bin",
+        "testbins/rv64si/bin/scall.bin",
+        "testbins/rv64si/bin/wfi.bin",
+    };
+    // clang-format on
+
+    std::vector<std::string> failed_files;
+
+    for (const auto &f : files) {
+        std::cout << "Testing: " << f << std::endl;
+        bool r = test_binary(f);
+        std::cout << (r ? "Passed " : "Failed ") << f << std::endl;
+        if (!r)
+            failed_files.emplace_back(f);
+        EXPECT_TRUE(r);
+    }
+
+    std::cerr << "Failed tests" << std::endl;
+    for (const auto &f : failed_files)
+        std::cerr << f << std::endl;
+}
+
 /* ALU Tests */
 
 #include "alu-tests/gen-tests.hpp"
