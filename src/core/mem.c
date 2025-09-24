@@ -25,8 +25,16 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
     uint64_t satp = rv.SATP;
     uint64_t satp_mode = GET_SATP_MODE(satp);
 
-    // Disable MMU for M-mode
-    if (rv.privilege == PRIV_M || satp_mode == SATP_MODE_BARE) {
+    // SATP Mode is bare
+    if (satp_mode == SATP_MODE_BARE) {
+        *pa = va;
+        return TRANSLATE_OK;
+    }
+
+    uint64_t priv = (uint64_t)rv.privilege;
+    if (type != ACCESS_INSN && (rv.MSTATUS & MSTATUS_MPRV))
+        priv = (rv.MSTATUS & MSTATUS_MPP) >> MSTATUS_MPP_SHIFT;
+    if (priv == (uint64_t)PRIV_M) {
         *pa = va;
         return TRANSLATE_OK;
     }
@@ -72,7 +80,7 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
     if (rv.privilege == PRIV_U && !(pte & PTE_U))
         goto page_fault;
     if (rv.privilege == PRIV_S && (pte & PTE_U) &&
-        (rv.MSTATUS & SSTATUS_SUM) == 0)
+        (rv.MSTATUS & MSTATUS_SUM) == 0)
         goto page_fault;
 
     bool readable = (pte & PTE_R);
@@ -112,7 +120,7 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
     if (i > 0) {
         // Superpage
         uint64_t mask = (1ULL << i * VPN_BITS) - 1;
-        pa_ppn_base = (pa_ppn_base & ~mask) | (va >> PAGE_SHIFT & mask);
+        pa_ppn_base = (pa_ppn_base & ~mask) | ((va >> PAGE_SHIFT) & mask);
     }
     *pa = (pa_ppn_base * PAGE_SIZE) | page_offset;
 
