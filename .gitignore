@@ -54,5 +54,5 @@ dkms.conf
 .vscode
 build
 *.bin
-
+*.dtb
 testbins

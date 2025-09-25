@@ -1,0 +1,73 @@
+/*
+ * Copyright 2025 Nuo Shen, Nanjing University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/dts-v1/;
+/ {
+    model = "uemu-virt";
+    compatible = "riscv,uemu-virt";
+
+    #address-cells = <2>;
+    #size-cells = <2>;
+
+    memory@80000000 {
+        device_type = "memory";
+        reg = <0x0 0x80000000  0x0 0x08000000>; /* 128MB */
+    };
+
+    cpus {
+        #address-cells = <1>;
+        #size-cells = <0>;
+
+        cpu@0 {
+            device_type = "cpu";
+            reg = <0>;
+            compatible = "riscv";
+            riscv,isa = "rv64im";
+        };
+    };
+
+    soc {
+        compatible = "simple-bus";
+        #address-cells = <2>; /* MUST match root's #address-cells */
+        #size-cells = <2>;    /* MUST match root's #size-cells */
+        ranges;               /* empty, indicates a simple bus mapping */
+
+        clint@2000000 {
+            compatible = "riscv,clint0";
+            reg = <0x0 0x02000000  0x0 0x00010000>;
+        };
+
+        plic: interrupt-controller@c000000 {
+            compatible = "riscv,plic0";
+            reg = <0x0 0x0c000000  0x0 0x04000000>;
+            interrupt-controller;
+            #interrupt-cells = <1>;
+            /* label 'plic' so children can reference it with &plic */
+        };
+
+        serial@10000000 {
+            compatible = "ns16550a";
+            reg = <0x0 0x10000000  0x0 0x100>;
+            interrupts-extended = <&plic 10>; /* &plic + source ID 10 */
+        };
+
+        rtc@10000100 {
+            compatible = "aspeed,ast2400-rtc";
+            reg = <0x0 0x10000100 0x0 0x100>;
+            interrupts-extended = <&plic 11>;
+        };
+    };
+};
