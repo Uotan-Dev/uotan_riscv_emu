@@ -16,11 +16,36 @@
 
 #pragma once
 
+#include <fcntl.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <unistd.h>
 
 static inline uint64_t make_mask_bytes(size_t bytes) {
     if (bytes >= 8)
         return UINT64_MAX;
     return (1ULL << (bytes * 8)) - 1ULL;
+}
+
+static inline void set_stdin_nonblocking() {
+    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+    if (flags == -1) {
+        perror("fcntl F_GETFL");
+        return;
+    }
+    if (fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK) == -1) {
+        perror("fcntl F_SETFL");
+    }
+}
+
+static inline void set_stdin_blocking() {
+    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
+    if (flags == -1) {
+        perror("fcntl F_GETFL");
+        return;
+    }
+    if (fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK) == -1) {
+        perror("fcntl F_SETFL");
+    }
 }

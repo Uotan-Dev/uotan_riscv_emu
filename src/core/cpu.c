@@ -22,6 +22,7 @@
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "device/clint.h"
+#include "device/uart.h"
 #include "ui/ui.h"
 
 // Raise an exception
@@ -509,6 +510,7 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     s->npc = pc + 4;
     s->inst = vaddr_ifetch(pc);
     // printf("%" PRIx64 " %" PRIx32 "\n", s->pc, s->inst);
+    // assert(s->pc);
     decode_exec(s);
     rv.PC = s->npc;
 }
@@ -517,6 +519,7 @@ void __cpu_exec_once() {
     if (!unlikely(rv.shutdown)) {
         rv.last_exception = CAUSE_EXCEPTION_NONE;
         clint_tick();
+        uart_tick();
         interrupt_t intr = rv_get_pending_interrupt();
         if (unlikely(intr != CAUSE_INTERRUPT_NONE))
             cpu_process_intr(intr);
@@ -529,6 +532,7 @@ void __cpu_start() {
     while (!unlikely(rv.shutdown)) {
         rv.last_exception = CAUSE_EXCEPTION_NONE;
         clint_tick();
+        uart_tick();
         interrupt_t intr = rv_get_pending_interrupt();
         if (unlikely(intr != CAUSE_INTERRUPT_NONE))
             cpu_process_intr(intr);

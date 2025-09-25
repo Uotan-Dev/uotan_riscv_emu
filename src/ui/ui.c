@@ -24,6 +24,7 @@
 
 #include "common.h"
 #include "core/cpu.h"
+#include "utils/misc.h"
 
 typedef struct {
     const char *name;
@@ -87,6 +88,8 @@ static void ui_handle_input() {
 }
 
 void ui_start() {
+    set_stdin_blocking();
+
     using_history();
 
     while (true) {

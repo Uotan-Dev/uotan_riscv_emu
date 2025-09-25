@@ -29,6 +29,7 @@
 #include "device/dram.h"
 #include "device/plic.h"
 #include "device/sifive_test.h"
+#include "device/uart.h"
 
 riscv_t rv;
 
@@ -61,6 +62,8 @@ void rv_init(const void *buf, size_t buf_size) {
     plic_init();
     // setup SiFive Test
     sifive_test_init();
+    // setup NS16550A UART
+    uart_init();
 
     // We always put DRAM as the first device
     if (unlikely(strcmp(rv.bus.devices[0].name, "DRAM"))) {
