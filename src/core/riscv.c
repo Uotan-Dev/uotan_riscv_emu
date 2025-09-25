@@ -30,6 +30,7 @@
 #include "device/plic.h"
 #include "device/sifive_test.h"
 #include "device/uart.h"
+#include "utils/timer.h"
 
 riscv_t rv;
 
@@ -51,6 +52,9 @@ void rv_init(const void *buf, size_t buf_size) {
 
     // set the privilege level
     rv.privilege = PRIV_M; // boot in M mode
+
+    // Reset the timer
+    timer_restart();
 
     // init BUS
     bus_init();

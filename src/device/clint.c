@@ -20,8 +20,8 @@
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "device/clint.h"
-#include "utils/timer.h"
 #include "utils/misc.h"
+#include "utils/timer.h"
 
 typedef struct {
     uint32_t msip;
@@ -95,9 +95,6 @@ void clint_init() {
         .read = clint_read,
         .write = clint_write,
     });
-
-    // Reset the timer
-    timer_restart();
 }
 
 void clint_tick() {
