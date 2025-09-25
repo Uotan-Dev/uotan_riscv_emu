@@ -20,6 +20,7 @@
 #include "core/riscv.h"
 #include "device/clint.h"
 #include "utils/timer.h"
+#include "utils/misc.h"
 
 typedef struct {
     uint32_t msip;
@@ -28,12 +29,6 @@ typedef struct {
 } clint_t;
 
 static clint_t clint;
-
-static inline uint64_t make_mask_bytes(size_t bytes) {
-    if (bytes >= 8)
-        return UINT64_MAX;
-    return (1ULL << (bytes * 8)) - 1ULL;
-}
 
 static uint64_t clint_read(uint64_t addr, size_t n) {
     const uint64_t mask = make_mask_bytes(n);

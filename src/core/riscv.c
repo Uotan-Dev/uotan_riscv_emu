@@ -27,6 +27,7 @@
 #include "device/bus.h"
 #include "device/clint.h"
 #include "device/dram.h"
+#include "device/plic.h"
 #include "device/sifive_test.h"
 
 riscv_t rv;
@@ -56,6 +57,8 @@ void rv_init(const void *buf, size_t buf_size) {
     dram_init();
     // setup CLINT
     clint_init();
+    // setup PLIC
+    plic_init();
     // setup SiFive Test
     sifive_test_init();
 
