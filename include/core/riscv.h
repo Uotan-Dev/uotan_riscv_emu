@@ -20,7 +20,6 @@
 #include <stdint.h>
 
 #include "../device/bus.h"
-#include "../device/clint.h"
 #include "decode.h"
 
 #ifdef __cplusplus
@@ -257,8 +256,9 @@ typedef struct {
     uint64_t MIP;       // Machine interrupt pending
 
     // SSTATUS, SIE, SIP are commented out because they will be inferred
-    // from M-mode CSRs uint64_t SSTATUS;  // Supervisor status register
+    // from M-mode CSRs
 
+    // uint64_t SSTATUS;  // Supervisor status register
     // uint64_t SIE;      // Supervisor interrupt-enable register
     uint64_t STVEC;    // Supervisor trap-handler base address
     uint64_t SSCRATCH; // Supervisor register for machine trap handlers
@@ -273,9 +273,6 @@ typedef struct {
 
     // Last exception
     exception_t last_exception; // this is now only used in memory system
-
-    // Clint
-    clint_t clint;
 
     // Memory
 #define MSIZE 0x8000000

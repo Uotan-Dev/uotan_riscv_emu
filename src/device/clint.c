@@ -21,6 +21,14 @@
 #include "device/clint.h"
 #include "utils/timer.h"
 
+typedef struct {
+    uint32_t msip;
+    uint64_t mtimecmp;
+    uint64_t mtime;
+} clint_t;
+
+static clint_t clint;
+
 static inline uint64_t make_mask_bytes(size_t bytes) {
     if (bytes >= 8)
         return UINT64_MAX;
@@ -28,21 +36,20 @@ static inline uint64_t make_mask_bytes(size_t bytes) {
 }
 
 static uint64_t clint_read(uint64_t addr, size_t n) {
-    const clint_t *const clint = &rv.clint;
     const uint64_t mask = make_mask_bytes(n);
 
     uint64_t offset = 0;
     uint64_t reg_val = 0;
 
-    if (addr_in_range(addr, CLINT_MSIP_ADDR, sizeof(clint->msip))) {
-        reg_val = clint->msip;
+    if (addr_in_range(addr, CLINT_MSIP_ADDR, sizeof(clint.msip))) {
+        reg_val = clint.msip;
         offset = addr - CLINT_MSIP_ADDR;
     } else if (addr_in_range(addr, CLINT_MTIMECMP_ADDR,
-                             sizeof(clint->mtimecmp))) {
-        reg_val = clint->mtimecmp;
+                             sizeof(clint.mtimecmp))) {
+        reg_val = clint.mtimecmp;
         offset = addr - CLINT_MTIMECMP_ADDR;
-    } else if (addr_in_range(addr, CLINT_MTIME_ADDR, sizeof(clint->mtime))) {
-        reg_val = clint->mtime;
+    } else if (addr_in_range(addr, CLINT_MTIME_ADDR, sizeof(clint.mtime))) {
+        reg_val = clint.mtime;
         offset = addr - CLINT_MTIME_ADDR;
     } else {
         return 0;
@@ -52,40 +59,39 @@ static uint64_t clint_read(uint64_t addr, size_t n) {
 }
 
 static void clint_write(uint64_t addr, uint64_t value, size_t n) {
-    clint_t *const clint = &rv.clint;
     const uint64_t mask = make_mask_bytes(n);
 
     uint64_t offset = 0;
 
-    if (addr_in_range(addr, CLINT_MSIP_ADDR, sizeof(clint->msip))) {
+    if (addr_in_range(addr, CLINT_MSIP_ADDR, sizeof(clint.msip))) {
         offset = addr - CLINT_MSIP_ADDR;
         if (n == 4 && offset == 0) {
-            clint->msip = (uint32_t)(value & 0xFFFFFFFF);
+            clint.msip = (uint32_t)(value & 0xFFFFFFFF);
         } else {
-            uint64_t reg_value = clint->msip;
+            uint64_t reg_value = clint.msip;
             reg_value &= ~(mask << (offset * 8));
             reg_value |= (value & mask) << (offset * 8);
-            clint->msip = (uint32_t)(reg_value & 0xFFFFFFFF);
+            clint.msip = (uint32_t)(reg_value & 0xFFFFFFFF);
         }
     } else if (addr_in_range(addr, CLINT_MTIMECMP_ADDR,
-                             sizeof(clint->mtimecmp))) {
+                             sizeof(clint.mtimecmp))) {
         offset = addr - CLINT_MTIMECMP_ADDR;
         if (n >= 8 && offset == 0) {
-            clint->mtimecmp = value;
+            clint.mtimecmp = value;
         } else {
-            uint64_t reg_value = clint->mtimecmp;
+            uint64_t reg_value = clint.mtimecmp;
             reg_value &= ~(mask << (offset * 8));
             reg_value |= (value & mask) << (offset * 8);
-            clint->mtimecmp = reg_value;
+            clint.mtimecmp = reg_value;
         }
     }
     // CLINT_MTIME_ADDR is read-only by convention
 }
 
 void clint_init() {
-    memset(&rv.clint, 0, sizeof(clint_t));
+    memset(&clint, 0, sizeof(clint_t));
 
-    rv.clint.mtimecmp = UINT64_MAX;
+    clint.mtimecmp = UINT64_MAX;
     rv_add_device((device_t){
         .name = "CLINT",
         .start = CLINT_BASE,
@@ -99,16 +105,16 @@ void clint_init() {
 }
 
 void clint_tick() {
-    rv.clint.mtime = timer_get_milliseconds() * 1000;
+    clint.mtime = timer_get_milliseconds() * 1000;
 
     // A machine timer interrupt becomes pending whenever mtime contains a value
     // greater than or equal to mtimecmp
-    if (rv.clint.mtime >= rv.clint.mtimecmp)
+    if (clint.mtime >= clint.mtimecmp)
         rv.MIP |= MIP_MTIP;
     else
         rv.MIP &= ~MIP_MTIP;
 
-    if (rv.clint.msip & 1)
+    if (clint.msip & 1)
         rv.MIP |= MIP_MSIP;
     else
         rv.MIP &= ~MIP_MSIP;

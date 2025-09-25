@@ -32,14 +32,7 @@ extern "C" {
 #define CLINT_MTIME_ADDR    0x0200BFF8
 // clang-format on
 
-typedef struct {
-    uint32_t msip;
-    uint64_t mtimecmp;
-    uint64_t mtime;
-} clint_t;
-
 void clint_init();
-
 void clint_tick();
 
 #ifdef __cplusplus

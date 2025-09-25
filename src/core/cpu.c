@@ -21,6 +21,7 @@
 #include "core/decode.h"
 #include "core/mem.h"
 #include "core/riscv.h"
+#include "device/clint.h"
 #include "ui/ui.h"
 
 // Raise an exception
