@@ -16,6 +16,7 @@
 
 #include <string.h>
 
+#include "core/cpu.h"
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "device/clint.h"
@@ -105,12 +106,12 @@ void clint_tick() {
     // A machine timer interrupt becomes pending whenever mtime contains a value
     // greater than or equal to mtimecmp
     if (clint.mtime >= clint.mtimecmp)
-        rv.MIP |= MIP_MTIP;
+        cpu_write_csr(CSR_MIP, cpu_read_csr(CSR_MIP) | MIP_MTIP);
     else
-        rv.MIP &= ~MIP_MTIP;
+        cpu_write_csr(CSR_MIP, cpu_read_csr(CSR_MIP) & ~MIP_MTIP);
 
     if (clint.msip & 1)
-        rv.MIP |= MIP_MSIP;
+        cpu_write_csr(CSR_MIP, cpu_read_csr(CSR_MIP) | MIP_MSIP);
     else
-        rv.MIP &= ~MIP_MSIP;
+        cpu_write_csr(CSR_MIP, cpu_read_csr(CSR_MIP) & ~MIP_MSIP);
 }
