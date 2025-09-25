@@ -15,8 +15,11 @@
  */
 
 #include <assert.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 #include "core/cpu.h"
+#include "core/mem.h"
 #include "device/bus.h"
 
 void bus_init() { rv.bus.num_devices = 0; }
@@ -26,6 +29,13 @@ void bus_add_device(device_t dev) {
     if (unlikely(bus->num_devices >= MAX_DEVICES)) {
         Error("Too many devices!");
         return;
+    }
+    for (size_t i = 0; i < bus->num_devices; i++) {
+        uint64_t l = bus->devices[i].start, r = bus->devices[i].end;
+        if (unlikely(dev.start <= r && dev.end >= l)) {
+            fprintf(stderr, "Device overlapped");
+            exit(EXIT_FAILURE);
+        }
     }
     bus->devices[bus->num_devices++] = dev;
 }
