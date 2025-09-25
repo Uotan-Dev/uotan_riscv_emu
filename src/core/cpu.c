@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <inttypes.h>
+#include <stdio.h>
 
 #include "core/cpu.h"
 #include "core/decode.h"
@@ -24,6 +25,7 @@
 #include "device/clint.h"
 #include "device/uart.h"
 #include "ui/ui.h"
+#include "utils/logger.h"
 
 // Raise an exception
 // This should only be called in the decode / exec proccess
@@ -542,7 +544,7 @@ void __cpu_start() {
 
 void cpu_start() {
     __cpu_start();
-    Info("Machine has shutdown, Starting the UI");
+    log_info("Machine has shutdown, Starting the UI");
     ui_start();
 }
 

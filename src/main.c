@@ -15,11 +15,13 @@
  */
 
 #include <getopt.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "core/cpu.h"
 #include "core/riscv.h"
+#include "utils/logger.h"
 #include "utils/timer.h"
 
 static const char *bin_file = NULL;
@@ -60,8 +62,12 @@ static void parse_args(int argc, char *argv[]) {
 int main(int argc, char *argv[]) {
     parse_args(argc, argv);
 
+    // Initialize the logger
+    log_set_output(stderr);
+    log_info("Logger started");
+
     if (timer_start(1) != 0) {
-        fprintf(stderr, "timer_start() failed!\n");
+        log_error("timer_start() failed!\n");
         exit(EXIT_FAILURE);
     }
     atexit(timer_stop);
@@ -76,7 +82,7 @@ int main(int argc, char *argv[]) {
         buf = malloc(buf_size);
         assert(buf);
         memcpy(buf, bare_min_firmware_bin, buf_size);
-        Log("Loaded builtin_img from %p", bare_min_firmware_bin);
+        log_info("Loaded builtin_img from %p", bare_min_firmware_bin);
     } else {
         FILE *fp = fopen(bin_file, "rb");
         if (fp == NULL) {
@@ -96,7 +102,7 @@ int main(int argc, char *argv[]) {
         unsigned long res = fread(buf, size, 1, fp);
         assert(res == 1);
         fclose(fp);
-        Log("Loaded image %s of size %ld...", bin_file, size);
+        log_info("Loaded image %s of size %ld...", bin_file, size);
     }
 
     // Initialize our RISC-V machine

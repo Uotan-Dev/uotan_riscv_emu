@@ -19,8 +19,8 @@
 #include <time.h>
 
 #include "core/riscv.h"
-#include "utils/timer.h"
 #include "device/rtc.h"
+#include "utils/timer.h"
 
 static time_t rtc_ref_timedate() {
     struct timespec ts;

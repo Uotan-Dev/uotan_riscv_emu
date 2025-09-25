@@ -76,19 +76,3 @@
 
 #define ROUNDUP(a, sz) ((((uintptr_t)a) + (sz) - 1) & ~((sz) - 1))
 #define ROUNDDOWN(a, sz) ((((uintptr_t)a)) & ~((sz) - 1))
-
-#include <inttypes.h> // IWYU pragma: keep
-#include <stdio.h>    // IWYU pragma: keep
-
-#define Log(format, ...)                                                       \
-    printf("\33[1;97m[%s,%d,%s] " format "\33[0m\n", __FILE__, __LINE__,       \
-           __func__, ##__VA_ARGS__)
-#define Info(format, ...)                                                      \
-    printf("\33[1;32m[INFO %s:%d %s] " format "\33[0m\n", __FILE__, __LINE__,  \
-           __func__, ##__VA_ARGS__)
-#define Warn(format, ...)                                                      \
-    printf("\33[1;33m[WARN %s:%d %s] " format "\33[0m\n", __FILE__, __LINE__,  \
-           __func__, ##__VA_ARGS__)
-#define Error(format, ...)                                                     \
-    printf("\33[1;31m[ERROR %s:%d %s] " format "\33[0m\n", __FILE__, __LINE__, \
-           __func__, ##__VA_ARGS__)

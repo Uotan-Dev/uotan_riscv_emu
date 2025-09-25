@@ -15,6 +15,7 @@
  */
 
 #include <assert.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -31,6 +32,7 @@
 #include "device/rtc.h"
 #include "device/sifive_test.h"
 #include "device/uart.h"
+#include "utils/logger.h"
 #include "utils/timer.h"
 
 riscv_t rv;
@@ -74,7 +76,7 @@ void rv_init(const void *buf, size_t buf_size) {
 
     // We always put DRAM as the first device
     if (unlikely(strcmp(rv.bus.devices[0].name, "DRAM"))) {
-        Error("DRAM is not the first device");
+        log_error("DRAM is not the first device");
         exit(EXIT_FAILURE);
     }
 
@@ -88,13 +90,13 @@ void rv_init(const void *buf, size_t buf_size) {
     // Misc
     rv.shutdown = false;
 
-    Log("RV initialized!");
+    log_info("RV initialized!");
 }
 
 void rv_add_device(device_t dev) {
     assert(dev.name && dev.read && dev.write);
-    Info("Added device %s at [0x%08" PRIx64 ", 0x%08" PRIx64 "]", dev.name,
-         dev.start, dev.end);
+    log_info("Added device %s at [0x%08" PRIx64 ", 0x%08" PRIx64 "]", dev.name,
+             dev.start, dev.end);
     bus_add_device(dev);
 }
 
@@ -147,5 +149,5 @@ void rv_shutdown(int code, shutdown_cause_t cause) {
     rv.shutdown = true;
     rv.shutdown_code = code;
     rv.shutdown_cause = cause;
-    printf("shutdown with code %d and cause %d\n", code, (int)cause);
+    log_info("shutdown with code %d and cause %d", code, (int)cause);
 }
