@@ -16,19 +16,15 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <time.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int timer_start(uint32_t sample_period_ms_arg);
-void timer_restart();
-uint64_t timer_get_milliseconds();
-uint64_t timer_get_absolute_ms();
-void timer_stop();
-time_t mktimegm(struct tm *tm);
+#define RTC_BASE 0x10000100
+#define RTC_SIZE 0x100
+#define RTC_IRQ 11
+
+void rtc_init();
 
 #ifdef __cplusplus
 }

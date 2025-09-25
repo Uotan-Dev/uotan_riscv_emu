@@ -28,6 +28,7 @@
 #include "device/clint.h"
 #include "device/dram.h"
 #include "device/plic.h"
+#include "device/rtc.h"
 #include "device/sifive_test.h"
 #include "device/uart.h"
 #include "utils/timer.h"
@@ -64,6 +65,8 @@ void rv_init(const void *buf, size_t buf_size) {
     clint_init();
     // setup PLIC
     plic_init();
+    // setup ASPEED RTC
+    rtc_init();
     // setup SiFive Test
     sifive_test_init();
     // setup NS16550A UART
