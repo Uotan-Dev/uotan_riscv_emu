@@ -18,6 +18,7 @@
 
 #include "core/riscv.h"
 #include "device/sifive_test.h"
+#include "utils/logger.h"
 
 // SiFive Test
 // See https://github.com/qemu/qemu/blob/master/hw/misc/sifive_test.c
@@ -36,7 +37,9 @@ static void sifive_test_write(uint64_t addr, uint64_t value, size_t n) {
                 rv_shutdown(code, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
                 return;
             case SIFIVE_TEST_FINISHER_RESET:
-                // not implemented
+                // FIXME: Reset is treated as Shutdown
+                log_warn("sifive_test: Reset is treated as Shutdown");
+                rv_shutdown(code, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
                 return;
             default: return;
         }
