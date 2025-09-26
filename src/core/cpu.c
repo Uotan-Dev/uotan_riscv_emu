@@ -504,19 +504,81 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("0001000 00101 00000 000 00000 11100 11", wfi        , N, _wfi(s));
 
     // RV64M instructions
-    INSTPAT("0000001 ????? ????? 100 ????? 01100 11", div    , R, R(rd) = (int64_t)src1 / (int64_t)src2);
-    INSTPAT("0000001 ????? ????? 101 ????? 01100 11", divu   , R, R(rd) = src1 / src2);
-    INSTPAT("0000001 ????? ????? 101 ????? 01110 11", divuw  , R, R(rd) = SEXT(BITS(src1, 31, 0) / BITS(src2, 31, 0), 32));
-    INSTPAT("0000001 ????? ????? 100 ????? 01110 11", divw   , R, R(rd) = SEXT((int32_t)BITS(src1, 31, 0) / (int32_t)BITS(src2, 31, 0), 32));
+    INSTPAT("0000001 ????? ????? 100 ????? 01100 11", div    , R,
+        if (unlikely((int64_t)src2 == 0))
+            R(rd) = ~0ULL;
+        else if (unlikely((int64_t)src1 == INT64_MIN && (int64_t)src2 == -1))
+            R(rd) = (int64_t)src1;
+        else
+            R(rd) = (int64_t)src1 / (int64_t)src2;
+    );
+    INSTPAT("0000001 ????? ????? 101 ????? 01100 11", divu   , R,
+        if (unlikely(src2 == 0))
+            R(rd) = ~0ULL;
+        else
+            R(rd) = src1 / src2;
+    );
+    INSTPAT("0000001 ????? ????? 101 ????? 01110 11", divuw  , R,
+        uint32_t v1 = BITS(src1, 31, 0);
+        uint32_t v2 = BITS(src2, 31, 0);
+        if (unlikely(v2 == 0))
+            R(rd) = ~0ULL;
+        else
+            R(rd) = SEXT(v1 / v2, 32);
+    );
+    INSTPAT("0000001 ????? ????? 100 ????? 01110 11", divw   , R,
+        int32_t v1 = (int32_t)BITS(src1, 31, 0);
+        int32_t v2 = (int32_t)BITS(src2, 31, 0);
+        if (unlikely(v2 == 0))
+            R(rd) = ~0ULL;
+        else if (unlikely(v1 == INT32_MIN && v2 == -1))
+            R(rd) = SEXT(v1, 32);
+        else
+            R(rd) = SEXT(v1 / v2, 32);
+    );
     INSTPAT("0000001 ????? ????? 000 ????? 01100 11", mul    , R, R(rd) = src1 * src2);
-    INSTPAT("0000001 ????? ????? 001 ????? 01100 11", mulh   , R, R(rd) = (int64_t)((__int128_t)src1 * (__int128_t)src2 >> 64));
-    INSTPAT("0000001 ????? ????? 010 ????? 01100 11", mulhsu , R, R(rd) = (uint64_t)((__int128_t)((__int128_t)src1 * (__uint128_t)src2) >> 64));
-    INSTPAT("0000001 ????? ????? 011 ????? 01100 11", mulhu  , R, R(rd) = (uint64_t)((__uint128_t)src1 * (__uint128_t)src2 >> 64));
+    INSTPAT("0000001 ????? ????? 001 ????? 01100 11", mulh   , R, 
+        R(rd) = (int64_t)(((__int128_t)(int64_t)src1 * (__int128_t)(int64_t)src2) >> 64)
+    );
+    INSTPAT("0000001 ????? ????? 010 ????? 01100 11", mulhsu , R, 
+        R(rd) = (int64_t)(((__int128_t)(int64_t)src1 * (__uint128_t)src2) >> 64)
+    );
+    INSTPAT("0000001 ????? ????? 011 ????? 01100 11", mulhu  , R,
+        R(rd) = (uint64_t)((__uint128_t)src1 * (__uint128_t)src2 >> 64)
+    );
     INSTPAT("0000001 ????? ????? 000 ????? 01110 11", mulw   , R, R(rd) = SEXT(BITS(src1 * src2, 31, 0), 32));
-    INSTPAT("0000001 ????? ????? 110 ????? 01100 11", rem    , R, R(rd) = (int64_t)src1 % (int64_t)src2);
-    INSTPAT("0000001 ????? ????? 111 ????? 01100 11", remu   , R, R(rd) = src1 % src2);
-    INSTPAT("0000001 ????? ????? 111 ????? 01110 11", remuw  , R, R(rd) = SEXT(BITS(src1, 31, 0) % BITS(src2, 31, 0), 32));
-    INSTPAT("0000001 ????? ????? 110 ????? 01110 11", remw   , R, R(rd) = SEXT((int32_t)BITS(src1, 31, 0) % (int32_t)BITS(src2, 31, 0), 32));
+    INSTPAT("0000001 ????? ????? 110 ????? 01100 11", rem    , R,
+        if (unlikely((int64_t)src2 == 0))
+            R(rd) = (int64_t)src1;
+        else if (unlikely((int64_t)src1 == INT64_MIN && (int64_t)src2 == -1))
+            R(rd) = 0;  // overflow case: remainder is 0
+        else
+            R(rd) = (int64_t)src1 % (int64_t)src2;
+    );
+    INSTPAT("0000001 ????? ????? 111 ????? 01100 11", remu   , R,
+        if (unlikely(src2 == 0))
+            R(rd) = src1;
+        else
+            R(rd) = src1 % src2;
+    );
+    INSTPAT("0000001 ????? ????? 111 ????? 01110 11", remuw  , R, 
+        uint32_t v1 = BITS(src1, 31, 0);
+        uint32_t v2 = BITS(src2, 31, 0);
+        if (unlikely(v2 == 0))
+            R(rd) = SEXT(v1, 32);
+        else
+            R(rd) = SEXT(v1 % v2, 32);
+    );
+    INSTPAT("0000001 ????? ????? 110 ????? 01110 11", remw   , R, 
+        int32_t v1 = (int32_t)BITS(src1, 31, 0);
+        int32_t v2 = (int32_t)BITS(src2, 31, 0);
+        if (unlikely(v2 == 0))
+            R(rd) = SEXT(v1, 32);
+        else if (unlikely(v1 == INT32_MIN && v2 == -1))
+            R(rd) = 0;
+        else
+            R(rd) = SEXT(v1 % v2, 32);
+    );
 
     // RV64A instructions
     INSTPAT("00010?? 00000 ????? 011 ????? 01011 11", lr.d   , R, LOAD(rd, src1, uint64_t, d, 64));
