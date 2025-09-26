@@ -68,7 +68,7 @@ function(build_asm asm_path out_path target_name)
                 -T${CMAKE_SOURCE_DIR}/riscv-tests/env/p/link.ld
                 -I${CMAKE_SOURCE_DIR}/riscv-tests/env/p
                 -I${CMAKE_SOURCE_DIR}/riscv-tests/isa/macros/scalar
-                -nostdlib -ffreestanding -march=rv64im_zicsr -mabi=lp64 -nostartfiles -O0
+                -nostdlib -ffreestanding -march=rv64ima_zicsr -mabi=lp64 -nostartfiles -O0
                 -o ${temp_elf}
                 ${file}
             DEPENDS ${file}

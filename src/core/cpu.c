@@ -138,6 +138,9 @@ FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
     }
 }
 
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#define MIN(a, b) ((a) < (b) ? (a) : (b))
+
 /*
  * The decoding algorithm is taken from NJU emulator
  * Keeping the original license here
@@ -498,6 +501,168 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("0000001 ????? ????? 111 ????? 01100 11", remu   , R, R(rd) = src1 % src2);
     INSTPAT("0000001 ????? ????? 111 ????? 01110 11", remuw  , R, R(rd) = SEXT(BITS(src1, 31, 0) % BITS(src2, 31, 0), 32));
     INSTPAT("0000001 ????? ????? 110 ????? 01110 11", remw   , R, R(rd) = SEXT((int32_t)BITS(src1, 31, 0) % (int32_t)BITS(src2, 31, 0), 32));
+
+    // RV64A instructions
+    INSTPAT("00010?? 00000 ????? 011 ????? 01011 11", lr.d   , R, LOAD(rd, src1, uint64_t, d, 64));
+    INSTPAT("00010?? 00000 ????? 010 ????? 01011 11", lr.w   , R, LOAD_SEXT(rd, src1, uint32_t, w, 32));
+    INSTPAT("00011?? ????? ????? 011 ????? 01011 11", sc.d   , R,
+        vaddr_write_d(src1, src2);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+            R(rd) = 0;
+        else
+            R(rd) = 1;
+    );
+    INSTPAT("00011?? ????? ????? 010 ????? 01011 11", sc.w   , R,
+        vaddr_write_w(src1, src2);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+            R(rd) = 0;
+        else
+            R(rd) = 1;
+    );
+    INSTPAT("00000?? ????? ????? 011 ????? 01011 11", amoadd.d , R,
+        uint64_t t = vaddr_read_d(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_d(src1, (int64_t)t + (int64_t)src2);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
+    );
+    INSTPAT("00000?? ????? ????? 010 ????? 01011 11", amoadd.w , R,
+        uint32_t t = vaddr_read_w(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_w(src1, (int32_t)t + (int32_t)src2);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = SEXT(t, 32);
+        }
+    );
+    INSTPAT("01100?? ????? ????? 011 ????? 01011 11", amoand.d , R,
+        uint64_t t = vaddr_read_d(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_d(src1, (int64_t)t & (int64_t)src2);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
+    );
+    INSTPAT("01100?? ????? ????? 010 ????? 01011 11", amoand.w , R,
+        uint32_t t = vaddr_read_w(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_w(src1, (int32_t)t & (int32_t)src2);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = SEXT(t, 32);
+        }
+    );
+    INSTPAT("01000?? ????? ????? 011 ????? 01011 11", amoor.d , R,
+        uint64_t t = vaddr_read_d(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_d(src1, (int64_t)t | (int64_t)src2);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
+    );
+    INSTPAT("01000?? ????? ????? 010 ????? 01011 11", amoor.w , R,
+        uint32_t t = vaddr_read_w(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_w(src1, (int32_t)t | (int32_t)src2);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = SEXT(t, 32);
+        }
+    );
+    INSTPAT("00100?? ????? ????? 011 ????? 01011 11", amoxor.d , R,
+        uint64_t t = vaddr_read_d(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_d(src1, (int64_t)t ^ (int64_t)src2);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
+    );
+    INSTPAT("00100?? ????? ????? 010 ????? 01011 11", amoxor.w , R,
+        uint32_t t = vaddr_read_w(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_w(src1, (int32_t)t ^ (int32_t)src2);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = SEXT(t, 32);
+        }
+    );
+    INSTPAT("10100?? ????? ????? 011 ????? 01011 11", amomax.d , R,
+        uint64_t t = vaddr_read_d(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_d(src1, MAX((int64_t)t, (int64_t)src2));
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
+    );
+    INSTPAT("10100?? ????? ????? 010 ????? 01011 11", amomax.w , R,
+        uint32_t t = vaddr_read_w(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_w(src1, MAX((int32_t)t, (int32_t)src2));
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = SEXT(t, 32);
+        }
+    );
+    INSTPAT("11100?? ????? ????? 011 ????? 01011 11", amomaxu.d , R,
+        uint64_t t = vaddr_read_d(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_d(src1, MAX(t, src2));
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
+    );
+    INSTPAT("11100?? ????? ????? 010 ????? 01011 11", amomaxu.w , R,
+        uint32_t t = vaddr_read_w(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_w(src1, MAX((uint32_t)t, (uint32_t)src2));
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = SEXT(t, 32);
+        }
+    );
+    INSTPAT("10000?? ????? ????? 011 ????? 01011 11", amomin.d , R,
+        uint64_t t = vaddr_read_d(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_d(src1, MIN((int64_t)t, (int64_t)src2));
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
+    );
+    INSTPAT("10000?? ????? ????? 010 ????? 01011 11", amomin.w , R,
+        uint32_t t = vaddr_read_w(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_w(src1, MIN((int32_t)t, (int32_t)src2));
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = SEXT(t, 32);
+        }
+    );
+    INSTPAT("11000?? ????? ????? 011 ????? 01011 11", amominu.d , R,
+        uint64_t t = vaddr_read_d(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_d(src1, MIN(t, src2));
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
+    );
+    INSTPAT("11000?? ????? ????? 010 ????? 01011 11", amominu.w , R,
+        uint32_t t = vaddr_read_w(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_w(src1, MIN((uint32_t)t, (uint32_t)src2));
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = SEXT(t, 32);
+        }
+    );
+    INSTPAT("00001?? ????? ????? 011 ????? 01011 11", amoswap.d, R,
+        uint64_t t = vaddr_read_d(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_d(src1, src2);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
+    );
+    INSTPAT("00001?? ????? ????? 010 ????? 01011 11", amoswap.w, R,
+        uint32_t t = vaddr_read_w(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            vaddr_write_w(src1, src2);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = SEXT(t, 32);
+        }
+    );
 
     // Invalid insturctions
     INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst));

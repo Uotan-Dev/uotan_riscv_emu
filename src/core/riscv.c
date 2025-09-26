@@ -46,7 +46,7 @@ void rv_init(const void *buf, size_t buf_size) {
 
     // set the control and status registers
     rv.MISA |= MISA_XLEN_64;    // XLEN is 64
-    rv.MISA |= MISA_I | MISA_M; // I_EXT, M_EXT
+    rv.MISA |= MISA_I | MISA_M | MISA_A; // I_EXT, M_EXT
     rv.MISA |= MISA_SUPER;      // Support supervisor mode
     rv.MVENDORID = MVENDORID_DEFAULT;
     rv.MARCHID = MARCHID_DEFAULT;
