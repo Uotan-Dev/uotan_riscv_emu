@@ -140,6 +140,23 @@ TEST(BusTestSuite, BUS_TEST) {
 
 #include "riscv-tests/test-common.hpp"
 
+static inline void test_files(const std::vector<std::string> &files) {
+    std::vector<std::string> failed_files;
+
+    for (const auto &f : files) {
+        std::cout << "Testing: " << f << std::endl;
+        bool r = test_binary(f);
+        std::cout << (r ? "Passed " : "Failed ") << f << std::endl;
+        if (!r)
+            failed_files.emplace_back(f);
+        EXPECT_TRUE(r);
+    }
+
+    std::cerr << "Failed tests" << std::endl;
+    for (const auto &f : failed_files)
+        std::cerr << f << std::endl;
+}
+
 TEST(RISVTestSuite, RV64MI_TEST) {
     // TODO: Bring back pmpaddr test after we have implemented it
 
@@ -164,20 +181,7 @@ TEST(RISVTestSuite, RV64MI_TEST) {
     };
     // clang-format on
 
-    std::vector<std::string> failed_files;
-
-    for (const auto &f : files) {
-        std::cout << "Testing: " << f << std::endl;
-        bool r = test_binary(f);
-        std::cout << (r ? "Passed " : "Failed ") << f << std::endl;
-        if (!r)
-            failed_files.emplace_back(f);
-        EXPECT_TRUE(r);
-    }
-
-    std::cerr << "Failed tests" << std::endl;
-    for (const auto &f : failed_files)
-        std::cerr << f << std::endl;
+    test_files(files);
 }
 
 TEST(RISVTestSuite, RV64SI_TEST) {
@@ -193,20 +197,120 @@ TEST(RISVTestSuite, RV64SI_TEST) {
     };
     // clang-format on
 
-    std::vector<std::string> failed_files;
+    test_files(files);
+}
 
-    for (const auto &f : files) {
-        std::cout << "Testing: " << f << std::endl;
-        bool r = test_binary(f);
-        std::cout << (r ? "Passed " : "Failed ") << f << std::endl;
-        if (!r)
-            failed_files.emplace_back(f);
-        EXPECT_TRUE(r);
-    }
+TEST(RISVTestSuite, RV64UI_TEST) {
+    // clang-format off
+    std::vector<std::string> files = {
+        "testbins/rv64ui/bin/add.bin",
+        "testbins/rv64ui/bin/addi.bin",
+        "testbins/rv64ui/bin/addiw.bin",
+        "testbins/rv64ui/bin/addw.bin",
+        "testbins/rv64ui/bin/and.bin",
+        "testbins/rv64ui/bin/andi.bin",
+        "testbins/rv64ui/bin/auipc.bin",
+        "testbins/rv64ui/bin/beq.bin",
+        "testbins/rv64ui/bin/bge.bin",
+        "testbins/rv64ui/bin/bgeu.bin",
+        "testbins/rv64ui/bin/blt.bin",
+        "testbins/rv64ui/bin/bltu.bin",
+        "testbins/rv64ui/bin/bne.bin",
+        "testbins/rv64ui/bin/fence_i.bin",
+        "testbins/rv64ui/bin/jal.bin",
+        "testbins/rv64ui/bin/jalr.bin",
+        "testbins/rv64ui/bin/lb.bin",
+        "testbins/rv64ui/bin/lbu.bin",
+        "testbins/rv64ui/bin/ld.bin",
+        "testbins/rv64ui/bin/ld_st.bin",
+        "testbins/rv64ui/bin/lh.bin",
+        "testbins/rv64ui/bin/lhu.bin",
+        "testbins/rv64ui/bin/lui.bin",
+        "testbins/rv64ui/bin/lw.bin",
+        "testbins/rv64ui/bin/lwu.bin",
+        "testbins/rv64ui/bin/ma_data.bin",
+        "testbins/rv64ui/bin/or.bin",
+        "testbins/rv64ui/bin/ori.bin",
+        "testbins/rv64ui/bin/sb.bin",
+        "testbins/rv64ui/bin/sd.bin",
+        "testbins/rv64ui/bin/sh.bin",
+        "testbins/rv64ui/bin/simple.bin",
+        "testbins/rv64ui/bin/sll.bin",
+        "testbins/rv64ui/bin/slli.bin",
+        "testbins/rv64ui/bin/slliw.bin",
+        "testbins/rv64ui/bin/sllw.bin",
+        "testbins/rv64ui/bin/slt.bin",
+        "testbins/rv64ui/bin/slti.bin",
+        "testbins/rv64ui/bin/sltiu.bin",
+        "testbins/rv64ui/bin/sltu.bin",
+        "testbins/rv64ui/bin/sra.bin",
+        "testbins/rv64ui/bin/srai.bin",
+        "testbins/rv64ui/bin/sraiw.bin",
+        "testbins/rv64ui/bin/sraw.bin",
+        "testbins/rv64ui/bin/srl.bin",
+        "testbins/rv64ui/bin/srli.bin",
+        "testbins/rv64ui/bin/srliw.bin",
+        "testbins/rv64ui/bin/srlw.bin",
+        "testbins/rv64ui/bin/st_ld.bin",
+        "testbins/rv64ui/bin/sub.bin",
+        "testbins/rv64ui/bin/subw.bin",
+        "testbins/rv64ui/bin/sw.bin",
+        "testbins/rv64ui/bin/xor.bin",
+        "testbins/rv64ui/bin/xori.bin",
+    };
+    // clang-format on
 
-    std::cerr << "Failed tests" << std::endl;
-    for (const auto &f : failed_files)
-        std::cerr << f << std::endl;
+    test_files(files);
+}
+
+TEST(RISVTestSuite, RV64UM_TEST) {
+    // clang-format off
+    std::vector<std::string> files = {
+        "testbins/rv64um/bin/div.bin",
+        "testbins/rv64um/bin/divu.bin",
+        "testbins/rv64um/bin/divuw.bin",
+        "testbins/rv64um/bin/divw.bin",
+        "testbins/rv64um/bin/mul.bin",
+        "testbins/rv64um/bin/mulh.bin",
+        "testbins/rv64um/bin/mulhsu.bin",
+        "testbins/rv64um/bin/mulhu.bin",
+        "testbins/rv64um/bin/mulw.bin",
+        "testbins/rv64um/bin/rem.bin",
+        "testbins/rv64um/bin/remu.bin",
+        "testbins/rv64um/bin/remuw.bin",
+        "testbins/rv64um/bin/remw.bin",
+    };
+    // clang-format on
+
+    test_files(files);
+}
+
+TEST(RISVTestSuite, RV64UA_TEST) {
+    // clang-format off
+    std::vector<std::string> files = {
+        "testbins/rv64ua/bin/amoadd_d.bin",
+        "testbins/rv64ua/bin/amoadd_w.bin",
+        "testbins/rv64ua/bin/amoand_d.bin",
+        "testbins/rv64ua/bin/amoand_w.bin",
+        "testbins/rv64ua/bin/amomax_d.bin",
+        "testbins/rv64ua/bin/amomaxu_d.bin",
+        "testbins/rv64ua/bin/amomaxu_w.bin",
+        "testbins/rv64ua/bin/amomax_w.bin",
+        "testbins/rv64ua/bin/amomin_d.bin",
+        "testbins/rv64ua/bin/amominu_d.bin",
+        "testbins/rv64ua/bin/amominu_w.bin",
+        "testbins/rv64ua/bin/amomin_w.bin",
+        "testbins/rv64ua/bin/amoor_d.bin",
+        "testbins/rv64ua/bin/amoor_w.bin",
+        "testbins/rv64ua/bin/amoswap_d.bin",
+        "testbins/rv64ua/bin/amoswap_w.bin",
+        "testbins/rv64ua/bin/amoxor_d.bin",
+        "testbins/rv64ua/bin/amoxor_w.bin",
+        "testbins/rv64ua/bin/lrsc.bin",
+    };
+    // clang-format on
+
+    test_files(files);
 }
 
 /* ALU Tests */

@@ -77,7 +77,7 @@ function(build_asm asm_path out_path target_name)
                 -T${CMAKE_SOURCE_DIR}/riscv-tests/env/p/link.ld
                 -I${CMAKE_SOURCE_DIR}/riscv-tests/env/p
                 -I${CMAKE_SOURCE_DIR}/riscv-tests/isa/macros/scalar
-                -nostdlib -ffreestanding -march=rv64ima_zicsr -mabi=lp64 -nostartfiles -O0
+                -nostdlib -ffreestanding -march=rv64ima_zicsr_zifencei -g -mabi=lp64 -nostartfiles -O0
                 -o ${temp_elf}
                 ${file}
             DEPENDS ${file}
@@ -95,13 +95,13 @@ function(build_asm asm_path out_path target_name)
         )
         
         # Add custom command to dump assembly
-        add_custom_command(
-            OUTPUT ${output_dump}
-            COMMAND riscv64-unknown-elf-objdump --disassemble-all ${temp_elf} > ${output_dump}
-            DEPENDS ${temp_elf}
-            COMMENT "Dumping ${filename} assembly for ${target_name}"
-            VERBATIM
-        )
+        # add_custom_command(
+        #     OUTPUT ${output_dump}
+        #     COMMAND riscv64-unknown-elf-objdump --disassemble-all ${temp_elf} > ${output_dump}
+        #     DEPENDS ${temp_elf}
+        #     COMMENT "Dumping ${filename} assembly for ${target_name}"
+        #     VERBATIM
+        # )
         
         list(APPEND binary_files ${output_bin})
         list(APPEND dump_files ${output_dump})
@@ -109,7 +109,8 @@ function(build_asm asm_path out_path target_name)
     
     # Create a target that depends on all generated files
     add_custom_target(${target_name} ALL
-        DEPENDS ${binary_files} ${dump_files}
+        # DEPENDS ${binary_files} ${dump_files}
+        DEPENDS ${binary_files}
         COMMENT "Building RISC-V assembly tests for ${target_name}"
     )
 endfunction()
@@ -123,10 +124,17 @@ build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64si/*.S"
           "${CMAKE_BINARY_DIR}/testbins/rv64si"
           "riscv_tests_rv64si")
 
-# You can add more test suites as needed
-# build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64ui/*.S" 
-#           "${CMAKE_BINARY_DIR}/testbins/rv64ui" 
-#           "riscv_tests_rv64ui")
+build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64ui/*.S"
+          "${CMAKE_BINARY_DIR}/testbins/rv64ui"
+          "riscv_tests_rv64ui")
+
+build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64um/*.S"
+          "${CMAKE_BINARY_DIR}/testbins/rv64um"
+          "riscv_tests_rv64um")
+
+build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64ua/*.S"
+          "${CMAKE_BINARY_DIR}/testbins/rv64ua"
+          "riscv_tests_rv64ua")
 
 # --- Google Test Integration ---
 enable_testing()
