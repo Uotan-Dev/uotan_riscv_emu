@@ -312,6 +312,13 @@ FORCE_INLINE void _sfence_vma(Decode *s) {
         }                                                                      \
     } while (0)
 
+#define CSR_CHECK_PERM(csr)                                                    \
+    do {                                                                       \
+        if ((((csr >> 8) & 0x3) == 3 && rv.privilege < PRIV_M) ||              \
+            ((((csr) >> 8) & 0x3) == 1 && rv.privilege < PRIV_S))              \
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);      \
+    } while (0)
+
 static inline void decode_exec(Decode *s) {
     // FIXME: function ‘decode_exec’ can never be inlined because it contains a
     // computed goto
@@ -447,53 +454,71 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("0000000 ????? ????? 100 ????? 01100 11", xor    , R, R(rd) = src1 ^ src2);
     INSTPAT("??????? ????? ????? 100 ????? 00100 11", xori   , I, R(rd) = src1 ^ imm);
     INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc   ,I,
-        uint64_t t = cpu_read_csr(imm);
+        CSR_CHECK_PERM(imm);
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            cpu_write_csr(imm, t & ~src1);
-            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
-                R(rd) = t;
+            uint64_t t = cpu_read_csr(imm);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                cpu_write_csr(imm, t & ~src1);
+                if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                    R(rd) = t;
+            }
         }
     );
     INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci  ,I,
-        uint64_t zimm = BITS(s->inst, 19, 15);
-        uint64_t t = cpu_read_csr(imm);
+        CSR_CHECK_PERM(imm);
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            cpu_write_csr(imm, t & ~zimm);
-            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
-                R(rd) = t;
+            uint64_t zimm = BITS(s->inst, 19, 15);
+            uint64_t t = cpu_read_csr(imm);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                cpu_write_csr(imm, t & ~zimm);
+                if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                    R(rd) = t;
+            }
         }
     );
     INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , I,
-        uint64_t t = cpu_read_csr(imm);
+        CSR_CHECK_PERM(imm);
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            cpu_write_csr(imm, t | src1);
-            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
-                R(rd) = t;
+            uint64_t t = cpu_read_csr(imm);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                cpu_write_csr(imm, t | src1);
+                if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                    R(rd) = t;
+            }
         }
     );
     INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , I,
-        uint64_t zimm = BITS(s->inst, 19, 15);
-        uint64_t t = cpu_read_csr(imm);
+        CSR_CHECK_PERM(imm);
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            cpu_write_csr(imm, t | zimm);
-            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
-                R(rd) = t;
+            uint64_t zimm = BITS(s->inst, 19, 15);
+            uint64_t t = cpu_read_csr(imm);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                cpu_write_csr(imm, t | zimm);
+                if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                    R(rd) = t;
+            }
         }
     );
     INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , I,
-        uint64_t t = cpu_read_csr(imm);
+        CSR_CHECK_PERM(imm);
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            cpu_write_csr(imm, src1);
-            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
-                R(rd) = t;
+            uint64_t t = cpu_read_csr(imm);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                cpu_write_csr(imm, src1);
+                if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                    R(rd) = t;
+            }
         }
     );
     INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , I,
-        uint64_t zimm = BITS(s->inst, 19, 15);
-        uint64_t t = cpu_read_csr(imm);
+        CSR_CHECK_PERM(imm);
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            R(rd) = t;
-            cpu_write_csr(imm, zimm);
+            uint64_t zimm = BITS(s->inst, 19, 15);
+            uint64_t t = cpu_read_csr(imm);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                R(rd) = t;
+                cpu_write_csr(imm, zimm);
+            }
         }
     );
     INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak     , N, cpu_raise_exception(CAUSE_BREAKPOINT, 0));
@@ -782,9 +807,11 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     // assert(s->pc);
     decode_exec(s);
     rv.PC = s->npc;
-
     rv.MCYCLE++;
-    rv.MINSTRET++;
+    if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE &&
+               !rv.suppress_minstret_increase))
+        rv.MINSTRET++;
+    rv.suppress_minstret_increase = false;
 }
 
 #define CPU_EXEC_COMMON()                                                      \

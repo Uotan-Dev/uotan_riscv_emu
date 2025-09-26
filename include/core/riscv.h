@@ -93,7 +93,7 @@ extern "C" {
 // MCOUNTEREN
 #define MCOUNTEREN_CY (1U << 0)
 #define MCOUNTEREN_TM (1U << 1)
-#define MCOUNTEREN_IR (3U << 2)
+#define MCOUNTEREN_IR (1U << 2)
 
 // SSTATUS
 #define SSTATUS_SIE_SHIFT 1
@@ -285,6 +285,10 @@ typedef struct {
     uint64_t SCAUSE;     // Supervisor trap cause
     uint64_t STVAL;      // Supervisor bad address or instruction
     uint64_t SATP;       // Supervisor address translation and protection
+
+    // The value written to instret will be the value read by the following
+    // instruction (i.e. the increment is suppressed)
+    bool suppress_minstret_increase;
 
     // Privilege level
     privilege_level_t privilege;

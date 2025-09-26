@@ -49,7 +49,7 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
         case CSR_MSTATUS:
             return rv.MSTATUS | 0x200000000ULL;
         case CSR_MCOUNTEREN:
-            return rv.MCOUNTEREN & (MCOUNTEREN_CY | MCOUNTEREN_IR | MCOUNTEREN_IR);
+            return rv.MCOUNTEREN & (MCOUNTEREN_CY | MCOUNTEREN_TM | MCOUNTEREN_IR);
         macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID) macro(MIP)
         macro(MISA) macro(MTVEC) macro(MSCRATCH) macro(MEPC) macro(MCAUSE)
         macro(MTVAL) macro(MIE) macro(MCYCLE) macro(MINSTRET)
@@ -82,7 +82,7 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
             if (rv.privilege == PRIV_U)
                 counteren = counteren & rv.MCOUNTEREN & rv.SCOUNTEREN;
             if (counteren & MCOUNTEREN_TM)
-                return vaddr_read_w(CLINT_MTIME_ADDR);
+                return bus_read(CLINT_MTIME_ADDR, 8);
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
             return 0;
         }
@@ -121,8 +121,12 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
         case CSR_MCOUNTEREN:
             rv.MCOUNTEREN = (uint32_t)(value & 0xFFFFFFFFU);
             break;
+        case CSR_MINSTRET:
+            rv.MINSTRET = value;
+            rv.suppress_minstret_increase = true;
+            break;
         macro(MTVEC) macro(MSCRATCH) macro(MCAUSE) macro(MTVAL) macro(MIE)
-        macro(MIP) macro(MSTATUS)
+        macro(MIP) macro(MSTATUS) macro(MCYCLE)
 
         // S-mode
         case CSR_SEPC:
@@ -158,6 +162,19 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
             rv.SCOUNTEREN = (uint32_t)(value & 0xFFFFFFFFU);
             break;
         macro(STVEC) macro(SSCRATCH) macro(SCAUSE) macro(STVAL)
+
+        // Unprivileged
+        case CSR_CYCLE:
+            if (value != rv.MCYCLE)
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+            break;
+        case CSR_INSTRET:
+            if (value != rv.MINSTRET)
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+            break;
+        case CSR_TIME:
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+            break;
 
         // CSR not implemented
         default: break;
