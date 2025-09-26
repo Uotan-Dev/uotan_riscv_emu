@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <stdint.h>
 
+#include "../device/clint.h"
 #include "mem.h"
 #include "riscv.h"
 
@@ -37,22 +38,65 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
 #define macro(csr_name)                                                        \
     case CSR_##csr_name: return rv.csr_name;
 
+    // hpmcounter3 ~ hpmcounter31
+    if (unlikely(csr >= 0xC03 && csr <= 0xC1F)) {
+        cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+        return 0;
+    }
+
     switch (csr & 0xFFF) {
         // M-mode
         case CSR_MSTATUS:
             return rv.MSTATUS | 0x200000000ULL;
-
+        case CSR_MCOUNTEREN:
+            return rv.MCOUNTEREN & (MCOUNTEREN_CY | MCOUNTEREN_IR | MCOUNTEREN_IR);
         macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID) macro(MIP)
         macro(MISA) macro(MTVEC) macro(MSCRATCH) macro(MEPC) macro(MCAUSE)
-        macro(MTVAL) macro(MIE)
+        macro(MTVAL) macro(MIE) macro(MCYCLE) macro(MINSTRET)
 
         // S-mode
         case CSR_SSTATUS: return rv.MSTATUS & SSTATUS_MASK;
         case CSR_SIE: return rv.MIE & rv.MIDELEG;
         case CSR_SIP: return rv.MIP & rv.MIDELEG;
-
+        case CSR_SCOUNTEREN:
+            return rv.SCOUNTEREN;
         macro(STVEC) macro(SSCRATCH) macro(SEPC) macro(SCAUSE) macro(STVAL)
         macro(SATP)
+
+        // Unprivileged
+        case CSR_CYCLE: {
+            uint32_t counteren = 0xFFFFFFFFU;
+            if (rv.privilege == PRIV_S)
+                counteren &= rv.MCOUNTEREN;
+            if (rv.privilege == PRIV_U)
+                counteren = counteren & rv.MCOUNTEREN & rv.SCOUNTEREN;
+            if (counteren & MCOUNTEREN_CY)
+                return rv.MCYCLE;
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+            return 0;
+        }
+        case CSR_TIME: {
+            uint32_t counteren = 0xFFFFFFFFU;
+            if (rv.privilege == PRIV_S)
+                counteren &= rv.MCOUNTEREN;
+            if (rv.privilege == PRIV_U)
+                counteren = counteren & rv.MCOUNTEREN & rv.SCOUNTEREN;
+            if (counteren & MCOUNTEREN_TM)
+                return vaddr_read_w(CLINT_MTIME_ADDR);
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+            return 0;
+        }
+        case CSR_INSTRET: {
+            uint32_t counteren = 0xFFFFFFFFU;
+            if (rv.privilege == PRIV_S)
+                counteren &= rv.MCOUNTEREN;
+            if (rv.privilege == PRIV_U)
+                counteren = counteren & rv.MCOUNTEREN & rv.SCOUNTEREN;
+            if (counteren & MCOUNTEREN_IR)
+                return rv.MINSTRET;
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+            return 0;
+        }
 
         // CSR not implemented
         default: return 0;
@@ -74,7 +118,9 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
         case CSR_MEPC:
             rv.MEPC = value & ~3ULL;
             break; // support only IALIGN=32
-
+        case CSR_MCOUNTEREN:
+            rv.MCOUNTEREN = (uint32_t)(value & 0xFFFFFFFFU);
+            break;
         macro(MTVEC) macro(MSCRATCH) macro(MCAUSE) macro(MTVAL) macro(MIE)
         macro(MIP) macro(MSTATUS)
 
@@ -108,7 +154,9 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
             rv.MIP = v;
             break;
         }
-
+        case CSR_SCOUNTEREN:
+            rv.SCOUNTEREN = (uint32_t)(value & 0xFFFFFFFFU);
+            break;
         macro(STVEC) macro(SSCRATCH) macro(SCAUSE) macro(STVAL)
 
         // CSR not implemented

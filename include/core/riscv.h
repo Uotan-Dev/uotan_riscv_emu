@@ -90,6 +90,11 @@ extern "C" {
 #define MIE_MTIE (1ULL << 7)
 #define MIE_MEIE (1ULL << 11)
 
+// MCOUNTEREN
+#define MCOUNTEREN_CY (1U << 0)
+#define MCOUNTEREN_TM (1U << 1)
+#define MCOUNTEREN_IR (3U << 2)
+
 // SSTATUS
 #define SSTATUS_SIE_SHIFT 1
 #define SSTATUS_SPIE_SHIFT 5
@@ -191,12 +196,13 @@ enum {
     CSR_MHARTID = 0xF14,   // Hardware thread ID
 
     // Machine trap setup
-    CSR_MSTATUS = 0x300, // Machine status register
-    CSR_MISA = 0x301,    // ISA and extensions
-    CSR_MEDELEG = 0x302, // Machine exception delegate register
-    CSR_MIDELEG = 0x303, // Machine interrupt delegate register
-    CSR_MIE = 0x304,     // Machine interrupt-enable register
-    CSR_MTVEC = 0x305,   // Machine trap-handler base address
+    CSR_MSTATUS = 0x300,    // Machine status register
+    CSR_MISA = 0x301,       // ISA and extensions
+    CSR_MEDELEG = 0x302,    // Machine exception delegate register
+    CSR_MIDELEG = 0x303,    // Machine interrupt delegate register
+    CSR_MIE = 0x304,        // Machine interrupt-enable register
+    CSR_MTVEC = 0x305,      // Machine trap-handler base address
+    CSR_MCOUNTEREN = 0x306, // Machine counter enable
 
     // Machine trap handling
     CSR_MSCRATCH = 0x340, // Scratch register for machine trap handlers
@@ -205,10 +211,15 @@ enum {
     CSR_MTVAL = 0x343,    // Machine bad address or instruction
     CSR_MIP = 0x344,      // Machine interrupt pending
 
+    // Machine Counter/Timers
+    CSR_MCYCLE = 0xB00,   // Machine cycle counter
+    CSR_MINSTRET = 0xB02, // Machine instructions-retired counter
+
     // Supervisor trap setup
-    CSR_SSTATUS = 0x100, // Supervisor status register
-    CSR_SIE = 0x104,     // Supervisor interrupt-enable register
-    CSR_STVEC = 0x105,   // Supervisor trap-handler base address
+    CSR_SSTATUS = 0x100,    // Supervisor status register
+    CSR_SIE = 0x104,        // Supervisor interrupt-enable register
+    CSR_STVEC = 0x105,      // Supervisor trap-handler base address
+    CSR_SCOUNTEREN = 0x106, // Supervisor counter enable
 
     // Supervisor trap handling
     CSR_SSCRATCH = 0x140, // Supervisor register for machine trap handlers
@@ -219,6 +230,12 @@ enum {
 
     // Supervisor protection and translation
     CSR_SATP = 0x180, // Supervisor address translation and protection
+
+    // Unprivileged Counter/Timers
+    CSR_CYCLE = 0xC00, // Cycle counter for RDCYCLE instruction
+    CSR_TIME = 0xC01,  // Timer for RDTIME instruction
+    CSR_INSTRET =
+        0xC02, // Instructions-retired counter for RDINSTRET instruction
 };
 
 typedef enum : int {
@@ -239,34 +256,35 @@ typedef struct {
     // include/core/cpu.h for a set of valid functions
 #define NR_CSR 4096
 
-    uint64_t MVENDORID; // Vendor ID
-    uint64_t MARCHID;   // Architecture ID
-    uint64_t MIMPID;    // Implementation ID
-    uint64_t MHARTID;   // Hardware thread ID
-    uint64_t MSTATUS;   // Machine status register
-    uint64_t MISA;      // ISA and extensions
-    uint64_t MEDELEG;   // Machine exception delegate register
-    uint64_t MIDELEG;   // Machine interrupt delegate register
-    uint64_t MIE;       // Machine interrupt-enable register
-    uint64_t MTVEC;     // Machine trap-handler base address
-    uint64_t MSCRATCH;  // Scratch register for machine trap handlers
-    uint64_t MEPC;      // Machine exception program counter
-    uint64_t MCAUSE;    // Machine trap cause
-    uint64_t MTVAL;     // Machine bad address or instruction
-    uint64_t MIP;       // Machine interrupt pending
+    uint64_t MVENDORID;  // Vendor ID
+    uint64_t MARCHID;    // Architecture ID
+    uint64_t MIMPID;     // Implementation ID
+    uint64_t MHARTID;    // Hardware thread ID
+    uint64_t MSTATUS;    // Machine status register
+    uint64_t MISA;       // ISA and extensions
+    uint64_t MEDELEG;    // Machine exception delegate register
+    uint64_t MIDELEG;    // Machine interrupt delegate register
+    uint64_t MIE;        // Machine interrupt-enable register
+    uint64_t MTVEC;      // Machine trap-handler base address
+    uint32_t MCOUNTEREN; // Machine counter enable
+    uint64_t MSCRATCH;   // Scratch register for machine trap handlers
+    uint64_t MEPC;       // Machine exception program counter
+    uint64_t MCAUSE;     // Machine trap cause
+    uint64_t MTVAL;      // Machine bad address or instruction
+    uint64_t MIP;        // Machine interrupt pending
+    uint64_t MCYCLE;     // Machine cycle counter
+    uint64_t MINSTRET;   // Machine instructions-retired counter
 
-    // SSTATUS, SIE, SIP are commented out because they will be inferred
+    // SSTATUS, SIE, SIP are not here because they will be inferred
     // from M-mode CSRs
 
-    // uint64_t SSTATUS;  // Supervisor status register
-    // uint64_t SIE;      // Supervisor interrupt-enable register
-    uint64_t STVEC;    // Supervisor trap-handler base address
-    uint64_t SSCRATCH; // Supervisor register for machine trap handlers
-    uint64_t SEPC;     // Supervisor exception program counter
-    uint64_t SCAUSE;   // Supervisor trap cause
-    uint64_t STVAL;    // Supervisor bad address or instruction
-    // uint64_t SIP;      // Supervisor interrupt pending
-    uint64_t SATP; // Supervisor address translation and protection
+    uint64_t STVEC;      // Supervisor trap-handler base address
+    uint32_t SCOUNTEREN; // Supervisor counter enable
+    uint64_t SSCRATCH;   // Supervisor register for machine trap handlers
+    uint64_t SEPC;       // Supervisor exception program counter
+    uint64_t SCAUSE;     // Supervisor trap cause
+    uint64_t STVAL;      // Supervisor bad address or instruction
+    uint64_t SATP;       // Supervisor address translation and protection
 
     // Privilege level
     privilege_level_t privilege;

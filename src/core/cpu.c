@@ -30,7 +30,6 @@
 // Raise an exception
 // This should only be called in the decode / exec proccess
 void cpu_raise_exception(exception_t cause, uint64_t tval) {
-    // We only support M mode for now
     assert(((uint64_t)cause & INTERRUPT_FLAG) == 0);
 
     privilege_level_t priv = rv.privilege;
@@ -449,36 +448,53 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("??????? ????? ????? 100 ????? 00100 11", xori   , I, R(rd) = src1 ^ imm);
     INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc   ,I,
         uint64_t t = cpu_read_csr(imm);
-        cpu_write_csr(imm, t & ~src1);
-        R(rd) = t;
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            cpu_write_csr(imm, t & ~src1);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
     );
     INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci  ,I,
         uint64_t zimm = BITS(s->inst, 19, 15);
         uint64_t t = cpu_read_csr(imm);
-        cpu_write_csr(imm, t & ~zimm);
-        R(rd) = t;
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            cpu_write_csr(imm, t & ~zimm);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
     );
     INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , I,
         uint64_t t = cpu_read_csr(imm);
-        cpu_write_csr(imm, t | src1);
-        R(rd) = t;
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            cpu_write_csr(imm, t | src1);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
     );
     INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , I,
         uint64_t zimm = BITS(s->inst, 19, 15);
         uint64_t t = cpu_read_csr(imm);
-        cpu_write_csr(imm, t | zimm);
-        R(rd) = t;
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            cpu_write_csr(imm, t | zimm);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
     );
     INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , I,
         uint64_t t = cpu_read_csr(imm);
-        cpu_write_csr(imm, src1);
-        R(rd) = t;
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            cpu_write_csr(imm, src1);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = t;
+        }
     );
     INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , I,
         uint64_t zimm = BITS(s->inst, 19, 15);
         uint64_t t = cpu_read_csr(imm);
-        R(rd) = t;
-        cpu_write_csr(imm, zimm);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            R(rd) = t;
+            cpu_write_csr(imm, zimm);
+        }
     );
     INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak     , N, cpu_raise_exception(CAUSE_BREAKPOINT, 0));
     INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall      , N, _ecall(s));
@@ -680,6 +696,9 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     // assert(s->pc);
     decode_exec(s);
     rv.PC = s->npc;
+
+    rv.MCYCLE++;
+    rv.MINSTRET++;
 }
 
 #define CPU_EXEC_COMMON()                                                      \

@@ -45,9 +45,9 @@ void rv_init(const void *buf, size_t buf_size) {
     rv.PC = RESET_PC;
 
     // set the control and status registers
-    rv.MISA |= MISA_XLEN_64;    // XLEN is 64
-    rv.MISA |= MISA_I | MISA_M | MISA_A; // I_EXT, M_EXT
-    rv.MISA |= MISA_SUPER;      // Support supervisor mode
+    rv.MISA |= MISA_XLEN_64;             // XLEN is 64
+    rv.MISA |= MISA_I | MISA_M | MISA_A; // I_EXT, M_EXT, A_EXT
+    rv.MISA |= MISA_SUPER | MISA_USER;   // Support S-Mode and U-Mode
     rv.MVENDORID = MVENDORID_DEFAULT;
     rv.MARCHID = MARCHID_DEFAULT;
     rv.MIMPID = MIMPID_DEFAULT;
@@ -101,8 +101,6 @@ void rv_add_device(device_t dev) {
 }
 
 interrupt_t rv_get_pending_interrupt() {
-    // TODO: Receive intr from devices first
-
     uint64_t m_pending = cpu_read_csr(CSR_MIE) & cpu_read_csr(CSR_MIP) &
                          ~cpu_read_csr(CSR_MIDELEG);
     uint64_t s_pending = cpu_read_csr(CSR_SIE) & cpu_read_csr(CSR_SIP);
