@@ -581,21 +581,45 @@ static inline void decode_exec(Decode *s) {
     );
 
     // RV64A instructions
-    INSTPAT("00010?? 00000 ????? 011 ????? 01011 11", lr.d   , R, LOAD(rd, src1, uint64_t, d, 64));
-    INSTPAT("00010?? 00000 ????? 010 ????? 01011 11", lr.w   , R, LOAD_SEXT(rd, src1, uint32_t, w, 32));
+    INSTPAT("00010?? 00000 ????? 011 ????? 01011 11", lr.d   , R,
+        uint64_t v = vaddr_read_d(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            R(rd) = v;
+            rv.reservation_address = src1;
+            rv.reservation_valid = true;
+        }
+    );
+    INSTPAT("00010?? 00000 ????? 010 ????? 01011 11", lr.w   , R,
+        uint32_t v = vaddr_read_w(src1);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            R(rd) = SEXT(v, 32);
+            rv.reservation_address = src1;
+            rv.reservation_valid = true;
+        }
+    );
     INSTPAT("00011?? ????? ????? 011 ????? 01011 11", sc.d   , R,
-        vaddr_write_d(src1, src2);
-        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
-            R(rd) = 0;
-        else
+        if (rv.reservation_valid && rv.reservation_address == src1) {
+            vaddr_write_d(src1, src2);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = 0;
+            else
+                R(rd) = 1;
+        } else {
             R(rd) = 1;
+        }
+        rv.reservation_valid = false;
     );
     INSTPAT("00011?? ????? ????? 010 ????? 01011 11", sc.w   , R,
-        vaddr_write_w(src1, src2);
-        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
-            R(rd) = 0;
-        else
+        if (rv.reservation_valid && rv.reservation_address == src1) {
+            vaddr_write_w(src1, src2);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+                R(rd) = 0;
+            else
+                R(rd) = 1;
+        } else {
             R(rd) = 1;
+        }
+        rv.reservation_valid = false;
     );
     INSTPAT("00000?? ????? ????? 011 ????? 01011 11", amoadd.d , R,
         uint64_t t = vaddr_read_d(src1);

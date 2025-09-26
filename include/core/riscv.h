@@ -289,9 +289,12 @@ typedef struct {
     // Privilege level
     privilege_level_t privilege;
 
+    // For LR/SC implementation
+    uint64_t reservation_address;
+    bool reservation_valid;
+
     // Last exception
     exception_t last_exception; // this is now only used in memory system
-    bool is_interrupted_gdb;
 
     // Memory
 #define MSIZE 0x8000000
@@ -308,6 +311,7 @@ typedef struct {
     bool shutdown;
     int shutdown_code;
     shutdown_cause_t shutdown_cause;
+    bool is_interrupted_gdb; // for gdbstub
 } riscv_t;
 
 extern riscv_t rv __attribute((aligned(4096)));
