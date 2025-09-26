@@ -275,6 +275,8 @@ typedef struct {
     uint64_t MCYCLE;     // Machine cycle counter
     uint64_t MINSTRET;   // Machine instructions-retired counter
 
+    uint64_t MTIME; // Mirrored from clint
+
     // SSTATUS, SIE, SIP are not here because they will be inferred
     // from M-mode CSRs
 

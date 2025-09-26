@@ -19,7 +19,6 @@
 #include <assert.h>
 #include <stdint.h>
 
-#include "../device/clint.h"
 #include "mem.h"
 #include "riscv.h"
 
@@ -82,7 +81,7 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
             if (rv.privilege == PRIV_U)
                 counteren = counteren & rv.MCOUNTEREN & rv.SCOUNTEREN;
             if (counteren & MCOUNTEREN_TM)
-                return bus_read(CLINT_MTIME_ADDR, 8);
+                return rv.MTIME;
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
             return 0;
         }

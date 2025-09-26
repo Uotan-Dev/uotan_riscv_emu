@@ -98,7 +98,7 @@ void clint_init() {
 }
 
 void clint_tick() {
-    clint.mtime = timer_get_milliseconds() * 1000;
+    rv.MTIME = clint.mtime = timer_get_milliseconds() * 1000;
 
     // A machine timer interrupt becomes pending whenever mtime contains a value
     // greater than or equal to mtimecmp
