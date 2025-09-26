@@ -273,6 +273,7 @@ typedef struct {
 
     // Last exception
     exception_t last_exception; // this is now only used in memory system
+    bool is_interrupted_gdb;
 
     // Memory
 #define MSIZE 0x8000000

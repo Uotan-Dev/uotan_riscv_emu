@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
 # Set the minimum required version of CMake.
 cmake_minimum_required(VERSION 3.14)
 project(riscv_sim VERSION 1.0 LANGUAGES C CXX)
@@ -28,17 +27,27 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0")
 set(CMAKE_C_FLAGS_RELEASE   "-O3 -Wall -Werror")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
+# GDB Stub
+add_custom_target(gdbstub_build
+    COMMAND $(MAKE)
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/mini-gdbstub
+    COMMENT "Building libgdbstub.a via Makefile"
+)
+
+set(GDBSTUB_LIB ${CMAKE_SOURCE_DIR}/mini-gdbstub/build/libgdbstub.a)
+
 # Find all .c and .cpp files in the src directory.
 file(GLOB_RECURSE SOURCES "src/*.c" "src/*.cpp")
 list(FILTER SOURCES EXCLUDE REGEX ".*/main\\.c$")
 add_library(riscv_sim_lib ${SOURCES})
 target_include_directories(riscv_sim_lib PUBLIC include)
 set_property(TARGET riscv_sim_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+add_dependencies(riscv_sim_lib gdbstub_build)
 
 # Create the main executable.
 file(GLOB_RECURSE APP_SOURCES "src/main.c" "src/main.cpp")
 add_executable(riscv-sim ${APP_SOURCES})
-target_link_libraries(riscv-sim PRIVATE riscv_sim_lib pthread m readline ncurses)
+target_link_libraries(riscv-sim PRIVATE riscv_sim_lib pthread m readline ncurses ${GDBSTUB_LIB})
 set_property(TARGET riscv-sim PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # --- RISC-V Assembly Build Function ---
@@ -132,7 +141,7 @@ FetchContent_MakeAvailable(googletest)
 # Find all your test source files.
 file(GLOB_RECURSE TEST_SOURCES "tests/*.c" "tests/*.cpp")
 add_executable(run_tests ${TEST_SOURCES})
-target_link_libraries(run_tests PRIVATE riscv_sim_lib GTest::gtest_main readline ncurses)
+target_link_libraries(run_tests PRIVATE riscv_sim_lib GTest::gtest_main readline ncurses ${GDBSTUB_LIB})
 
 # Add the test executable to CTest's list of tests.
 include(GoogleTest)

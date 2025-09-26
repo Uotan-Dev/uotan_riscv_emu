@@ -682,29 +682,27 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     rv.PC = s->npc;
 }
 
+#define CPU_EXEC_COMMON()                                                      \
+    do {                                                                       \
+        rv.last_exception = CAUSE_EXCEPTION_NONE;                              \
+        clint_tick();                                                          \
+        uart_tick();                                                           \
+        interrupt_t intr = rv_get_pending_interrupt();                         \
+        if (unlikely(intr != CAUSE_INTERRUPT_NONE))                            \
+            cpu_process_intr(intr);                                            \
+        cpu_exec_once(&rv.decode, rv.PC);                                      \
+    } while (0)
+
+// This should only be used for tests
 void __cpu_exec_once() {
-    if (!unlikely(rv.shutdown)) {
-        rv.last_exception = CAUSE_EXCEPTION_NONE;
-        clint_tick();
-        uart_tick();
-        interrupt_t intr = rv_get_pending_interrupt();
-        if (unlikely(intr != CAUSE_INTERRUPT_NONE))
-            cpu_process_intr(intr);
-        cpu_exec_once(&rv.decode, rv.PC);
-    }
+    if (!unlikely(rv.shutdown))
+        CPU_EXEC_COMMON();
 }
 
-// This can also be called directly from test
+// This can also be called directly from tests
 void __cpu_start() {
-    while (!unlikely(rv.shutdown)) {
-        rv.last_exception = CAUSE_EXCEPTION_NONE;
-        clint_tick();
-        uart_tick();
-        interrupt_t intr = rv_get_pending_interrupt();
-        if (unlikely(intr != CAUSE_INTERRUPT_NONE))
-            cpu_process_intr(intr);
-        cpu_exec_once(&rv.decode, rv.PC);
-    }
+    while (!unlikely(rv.shutdown))
+        CPU_EXEC_COMMON();
 }
 
 void cpu_start() {

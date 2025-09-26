@@ -21,17 +21,21 @@
 
 #include "core/cpu.h"
 #include "core/riscv.h"
+#include "utils/gdbstub.h"
 #include "utils/logger.h"
 #include "utils/timer.h"
 
 static const char *bin_file = NULL;
+static bool opt_gdb = false;
 
 static void print_usage(const char *progname) {
     printf("Usage: %s [OPTIONS] IMAGE\n\n", progname);
     printf("Options:\n");
     printf("  -h, --help        Show this help message and exit\n");
+    printf("      --gdb         Enable gdbstub support\n");
     printf("\nExamples:\n");
     printf("  %s hello.bin\n", progname);
+    printf("  %s --gdb hello.bin\n", progname);
     printf("  %s --help\n", progname);
 }
 
@@ -39,6 +43,7 @@ static void parse_args(int argc, char *argv[]) {
     // clang-format off
     const struct option long_options[] = {
         {"help", no_argument, NULL, 'h'},
+        {"gdb",  no_argument, NULL,  1},
         {NULL, 0, NULL, 0}
     };
     // clang-format on
@@ -46,11 +51,11 @@ static void parse_args(int argc, char *argv[]) {
     int opt;
     while ((opt = getopt_long(argc, argv, "h", long_options, NULL)) != -1) {
         switch (opt) {
-            case 'h':
-                print_usage(argv[0]);
-                exit(EXIT_SUCCESS);
+            case 'h': print_usage(argv[0]); exit(EXIT_SUCCESS);
+            case 1: // --gdb
+                opt_gdb = true;
                 break;
-            case '?': // getopt_long already prints an error
+            case '?':
             default: print_usage(argv[0]); exit(EXIT_FAILURE);
         }
     }
@@ -109,8 +114,13 @@ int main(int argc, char *argv[]) {
     rv_init(buf, buf_size);
     free(buf);
 
-    // Start CPU
-    cpu_start();
+    if (!opt_gdb) {
+        // Start CPU
+        cpu_start();
+    } else {
+        // Start with GDB
+        gdbstub_emu_start();
+    }
 
     return EXIT_SUCCESS;
 }
