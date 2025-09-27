@@ -885,7 +885,7 @@ static inline void decode_exec(Decode *s) {
     );
 
     // RV64F instructions
-    INSTPAT("???????????? ????? 010 ????? 00001 11", flw, I,
+    INSTPAT("??????? ????? ????? 010 ????? 00001 11", flw, I,
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
@@ -900,13 +900,13 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled())
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         else
-            vaddr_write_w(R(rs1) + imm, rv.F[rs2].u32);
+            vaddr_write_w(R(rs1) + imm, get_f32(rv.F[rs2].u64).v);
     );
     INSTPAT("0000000 ????? ????? ??? ????? 10100 11", fadd.s, R,
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float32_t result = f32_add(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64));
             rv.F[rd].u64 = nan_box_f32(result.v);
@@ -918,7 +918,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float32_t result = f32_sub(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64));
             rv.F[rd].u64 = nan_box_f32(result.v);
@@ -930,7 +930,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float32_t result = f32_mul(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64));
             rv.F[rd].u64 = nan_box_f32(result.v);
@@ -942,7 +942,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float32_t result = f32_div(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64));
             rv.F[rd].u64 = nan_box_f32(result.v);
@@ -954,7 +954,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float32_t result = f32_sqrt(get_f32(rv.F[rs1].u64));
             rv.F[rd].u64 = nan_box_f32(result.v);
@@ -1044,7 +1044,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             int32_t result = f32_to_i32(get_f32(rv.F[rs1].u64), softfloat_roundingMode, true);
             R(rd) = SEXT(result, 32);
@@ -1055,7 +1055,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             uint32_t result = f32_to_ui32(get_f32(rv.F[rs1].u64), softfloat_roundingMode, true);
             R(rd) = SEXT(result, 32);
@@ -1066,7 +1066,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             R(rd) = f32_to_i64(get_f32(rv.F[rs1].u64), softfloat_roundingMode, true);
             update_fflags();
@@ -1076,7 +1076,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             R(rd) = f32_to_ui64(get_f32(rv.F[rs1].u64), softfloat_roundingMode, true);
             update_fflags();
@@ -1086,7 +1086,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float32_t result = i32_to_f32((int32_t)R(rs1));
             rv.F[rd].u64 = nan_box_f32(result.v);
@@ -1098,7 +1098,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float32_t result = ui32_to_f32((uint32_t)R(rs1));
             rv.F[rd].u64 = nan_box_f32(result.v);
@@ -1110,7 +1110,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float32_t result = i64_to_f32(R(rs1));
             rv.F[rd].u64 = nan_box_f32(result.v);
@@ -1122,7 +1122,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float32_t result = ui64_to_f32(R(rs1));
             rv.F[rd].u64 = nan_box_f32(result.v);
@@ -1130,11 +1130,11 @@ static inline void decode_exec(Decode *s) {
             set_fs_dirty();
         }
     );
-    INSTPAT("1111000 00000 ????? 000 ????? 10100 11", fmv.x.w, R,
+    INSTPAT("1110000 00000 ????? 000 ????? 10100 11", fmv.x.w, R,
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            R(rd) = SEXT(rv.F[rs1].u32, 32);
+            R(rd) = SEXT(get_f32(rv.F[rs1].u64).v, 32);
         }
     );
     INSTPAT("1111000 00000 ????? 000 ????? 10100 11", fmv.w.x, R,
@@ -1189,11 +1189,11 @@ static inline void decode_exec(Decode *s) {
             update_fflags();
         }
     );
-    INSTPAT("????? ?? ????? ????? ??? ????? 10000 11", fmadd.s, R4,
+    INSTPAT("?????00 ????? ????? ??? ????? 10000 11", fmadd.s, R4,
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float32_t result = f32_mulAdd(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64), get_f32(rv.F[rs3].u64));
             rv.F[rd].u64 = nan_box_f32(result.v);
@@ -1201,11 +1201,11 @@ static inline void decode_exec(Decode *s) {
             set_fs_dirty();
         }
     );
-    INSTPAT("????? ?? ????? ????? ??? ????? 10001 11", fmsub.s, R4,
+    INSTPAT("?????00 ????? ????? ??? ????? 10001 11", fmsub.s, R4,
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float32_t neg_rs3 = {get_f32(rv.F[rs3].u64).v ^ 0x80000000};
             float32_t result = f32_mulAdd(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64), neg_rs3);
@@ -1214,27 +1214,32 @@ static inline void decode_exec(Decode *s) {
             set_fs_dirty();
         }
     );
-    INSTPAT("????? ?? ????? ????? ??? ????? 10010 11", fnmsub.s, R4,
+    INSTPAT("?????00 ????? ????? ??? ????? 10010 11", fnmsub.s, R4,
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
-            float32_t result = f32_mulAdd(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64), get_f32(rv.F[rs3].u64));
-            rv.F[rd].u64 = nan_box_f32(result.v ^ 0x80000000);
+            float32_t rs1_val = get_f32(rv.F[rs1].u64);
+            float32_t neg_rs1_val = {rs1_val.v ^ 0x80000000};
+            float32_t result = f32_mulAdd(neg_rs1_val, get_f32(rv.F[rs2].u64), get_f32(rv.F[rs3].u64));
+            rv.F[rd].u64 = nan_box_f32(result.v);
             update_fflags();
             set_fs_dirty();
         }
     );
-    INSTPAT("????? ?? ????? ????? ??? ????? 10011 11", fnmadd.s, R4,
+    INSTPAT("?????00 ????? ????? ??? ????? 10011 11", fnmadd.s, R4,
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
-            float32_t neg_rs3 = {get_f32(rv.F[rs3].u64).v ^ 0x80000000};
-            float32_t result = f32_mulAdd(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64), neg_rs3);
-            rv.F[rd].u64 = nan_box_f32(result.v ^ 0x80000000);
+            float32_t rs1_val = get_f32(rv.F[rs1].u64);
+            float32_t rs3_val = get_f32(rv.F[rs3].u64);
+            float32_t neg_rs1_val = {rs1_val.v ^ 0x80000000};
+            float32_t neg_rs3_val = {rs3_val.v ^ 0x80000000};
+            float32_t result = f32_mulAdd(neg_rs1_val, get_f32(rv.F[rs2].u64), neg_rs3_val);
+            rv.F[rd].u64 = nan_box_f32(result.v);
             update_fflags();
             set_fs_dirty();
         }
@@ -1262,7 +1267,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             rv.F[rd].f64 = f64_add(rv.F[rs1].f64, rv.F[rs2].f64);
             update_fflags();
@@ -1273,7 +1278,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             rv.F[rd].f64 = f64_sub(rv.F[rs1].f64, rv.F[rs2].f64);
             update_fflags();
@@ -1284,7 +1289,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             rv.F[rd].f64 = f64_mul(rv.F[rs1].f64, rv.F[rs2].f64);
             update_fflags();
@@ -1295,7 +1300,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             rv.F[rd].f64 = f64_div(rv.F[rs1].f64, rv.F[rs2].f64);
             update_fflags();
@@ -1306,7 +1311,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             rv.F[rd].f64 = f64_sqrt(rv.F[rs1].f64);
             update_fflags();
@@ -1381,7 +1386,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             int32_t result = f64_to_i32(rv.F[rs1].f64, softfloat_roundingMode, true);
             R(rd) = SEXT(result, 32);
@@ -1392,7 +1397,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             uint32_t result = f64_to_ui32(rv.F[rs1].f64, softfloat_roundingMode, true);
             R(rd) = SEXT(result, 32);
@@ -1403,7 +1408,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             R(rd) = f64_to_i64(rv.F[rs1].f64, softfloat_roundingMode, true);
             update_fflags();
@@ -1413,7 +1418,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             R(rd) = f64_to_ui64(rv.F[rs1].f64, softfloat_roundingMode, true);
             update_fflags();
@@ -1423,7 +1428,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             rv.F[rd].f64 = i32_to_f64((int32_t)R(rs1));
             update_fflags();
@@ -1434,7 +1439,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             rv.F[rd].f64 = ui32_to_f64((uint32_t)R(rs1));
             update_fflags();
@@ -1445,7 +1450,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             rv.F[rd].f64 = i64_to_f64(R(rs1));
             update_fflags();
@@ -1456,7 +1461,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             rv.F[rd].f64 = ui64_to_f64(R(rs1));
             update_fflags();
@@ -1467,7 +1472,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float32_t result = f64_to_f32(rv.F[rs1].f64);
             rv.F[rd].u64 = nan_box_f32(result.v);
@@ -1479,7 +1484,7 @@ static inline void decode_exec(Decode *s) {
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             rv.F[rd].f64 = f32_to_f64(get_f32(rv.F[rs1].u64));
             update_fflags();
@@ -1545,11 +1550,11 @@ static inline void decode_exec(Decode *s) {
             update_fflags();
         }
     );
-    INSTPAT("????? ?? ????? ????? ??? ????? 10000 01", fmadd.d, R4,
+    INSTPAT("????? ?? ????? ????? ??? ????? 10000 11", fmadd.d, R4,
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float64_t result = f64_mulAdd(rv.F[rs1].f64, rv.F[rs2].f64, rv.F[rs3].f64);
             rv.F[rd].f64 = result;
@@ -1557,11 +1562,11 @@ static inline void decode_exec(Decode *s) {
             set_fs_dirty();
         }
     );
-    INSTPAT("????? ?? ????? ????? ??? ????? 10001 01", fmsub.d, R4,
+    INSTPAT("????? ?? ????? ????? ??? ????? 10001 11", fmsub.d, R4,
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
             float64_t neg_rs3 = {rv.F[rs3].u64 ^ 0x8000000000000000ULL};
             float64_t result = f64_mulAdd(rv.F[rs1].f64, rv.F[rs2].f64, neg_rs3);
@@ -1570,27 +1575,29 @@ static inline void decode_exec(Decode *s) {
             set_fs_dirty();
         }
     );
-    INSTPAT("????? ?? ????? ????? ??? ????? 10010 01", fnmsub.d, R4,
+    INSTPAT("????? ?? ????? ????? ??? ????? 10010 11", fnmsub.d, R4, // Note: Corrected opcode pattern
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
-            float64_t result = f64_mulAdd(rv.F[rs1].f64, rv.F[rs2].f64, rv.F[rs3].f64);
-            rv.F[rd].u64 = result.v ^ 0x8000000000000000ULL;
+            float64_t neg_rs1 = {rv.F[rs1].u64 ^ 0x8000000000000000ULL};
+            float64_t result = f64_mulAdd(neg_rs1, rv.F[rs2].f64, rv.F[rs3].f64);
+            rv.F[rd].f64 = result;
             update_fflags();
             set_fs_dirty();
         }
     );
-    INSTPAT("????? ?? ????? ????? ??? ????? 10011 01", fnmadd.d, R4,
+    INSTPAT("????? ?? ????? ????? ??? ????? 10011 11", fnmadd.d, R4, // Note: Corrected opcode pattern
         if (!fp_enabled()) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
         } else {
-            uint8_t rm = get_rounding_mode(imm & 0x7);
+            uint8_t rm = get_rounding_mode(BITS(s->inst, 14, 12));
             set_softfloat_rounding_mode(rm);
+            float64_t neg_rs1 = {rv.F[rs1].u64 ^ 0x8000000000000000ULL};
             float64_t neg_rs3 = {rv.F[rs3].u64 ^ 0x8000000000000000ULL};
-            float64_t result = f64_mulAdd(rv.F[rs1].f64, rv.F[rs2].f64, neg_rs3);
-            rv.F[rd].u64 = result.v ^ 0x8000000000000000ULL;
+            float64_t result = f64_mulAdd(neg_rs1, rv.F[rs2].f64, neg_rs3);
+            rv.F[rd].f64 = result;
             update_fflags();
             set_fs_dirty();
         }
@@ -1668,6 +1675,7 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
 
 #define CPU_EXEC_COMMON()                                                      \
     do {                                                                       \
+        softfloat_exceptionFlags = 0;                                          \
         rv.last_exception = CAUSE_EXCEPTION_NONE;                              \
         clint_tick();                                                          \
         uart_tick();                                                           \
