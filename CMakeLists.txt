@@ -24,8 +24,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -Wall -Werror")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Werror -Wno-sign-compare")
-set(CMAKE_C_FLAGS_RELEASE   "-O3 -Wall -Werror")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Werror -Wno-sign-compare")
+set(CMAKE_C_FLAGS_RELEASE   "-O3 -Wall -Werror -flto")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Werror -Wno-sign-compare -flto")
 
 # GDB Stub
 add_custom_target(gdbstub_build
