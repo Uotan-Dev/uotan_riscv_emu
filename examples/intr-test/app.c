@@ -64,13 +64,13 @@ int main(void) {
     *mtimecmp = now + DELAY;
 
     // wait for interrupt
-    for (volatile uint64_t i = 0; i < 100000ULL; i++) {
+    for (volatile uint64_t i = 0; i < 100000000ULL; i++) {
         if (success_flag)
             break;
         asm volatile("wfi");
     }
 
-    int code = success_flag == 1 ? 0 : -1;
+    uint32_t code = success_flag == 1 ? 0 : (uint32_t)-1;
     shutdown(code);
     // asm volatile("mv a0, %0; ebreak" : : "r"(code));
 
