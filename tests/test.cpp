@@ -313,6 +313,47 @@ TEST(RISVTestSuite, RV64UA_TEST) {
     test_files(files);
 }
 
+TEST(RISVTestSuite, RV64UF_TEST) {
+    // clang-format off
+    std::vector<std::string> files = {
+        "testbins/rv64uf/bin/fadd.bin",
+        "testbins/rv64uf/bin/fclass.bin",
+        "testbins/rv64uf/bin/fcmp.bin",
+        "testbins/rv64uf/bin/fcvt.bin",
+        "testbins/rv64uf/bin/fcvt_w.bin",
+        "testbins/rv64uf/bin/fdiv.bin",
+        "testbins/rv64uf/bin/fmadd.bin",
+        "testbins/rv64uf/bin/fmin.bin",
+        "testbins/rv64uf/bin/ldst.bin",
+        "testbins/rv64uf/bin/move.bin",
+        "testbins/rv64uf/bin/recoding.bin",
+    };
+    // clang-format on
+
+    test_files(files);
+}
+
+TEST(RISVTestSuite, RV64UD_TEST) {
+    // clang-format off
+    std::vector<std::string> files = {
+        "testbins/rv64ud/bin/fadd.bin",
+        "testbins/rv64ud/bin/fclass.bin",
+        "testbins/rv64ud/bin/fcmp.bin",
+        "testbins/rv64ud/bin/fcvt.bin",
+        "testbins/rv64ud/bin/fcvt_w.bin",
+        "testbins/rv64ud/bin/fdiv.bin",
+        "testbins/rv64ud/bin/fmadd.bin",
+        "testbins/rv64ud/bin/fmin.bin",
+        "testbins/rv64ud/bin/ldst.bin",
+        "testbins/rv64ud/bin/move.bin",
+        "testbins/rv64ud/bin/recoding.bin",
+        "testbins/rv64ud/bin/structural.bin",
+    };
+    // clang-format on
+
+    test_files(files);
+}
+
 /* ALU Tests */
 
 #include "alu-tests/gen-tests.hpp"
