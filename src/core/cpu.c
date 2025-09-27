@@ -842,9 +842,9 @@ void __cpu_start() {
     }
     uint64_t end = slowtimer_get_microseconds();
     double delta = (double)(end - start) / 1000000.0;
-    log_info("Simulation time: %f seconds (%" PRIu64 " microseconds)\n", delta,
+    log_info("Simulation time: %f seconds (%" PRIu64 " microseconds)", delta,
              end - start);
-    log_info("Simulation speed: %f insts per second\n", inst_cnt / delta);
+    log_info("Simulation speed: %f insts per second", inst_cnt / delta);
 }
 
 void cpu_start() {
