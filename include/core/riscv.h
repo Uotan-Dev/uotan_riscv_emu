@@ -19,6 +19,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "softfloat.h" // IWYU pragma: keep
+
 #include "../device/bus.h"
 #include "decode.h"
 
@@ -41,6 +43,7 @@ extern "C" {
 #define MISA_M (1ULL << ('M' - 'A'))
 #define MISA_A (1ULL << ('A' - 'A'))
 #define MISA_F (1ULL << ('F' - 'A'))
+#define MISA_D (1ULL << ('D' - 'A'))
 #define MISA_C (1ULL << ('C' - 'A'))
 #define MISA_XLEN_64 (2ULL << 62)
 
@@ -243,6 +246,44 @@ typedef enum : int {
     SHUTDOWN_CAUSE_GUEST_SHUTDOWN
 } shutdown_cause_t;
 
+// Floating-point register
+typedef union {
+    float32_t f32; // Single precision (32-bit) - RV32F/RV64F
+    float64_t f64; // Double precision (64-bit) - RV32D/RV64D
+    uint32_t u32;  // Raw 32-bit access
+    uint64_t u64;  // Raw 64-bit access
+} fpreg_t;
+
+static_assert(sizeof(fpreg_t) == sizeof(uint64_t));
+
+// Floating-point control and status register
+typedef union {
+    uint32_t raw;
+
+    struct {
+        uint8_t fflags : 5;     // Floating-point exception flags [4:0]
+        uint8_t frm : 3;        // Floating-point rounding mode [7:5]
+        uint32_t reserved : 24; // Reserved bits [31:8]
+    };
+} fcsr_t;
+
+static_assert(sizeof(fcsr_t) == sizeof(uint32_t));
+
+// Floating-point exception flags (fflags)
+#define FFLAGS_NX (1 << 0) // Inexact
+#define FFLAGS_UF (1 << 1) // Underflow
+#define FFLAGS_OF (1 << 2) // Overflow
+#define FFLAGS_DZ (1 << 3) // Divide by zero
+#define FFLAGS_NV (1 << 4) // Invalid operation
+
+// Floating-point rounding modes (frm)
+#define FRM_RNE 0 // Round to nearest, ties to even
+#define FRM_RTZ 1 // Round towards zero
+#define FRM_RDN 2 // Round down (towards -∞)
+#define FRM_RUP 3 // Round up (towards +∞)
+#define FRM_RMM 4 // Round to nearest, ties to max magnitude
+#define FRM_DYN 7 // Dynamic rounding mode (use frm field of fcsr)
+
 typedef struct {
     // Interger registers
 #define NR_GPR 32
@@ -250,6 +291,9 @@ typedef struct {
 
     // Program counter
     uint64_t PC;
+
+#define NR_FPR 32
+    fpreg_t F[NR_FPR];
 
     // Control and Status registers
     // Instruction implementations should not write these fields directly, see
@@ -287,6 +331,9 @@ typedef struct {
     uint64_t SCAUSE;     // Supervisor trap cause
     uint64_t STVAL;      // Supervisor bad address or instruction
     uint64_t SATP;       // Supervisor address translation and protection
+
+    // Floating-point control and status register
+    fcsr_t fcsr;
 
     // The value written to instret will be the value read by the following
     // instruction (i.e. the increment is suppressed)

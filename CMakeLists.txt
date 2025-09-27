@@ -19,7 +19,7 @@ project(riscv_sim VERSION 1.0 LANGUAGES C CXX)
 # Set the C++ standard to C++20.
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD 23)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -Wall -Werror")
@@ -36,18 +36,39 @@ add_custom_target(gdbstub_build
 
 set(GDBSTUB_LIB ${CMAKE_SOURCE_DIR}/thirdparty/mini-gdbstub/build/libgdbstub.a)
 
+# Berkeley SoftFloat
+add_custom_target(softfloat_build
+    COMMAND $(MAKE) -C build/Linux-x86_64-GCC
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/thirdparty/berkeley-softfloat-3
+    COMMENT "Building Berkeley SoftFloat library"
+)
+
+set(SOFTFLOAT_LIB ${CMAKE_SOURCE_DIR}/thirdparty/berkeley-softfloat-3/build/Linux-x86_64-GCC/softfloat.a)
+set(SOFTFLOAT_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/thirdparty/berkeley-softfloat-3/source/include)
+
 # Find all .c and .cpp files in the src directory.
 file(GLOB_RECURSE SOURCES "src/*.c" "src/*.cpp")
 list(FILTER SOURCES EXCLUDE REGEX ".*/main\\.c$")
 add_library(riscv_sim_lib ${SOURCES})
-target_include_directories(riscv_sim_lib PUBLIC include)
+target_include_directories(riscv_sim_lib PUBLIC 
+    include
+    ${SOFTFLOAT_INCLUDE_DIR}
+)
 set_property(TARGET riscv_sim_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
-add_dependencies(riscv_sim_lib gdbstub_build)
+add_dependencies(riscv_sim_lib gdbstub_build softfloat_build)
 
 # Create the main executable.
 file(GLOB_RECURSE APP_SOURCES "src/main.c" "src/main.cpp")
 add_executable(riscv-sim ${APP_SOURCES})
-target_link_libraries(riscv-sim PRIVATE riscv_sim_lib pthread m readline ncurses ${GDBSTUB_LIB})
+target_link_libraries(riscv-sim PRIVATE 
+    riscv_sim_lib 
+    pthread 
+    m 
+    readline 
+    ncurses 
+    ${GDBSTUB_LIB}
+    ${SOFTFLOAT_LIB}
+)
 set_property(TARGET riscv-sim PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # --- RISC-V Assembly Build Function ---
@@ -149,11 +170,21 @@ FetchContent_MakeAvailable(googletest)
 # Find all your test source files.
 file(GLOB_RECURSE TEST_SOURCES "tests/*.c" "tests/*.cpp")
 add_executable(run_tests ${TEST_SOURCES})
-target_link_libraries(run_tests PRIVATE riscv_sim_lib GTest::gtest_main readline ncurses ${GDBSTUB_LIB})
+target_link_libraries(run_tests PRIVATE 
+    riscv_sim_lib 
+    GTest::gtest_main 
+    readline 
+    ncurses 
+    ${GDBSTUB_LIB}
+    ${SOFTFLOAT_LIB}
+)
+
+# Add SoftFloat include directory to tests
+target_include_directories(run_tests PRIVATE ${SOFTFLOAT_INCLUDE_DIR})
 
 # Add the test executable to CTest's list of tests.
 include(GoogleTest)
 gtest_discover_tests(run_tests)
 
-# Make tests depend on RISC-V test binaries
-add_dependencies(run_tests riscv_tests_rv64mi)
+# Make tests depend on RISC-V test binaries and SoftFloat
+add_dependencies(run_tests riscv_tests_rv64mi riscv_tests_rv64si riscv_tests_rv64ui riscv_tests_rv64um riscv_tests_rv64ua softfloat_build)

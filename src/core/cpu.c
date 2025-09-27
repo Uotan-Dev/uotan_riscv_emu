@@ -138,6 +138,99 @@ FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
     }
 }
 
+// Get current rounding mode from fcsr or instruction rm field
+FORCE_INLINE uint8_t get_rounding_mode(uint8_t rm) {
+    if (rm == FRM_DYN)
+        return rv.fcsr.frm;
+    return rm;
+}
+
+// Convert softfloat exception flags to RISC-V fflags
+FORCE_INLINE uint8_t softfloat_flags_to_riscv(uint8_t sf_flags) {
+    uint8_t riscv_flags = 0;
+    if (sf_flags & softfloat_flag_inexact)
+        riscv_flags |= FFLAGS_NX;
+    if (sf_flags & softfloat_flag_underflow)
+        riscv_flags |= FFLAGS_UF;
+    if (sf_flags & softfloat_flag_overflow)
+        riscv_flags |= FFLAGS_OF;
+    if (sf_flags & softfloat_flag_infinite)
+        riscv_flags |= FFLAGS_DZ;
+    if (sf_flags & softfloat_flag_invalid)
+        riscv_flags |= FFLAGS_NV;
+    return riscv_flags;
+}
+
+// Set floating-point exception flags
+FORCE_INLINE void set_fflags(uint8_t flags) { rv.fcsr.fflags |= flags; }
+
+FORCE_INLINE void update_fflags() {
+    uint8_t sf_flags = softfloat_exceptionFlags;
+    set_fflags(softfloat_flags_to_riscv(sf_flags));
+    softfloat_exceptionFlags = 0; // Clear for next operation
+}
+
+// Set softfloat rounding mode
+FORCE_INLINE void set_softfloat_rounding_mode(uint8_t rm) {
+    switch (rm) {
+        case FRM_RNE: softfloat_roundingMode = softfloat_round_near_even; break;
+        case FRM_RTZ: softfloat_roundingMode = softfloat_round_minMag; break;
+        case FRM_RDN: softfloat_roundingMode = softfloat_round_min; break;
+        case FRM_RUP: softfloat_roundingMode = softfloat_round_max; break;
+        case FRM_RMM:
+            softfloat_roundingMode = softfloat_round_near_maxMag;
+            break;
+        default:
+            // Invalid rounding mode
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+            break;
+    }
+}
+
+// Check if floating-point operations are enabled
+FORCE_INLINE bool fp_enabled() {
+    // Check FS field in MSTATUS (bits [14:13])
+    uint64_t fs = (rv.MSTATUS >> 13) & 0x3;
+    return fs != 0; // FS = 0 means FP disabled
+}
+
+// Set FS field to dirty when FP state is modified
+FORCE_INLINE void set_fs_dirty() {
+    rv.MSTATUS =
+        (rv.MSTATUS & ~(0x3ULL << 13)) | (0x3ULL << 13); // FS = 11 (dirty)
+}
+
+// NaN boxing for single precision in RV64F
+FORCE_INLINE uint64_t nan_box_f32(uint32_t val) {
+    return val | 0xFFFFFFFF00000000ULL;
+}
+
+// Check if value is properly NaN-boxed for single precision
+FORCE_INLINE bool is_nan_boxed_f32(uint64_t val) {
+    return (val >> 32) == 0xFFFFFFFF;
+}
+
+// Get single precision value, returning canonical NaN if not NaN-boxed
+FORCE_INLINE float32_t get_f32(uint64_t val) {
+    if (!is_nan_boxed_f32(val))
+        return (float32_t){0x7FC00000}; // Canonical NaN
+    return (float32_t){(uint32_t)val};
+}
+
+FORCE_INLINE bool f32_isNaN(float32_t f) {
+    uint32_t ui = f.v;
+    uint32_t exp = (ui >> 23) & 0xFF; // 8-bit exponent
+    uint32_t frac = ui & 0x7FFFFF;    // 23-bit fraction
+    return (exp == 0xFF) && (frac != 0);
+}
+
+FORCE_INLINE bool f64_isNaN(float64_t f) {
+    uint64_t ui = f.v;
+    uint64_t exp = (ui >> 52) & 0x7FF;       // 11-bit exponent
+    uint64_t frac = ui & 0xFFFFFFFFFFFFFULL; // 52-bit fraction
+    return (exp == 0x7FF) && (frac != 0);
+}
+
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
@@ -163,16 +256,16 @@ FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
 
 #define R(i) rv.X[i]
 
-// clang-format off
 typedef enum {
-    TYPE_I, TYPE_U, TYPE_S,
-    TYPE_J, TYPE_R, TYPE_B,
+    TYPE_I,
+    TYPE_U,
+    TYPE_S,
+    TYPE_J,
+    TYPE_R,
+    TYPE_B,
+    TYPE_R4,
     TYPE_N, // none
 } inst_type_t;
-
-#define src1R() do { *src1 = R(rs1); } while (0)
-#define src2R() do { *src2 = R(rs2); } while (0)
-// clang-format on
 
 #define immI()                                                                 \
     do {                                                                       \
@@ -199,25 +292,24 @@ typedef enum {
                     13);                                                       \
     } while (0)
 
-FORCE_INLINE void decode_operand(Decode *s, int *rd, uint64_t *src1,
-                                 uint64_t *src2, uint64_t *imm,
-                                 inst_type_t type) {
-    // clang-format off
+FORCE_INLINE void decode_operand(Decode *s, int *rd, int *rs1, int *rs2,
+                                 int *rs3, uint64_t *imm, inst_type_t type) {
     uint32_t i = s->inst;
-    int rs1 = BITS(i, 19, 15);
-    int rs2 = BITS(i, 24, 20);
-    *rd     = BITS(i, 11, 7);
+    *rs1 = BITS(i, 19, 15);
+    *rs2 = BITS(i, 24, 20);
+    *rs3 = BITS(i, 31, 27);
+    *rd = BITS(i, 11, 7);
     switch (type) {
-        case TYPE_I: src1R();          immI(); break;
-        case TYPE_U:                   immU(); break;
-        case TYPE_S: src1R(); src2R(); immS(); break;
-        case TYPE_N:                           break;
-        case TYPE_J:                   immJ(); break;
-        case TYPE_R: src1R(); src2R();         break;
-        case TYPE_B: src1R(); src2R(); immB(); break;
+        case TYPE_I: immI(); break;
+        case TYPE_U: immU(); break;
+        case TYPE_S: immS(); break;
+        case TYPE_N: break;
+        case TYPE_J: immJ(); break;
+        case TYPE_R: break;
+        case TYPE_B: immB(); break;
+        case TYPE_R4: break;
         default: __UNREACHABLE;
     }
-    // clang-format on
 }
 
 FORCE_INLINE void _ecall(Decode *s) {
@@ -328,9 +420,9 @@ static inline void decode_exec(Decode *s) {
 
 #define INSTPAT_MATCH(s, name, type, ... /* execute body */)                   \
     {                                                                          \
-        int rd = 0;                                                            \
-        uint64_t src1 = 0, src2 = 0, imm = 0;                                  \
-        decode_operand(s, &rd, &src1, &src2, &imm, concat(TYPE_, type));       \
+        int rd = 0, rs1 = 0, rs2 = 0, rs3 = 0;                                 \
+        uint64_t imm = 0;                                                      \
+        decode_operand(s, &rd, &rs1, &rs2, &rs3, &imm, concat(TYPE_, type));   \
         __VA_ARGS__;                                                           \
     }
 
@@ -338,15 +430,15 @@ static inline void decode_exec(Decode *s) {
     INSTPAT_START();
 
     // RV64I instructions
-    INSTPAT("0000000 ????? ????? 000 ????? 01100 11", add    , R, R(rd) = src1 + src2);
-    INSTPAT("??????? ????? ????? 000 ????? 00100 11", addi   , I, R(rd) = src1 + imm);
-    INSTPAT("??????? ????? ????? 000 ????? 00110 11", addiw  , I, R(rd) = SEXT(BITS(src1 + imm, 31, 0), 32));
-    INSTPAT("0000000 ????? ????? 000 ????? 01110 11", addw   , R, R(rd) = SEXT(BITS(src1 + src2, 31, 0), 32));
-    INSTPAT("0000000 ????? ????? 111 ????? 01100 11", and    , R, R(rd) = src1 & src2);
-    INSTPAT("??????? ????? ????? 111 ????? 00100 11", andi   , I, R(rd) = src1 & imm);
+    INSTPAT("0000000 ????? ????? 000 ????? 01100 11", add    , R, R(rd) = R(rs1) + R(rs2));
+    INSTPAT("??????? ????? ????? 000 ????? 00100 11", addi   , I, R(rd) = R(rs1) + imm);
+    INSTPAT("??????? ????? ????? 000 ????? 00110 11", addiw  , I, R(rd) = SEXT(BITS(R(rs1) + imm, 31, 0), 32));
+    INSTPAT("0000000 ????? ????? 000 ????? 01110 11", addw   , R, R(rd) = SEXT(BITS(R(rs1) + R(rs2), 31, 0), 32));
+    INSTPAT("0000000 ????? ????? 111 ????? 01100 11", and    , R, R(rd) = R(rs1) & R(rs2));
+    INSTPAT("??????? ????? ????? 111 ????? 00100 11", andi   , I, R(rd) = R(rs1) & imm);
     INSTPAT("??????? ????? ????? ??? ????? 00101 11", auipc  , U, R(rd) = s->pc + imm);
     INSTPAT("??????? ????? ????? 000 ????? 11000 11", beq    , B,
-        if (src1 == src2) {
+        if (R(rs1) == R(rs2)) {
             uint64_t target = s->pc + imm;
             if (unlikely((target & 3) != 0))
                 cpu_raise_exception(CAUSE_MISALIGNED_FETCH, target);
@@ -355,7 +447,7 @@ static inline void decode_exec(Decode *s) {
         }
     );
     INSTPAT("??????? ????? ????? 101 ????? 11000 11", bge    , B,
-        if ((int64_t)src1 >= (int64_t)src2) {
+        if ((int64_t)R(rs1) >= (int64_t)R(rs2)) {
             uint64_t target = s->pc + imm;
             if (unlikely((target & 3) != 0))
                 cpu_raise_exception(CAUSE_MISALIGNED_FETCH, target);
@@ -364,7 +456,7 @@ static inline void decode_exec(Decode *s) {
         }
     );
     INSTPAT("??????? ????? ????? 111 ????? 11000 11", bgeu   , B,
-        if (src1 >= src2) {
+        if (R(rs1) >= R(rs2)) {
             uint64_t target = s->pc + imm;
             if (unlikely((target & 3) != 0))
                 cpu_raise_exception(CAUSE_MISALIGNED_FETCH, target);
@@ -373,7 +465,7 @@ static inline void decode_exec(Decode *s) {
         }
     );
     INSTPAT("??????? ????? ????? 100 ????? 11000 11", blt    , B,
-        if ((int64_t)src1 < (int64_t)src2) {
+        if ((int64_t)R(rs1) < (int64_t)R(rs2)) {
             uint64_t target = s->pc + imm;
             if (unlikely((target & 3) != 0))
                 cpu_raise_exception(CAUSE_MISALIGNED_FETCH, target);
@@ -382,7 +474,7 @@ static inline void decode_exec(Decode *s) {
         }
     );
     INSTPAT("??????? ????? ????? 110 ????? 11000 11", bltu   , B,
-        if (src1 < src2) {
+        if (R(rs1) < R(rs2)) {
             uint64_t target = s->pc + imm;
             if (unlikely((target & 3) != 0))
                 cpu_raise_exception(CAUSE_MISALIGNED_FETCH, target);
@@ -391,7 +483,7 @@ static inline void decode_exec(Decode *s) {
         }
     );
     INSTPAT("??????? ????? ????? 001 ????? 11000 11", bne    , B,
-        if (src1 != src2) {
+        if (R(rs1) != R(rs2)) {
             uint64_t target = s->pc + imm;
             if (unlikely((target & 3) != 0))
                 cpu_raise_exception(CAUSE_MISALIGNED_FETCH, target);
@@ -412,54 +504,54 @@ static inline void decode_exec(Decode *s) {
     );
     INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr   , I,
         uint64_t t = s->pc + 4;
-        uint64_t target = (src1 + imm) & ~1ULL;
+        uint64_t target = (R(rs1) + imm) & ~1ULL;
         if (unlikely(target & 3) != 0) {
             cpu_raise_exception(CAUSE_MISALIGNED_FETCH, target);
         } else {
-            s->npc = (src1 + imm) & ~1ULL;
+            s->npc = (R(rs1) + imm) & ~1ULL;
             R(rd) = t;
         }    
     );
-    INSTPAT("??????? ????? ????? 000 ????? 00000 11", lb     , I, LOAD_SEXT(rd, src1 + imm, uint8_t, b, 8));
-    INSTPAT("??????? ????? ????? 100 ????? 00000 11", lbu    , I, LOAD(rd, src1 + imm, uint8_t, b, 8));
-    INSTPAT("??????? ????? ????? 011 ????? 00000 11", ld     , I, LOAD(rd, src1 + imm, uint64_t, d, 64));
-    INSTPAT("??????? ????? ????? 001 ????? 00000 11", lh     , I, LOAD_SEXT(rd, src1 + imm, uint16_t, s, 16));
-    INSTPAT("??????? ????? ????? 101 ????? 00000 11", lhu    , I, LOAD(rd, src1 + imm, uint16_t, s, 16));
+    INSTPAT("??????? ????? ????? 000 ????? 00000 11", lb     , I, LOAD_SEXT(rd, R(rs1) + imm, uint8_t, b, 8));
+    INSTPAT("??????? ????? ????? 100 ????? 00000 11", lbu    , I, LOAD(rd, R(rs1) + imm, uint8_t, b, 8));
+    INSTPAT("??????? ????? ????? 011 ????? 00000 11", ld     , I, LOAD(rd, R(rs1) + imm, uint64_t, d, 64));
+    INSTPAT("??????? ????? ????? 001 ????? 00000 11", lh     , I, LOAD_SEXT(rd, R(rs1) + imm, uint16_t, s, 16));
+    INSTPAT("??????? ????? ????? 101 ????? 00000 11", lhu    , I, LOAD(rd, R(rs1) + imm, uint16_t, s, 16));
     INSTPAT("??????? ????? ????? ??? ????? 01101 11", lui    , U, R(rd) = SEXT(BITS(imm, 31, 12) << 12, 32));
-    INSTPAT("??????? ????? ????? 010 ????? 00000 11", lw     , I, LOAD_SEXT(rd, src1 + imm, uint32_t, w, 32));
-    INSTPAT("??????? ????? ????? 110 ????? 00000 11", lwu    , I, LOAD(rd, src1 + imm, uint32_t, w, 32));
-    INSTPAT("0000000 ????? ????? 110 ????? 01100 11", or     , R, R(rd) = src1 | src2);
-    INSTPAT("??????? ????? ????? 110 ????? 00100 11", ori    , I, R(rd) = src1 | imm);
-    INSTPAT("??????? ????? ????? 000 ????? 01000 11", sb     , S, vaddr_write_b(src1 + imm, src2));
-    INSTPAT("??????? ????? ????? 011 ????? 01000 11", sd     , S, vaddr_write_d(src1 + imm, src2));
-    INSTPAT("??????? ????? ????? 001 ????? 01000 11", sh     , S, vaddr_write_s(src1 + imm, src2));
-    INSTPAT("0000000 ????? ????? 001 ????? 01100 11", sll    , R, R(rd) = src1 << BITS(src2, 5, 0));
-    INSTPAT("000000? ????? ????? 001 ????? 00100 11", slli   , I, R(rd) = src1 << BITS(imm, 5, 0));
-    INSTPAT("0000000 ????? ????? 001 ????? 00110 11", slliw  , I, R(rd) = SEXT(BITS(src1, 31, 0) << BITS(imm, 4, 0), 32));
-    INSTPAT("0000000 ????? ????? 001 ????? 01110 11", sllw   , R, R(rd) = SEXT((uint32_t)BITS(src1, 31, 0) << (BITS(src2, 4, 0)), 32));
-    INSTPAT("0000000 ????? ????? 010 ????? 01100 11", slt    , R, R(rd) = (int64_t)src1 < (int64_t)src2);
-    INSTPAT("??????? ????? ????? 010 ????? 00100 11", slti   , I, R(rd) = (int64_t)src1 < (int64_t)imm);
-    INSTPAT("??????? ????? ????? 011 ????? 00100 11", sltiu  , I, R(rd) = src1 < imm);
-    INSTPAT("0000000 ????? ????? 011 ????? 01100 11", sltu   , R, R(rd) = src1 < src2);
-    INSTPAT("0100000 ????? ????? 101 ????? 01100 11", sra    , R, R(rd) = (int64_t)src1 >> BITS(src2, 5, 0));
-    INSTPAT("010000? ????? ????? 101 ????? 00100 11", srai   , I, R(rd) = (int64_t)src1 >> BITS(imm, 5, 0));
-    INSTPAT("0100000 ????? ????? 101 ????? 00110 11", sraiw  , I, R(rd) = SEXT((int32_t)(BITS(src1, 31, 0)) >> BITS(imm, 4, 0), 32));
-    INSTPAT("0100000 ????? ????? 101 ????? 01110 11", sraw   , R, R(rd) = SEXT((int32_t)(BITS(src1, 31, 0)) >> BITS(src2, 4, 0), 32));
-    INSTPAT("0000000 ????? ????? 101 ????? 01100 11", srl    , R, R(rd) = src1 >> BITS(src2, 5, 0));
-    INSTPAT("000000? ????? ????? 101 ????? 00100 11", srli   , I, R(rd) = src1 >> BITS(imm, 5, 0));
-    INSTPAT("0000000 ????? ????? 101 ????? 00110 11", srliw  , I, R(rd) = SEXT(BITS(src1, 31, 0) >> BITS(imm, 4, 0), 32));
-    INSTPAT("0000000 ????? ????? 101 ????? 01110 11", srlw   , R, R(rd) = SEXT(BITS(src1, 31, 0) >> BITS(src2, 4, 0), 32));
-    INSTPAT("0100000 ????? ????? 000 ????? 01100 11", sub    , R, R(rd) = src1 - src2);
-    INSTPAT("0100000 ????? ????? 000 ????? 01110 11", subw   , R, R(rd) = SEXT(BITS(src1 - src2, 31, 0), 32));
-    INSTPAT("??????? ????? ????? 010 ????? 01000 11", sw     , S, vaddr_write_w(src1 + imm, BITS(src2, 31, 0)));
-    INSTPAT("0000000 ????? ????? 100 ????? 01100 11", xor    , R, R(rd) = src1 ^ src2);
-    INSTPAT("??????? ????? ????? 100 ????? 00100 11", xori   , I, R(rd) = src1 ^ imm);
+    INSTPAT("??????? ????? ????? 010 ????? 00000 11", lw     , I, LOAD_SEXT(rd, R(rs1) + imm, uint32_t, w, 32));
+    INSTPAT("??????? ????? ????? 110 ????? 00000 11", lwu    , I, LOAD(rd, R(rs1) + imm, uint32_t, w, 32));
+    INSTPAT("0000000 ????? ????? 110 ????? 01100 11", or     , R, R(rd) = R(rs1) | R(rs2));
+    INSTPAT("??????? ????? ????? 110 ????? 00100 11", ori    , I, R(rd) = R(rs1) | imm);
+    INSTPAT("??????? ????? ????? 000 ????? 01000 11", sb     , S, vaddr_write_b(R(rs1) + imm, R(rs2)));
+    INSTPAT("??????? ????? ????? 011 ????? 01000 11", sd     , S, vaddr_write_d(R(rs1) + imm, R(rs2)));
+    INSTPAT("??????? ????? ????? 001 ????? 01000 11", sh     , S, vaddr_write_s(R(rs1) + imm, R(rs2)));
+    INSTPAT("0000000 ????? ????? 001 ????? 01100 11", sll    , R, R(rd) = R(rs1) << BITS(R(rs2), 5, 0));
+    INSTPAT("000000? ????? ????? 001 ????? 00100 11", slli   , I, R(rd) = R(rs1) << BITS(imm, 5, 0));
+    INSTPAT("0000000 ????? ????? 001 ????? 00110 11", slliw  , I, R(rd) = SEXT(BITS(R(rs1), 31, 0) << BITS(imm, 4, 0), 32));
+    INSTPAT("0000000 ????? ????? 001 ????? 01110 11", sllw   , R, R(rd) = SEXT((uint32_t)BITS(R(rs1), 31, 0) << (BITS(R(rs2), 4, 0)), 32));
+    INSTPAT("0000000 ????? ????? 010 ????? 01100 11", slt    , R, R(rd) = (int64_t)R(rs1) < (int64_t)R(rs2));
+    INSTPAT("??????? ????? ????? 010 ????? 00100 11", slti   , I, R(rd) = (int64_t)R(rs1) < (int64_t)imm);
+    INSTPAT("??????? ????? ????? 011 ????? 00100 11", sltiu  , I, R(rd) = R(rs1) < imm);
+    INSTPAT("0000000 ????? ????? 011 ????? 01100 11", sltu   , R, R(rd) = R(rs1) < R(rs2));
+    INSTPAT("0100000 ????? ????? 101 ????? 01100 11", sra    , R, R(rd) = (int64_t)R(rs1) >> BITS(R(rs2), 5, 0));
+    INSTPAT("010000? ????? ????? 101 ????? 00100 11", srai   , I, R(rd) = (int64_t)R(rs1) >> BITS(imm, 5, 0));
+    INSTPAT("0100000 ????? ????? 101 ????? 00110 11", sraiw  , I, R(rd) = SEXT((int32_t)(BITS(R(rs1), 31, 0)) >> BITS(imm, 4, 0), 32));
+    INSTPAT("0100000 ????? ????? 101 ????? 01110 11", sraw   , R, R(rd) = SEXT((int32_t)(BITS(R(rs1), 31, 0)) >> BITS(R(rs2), 4, 0), 32));
+    INSTPAT("0000000 ????? ????? 101 ????? 01100 11", srl    , R, R(rd) = R(rs1) >> BITS(R(rs2), 5, 0));
+    INSTPAT("000000? ????? ????? 101 ????? 00100 11", srli   , I, R(rd) = R(rs1) >> BITS(imm, 5, 0));
+    INSTPAT("0000000 ????? ????? 101 ????? 00110 11", srliw  , I, R(rd) = SEXT(BITS(R(rs1), 31, 0) >> BITS(imm, 4, 0), 32));
+    INSTPAT("0000000 ????? ????? 101 ????? 01110 11", srlw   , R, R(rd) = SEXT(BITS(R(rs1), 31, 0) >> BITS(R(rs2), 4, 0), 32));
+    INSTPAT("0100000 ????? ????? 000 ????? 01100 11", sub    , R, R(rd) = R(rs1) - R(rs2));
+    INSTPAT("0100000 ????? ????? 000 ????? 01110 11", subw   , R, R(rd) = SEXT(BITS(R(rs1) - R(rs2), 31, 0), 32));
+    INSTPAT("??????? ????? ????? 010 ????? 01000 11", sw     , S, vaddr_write_w(R(rs1) + imm, BITS(R(rs2), 31, 0)));
+    INSTPAT("0000000 ????? ????? 100 ????? 01100 11", xor    , R, R(rd) = R(rs1) ^ R(rs2));
+    INSTPAT("??????? ????? ????? 100 ????? 00100 11", xori   , I, R(rd) = R(rs1) ^ imm);
     INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc   ,I,
         CSR_CHECK_PERM(imm);
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             uint64_t t = cpu_read_csr(imm);
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-                cpu_write_csr(imm, t & ~src1);
+                cpu_write_csr(imm, t & ~R(rs1));
                 if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                     R(rd) = t;
             }
@@ -482,7 +574,7 @@ static inline void decode_exec(Decode *s) {
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             uint64_t t = cpu_read_csr(imm);
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-                cpu_write_csr(imm, t | src1);
+                cpu_write_csr(imm, t | R(rs1));
                 if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                     R(rd) = t;
             }
@@ -505,7 +597,7 @@ static inline void decode_exec(Decode *s) {
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             uint64_t t = cpu_read_csr(imm);
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-                cpu_write_csr(imm, src1);
+                cpu_write_csr(imm, R(rs1));
                 if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                     R(rd) = t;
             }
@@ -531,30 +623,30 @@ static inline void decode_exec(Decode *s) {
 
     // RV64M instructions
     INSTPAT("0000001 ????? ????? 100 ????? 01100 11", div    , R,
-        if (unlikely((int64_t)src2 == 0))
+        if (unlikely((int64_t)R(rs2) == 0))
             R(rd) = ~0ULL;
-        else if (unlikely((int64_t)src1 == INT64_MIN && (int64_t)src2 == -1))
-            R(rd) = (int64_t)src1;
+        else if (unlikely((int64_t)R(rs1) == INT64_MIN && (int64_t)R(rs2) == -1))
+            R(rd) = (int64_t)R(rs1);
         else
-            R(rd) = (int64_t)src1 / (int64_t)src2;
+            R(rd) = (int64_t)R(rs1) / (int64_t)R(rs2);
     );
     INSTPAT("0000001 ????? ????? 101 ????? 01100 11", divu   , R,
-        if (unlikely(src2 == 0))
+        if (unlikely(R(rs2) == 0))
             R(rd) = ~0ULL;
         else
-            R(rd) = src1 / src2;
+            R(rd) = R(rs1) / R(rs2);
     );
     INSTPAT("0000001 ????? ????? 101 ????? 01110 11", divuw  , R,
-        uint32_t v1 = BITS(src1, 31, 0);
-        uint32_t v2 = BITS(src2, 31, 0);
+        uint32_t v1 = BITS(R(rs1), 31, 0);
+        uint32_t v2 = BITS(R(rs2), 31, 0);
         if (unlikely(v2 == 0))
             R(rd) = ~0ULL;
         else
             R(rd) = SEXT(v1 / v2, 32);
     );
     INSTPAT("0000001 ????? ????? 100 ????? 01110 11", divw   , R,
-        int32_t v1 = (int32_t)BITS(src1, 31, 0);
-        int32_t v2 = (int32_t)BITS(src2, 31, 0);
+        int32_t v1 = (int32_t)BITS(R(rs1), 31, 0);
+        int32_t v2 = (int32_t)BITS(R(rs2), 31, 0);
         if (unlikely(v2 == 0))
             R(rd) = ~0ULL;
         else if (unlikely(v1 == INT32_MIN && v2 == -1))
@@ -562,42 +654,42 @@ static inline void decode_exec(Decode *s) {
         else
             R(rd) = SEXT(v1 / v2, 32);
     );
-    INSTPAT("0000001 ????? ????? 000 ????? 01100 11", mul    , R, R(rd) = src1 * src2);
+    INSTPAT("0000001 ????? ????? 000 ????? 01100 11", mul    , R, R(rd) = R(rs1) * R(rs2));
     INSTPAT("0000001 ????? ????? 001 ????? 01100 11", mulh   , R, 
-        R(rd) = (int64_t)(((__int128_t)(int64_t)src1 * (__int128_t)(int64_t)src2) >> 64)
+        R(rd) = (int64_t)(((__int128_t)(int64_t)R(rs1) * (__int128_t)(int64_t)R(rs2)) >> 64)
     );
     INSTPAT("0000001 ????? ????? 010 ????? 01100 11", mulhsu , R, 
-        R(rd) = (int64_t)(((__int128_t)(int64_t)src1 * (__uint128_t)src2) >> 64)
+        R(rd) = (int64_t)(((__int128_t)(int64_t)R(rs1) * (__uint128_t)R(rs2)) >> 64)
     );
     INSTPAT("0000001 ????? ????? 011 ????? 01100 11", mulhu  , R,
-        R(rd) = (uint64_t)((__uint128_t)src1 * (__uint128_t)src2 >> 64)
+        R(rd) = (uint64_t)((__uint128_t)R(rs1) * (__uint128_t)R(rs2) >> 64)
     );
-    INSTPAT("0000001 ????? ????? 000 ????? 01110 11", mulw   , R, R(rd) = SEXT(BITS(src1 * src2, 31, 0), 32));
+    INSTPAT("0000001 ????? ????? 000 ????? 01110 11", mulw   , R, R(rd) = SEXT(BITS(R(rs1) * R(rs2), 31, 0), 32));
     INSTPAT("0000001 ????? ????? 110 ????? 01100 11", rem    , R,
-        if (unlikely((int64_t)src2 == 0))
-            R(rd) = (int64_t)src1;
-        else if (unlikely((int64_t)src1 == INT64_MIN && (int64_t)src2 == -1))
+        if (unlikely((int64_t)R(rs2) == 0))
+            R(rd) = (int64_t)R(rs1);
+        else if (unlikely((int64_t)R(rs1) == INT64_MIN && (int64_t)R(rs2) == -1))
             R(rd) = 0;  // overflow case: remainder is 0
         else
-            R(rd) = (int64_t)src1 % (int64_t)src2;
+            R(rd) = (int64_t)R(rs1) % (int64_t)R(rs2);
     );
     INSTPAT("0000001 ????? ????? 111 ????? 01100 11", remu   , R,
-        if (unlikely(src2 == 0))
-            R(rd) = src1;
+        if (unlikely(R(rs2) == 0))
+            R(rd) = R(rs1);
         else
-            R(rd) = src1 % src2;
+            R(rd) = R(rs1) % R(rs2);
     );
     INSTPAT("0000001 ????? ????? 111 ????? 01110 11", remuw  , R, 
-        uint32_t v1 = BITS(src1, 31, 0);
-        uint32_t v2 = BITS(src2, 31, 0);
+        uint32_t v1 = BITS(R(rs1), 31, 0);
+        uint32_t v2 = BITS(R(rs2), 31, 0);
         if (unlikely(v2 == 0))
             R(rd) = SEXT(v1, 32);
         else
             R(rd) = SEXT(v1 % v2, 32);
     );
     INSTPAT("0000001 ????? ????? 110 ????? 01110 11", remw   , R, 
-        int32_t v1 = (int32_t)BITS(src1, 31, 0);
-        int32_t v2 = (int32_t)BITS(src2, 31, 0);
+        int32_t v1 = (int32_t)BITS(R(rs1), 31, 0);
+        int32_t v2 = (int32_t)BITS(R(rs2), 31, 0);
         if (unlikely(v2 == 0))
             R(rd) = SEXT(v1, 32);
         else if (unlikely(v1 == INT32_MIN && v2 == -1))
@@ -608,24 +700,24 @@ static inline void decode_exec(Decode *s) {
 
     // RV64A instructions
     INSTPAT("00010?? 00000 ????? 011 ????? 01011 11", lr.d   , R,
-        uint64_t v = vaddr_read_d(src1);
+        uint64_t v = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             R(rd) = v;
-            rv.reservation_address = src1;
+            rv.reservation_address = R(rs1);
             rv.reservation_valid = true;
         }
     );
     INSTPAT("00010?? 00000 ????? 010 ????? 01011 11", lr.w   , R,
-        uint32_t v = vaddr_read_w(src1);
+        uint32_t v = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             R(rd) = SEXT(v, 32);
-            rv.reservation_address = src1;
+            rv.reservation_address = R(rs1);
             rv.reservation_valid = true;
         }
     );
     INSTPAT("00011?? ????? ????? 011 ????? 01011 11", sc.d   , R,
-        if (rv.reservation_valid && rv.reservation_address == src1) {
-            vaddr_write_d(src1, src2);
+        if (rv.reservation_valid && rv.reservation_address == R(rs1)) {
+            vaddr_write_d(R(rs1), R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = 0;
             else
@@ -636,8 +728,8 @@ static inline void decode_exec(Decode *s) {
         rv.reservation_valid = false;
     );
     INSTPAT("00011?? ????? ????? 010 ????? 01011 11", sc.w   , R,
-        if (rv.reservation_valid && rv.reservation_address == src1) {
-            vaddr_write_w(src1, src2);
+        if (rv.reservation_valid && rv.reservation_address == R(rs1)) {
+            vaddr_write_w(R(rs1), R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = 0;
             else
@@ -648,147 +740,906 @@ static inline void decode_exec(Decode *s) {
         rv.reservation_valid = false;
     );
     INSTPAT("00000?? ????? ????? 011 ????? 01011 11", amoadd.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, (int64_t)t + (int64_t)src2);
+            vaddr_write_d(R(rs1), (int64_t)t + (int64_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("00000?? ????? ????? 010 ????? 01011 11", amoadd.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, (int32_t)t + (int32_t)src2);
+            vaddr_write_w(R(rs1), (int32_t)t + (int32_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("01100?? ????? ????? 011 ????? 01011 11", amoand.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, (int64_t)t & (int64_t)src2);
+            vaddr_write_d(R(rs1), (int64_t)t & (int64_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("01100?? ????? ????? 010 ????? 01011 11", amoand.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, (int32_t)t & (int32_t)src2);
+            vaddr_write_w(R(rs1), (int32_t)t & (int32_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("01000?? ????? ????? 011 ????? 01011 11", amoor.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, (int64_t)t | (int64_t)src2);
+            vaddr_write_d(R(rs1), (int64_t)t | (int64_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("01000?? ????? ????? 010 ????? 01011 11", amoor.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, (int32_t)t | (int32_t)src2);
+            vaddr_write_w(R(rs1), (int32_t)t | (int32_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("00100?? ????? ????? 011 ????? 01011 11", amoxor.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, (int64_t)t ^ (int64_t)src2);
+            vaddr_write_d(R(rs1), (int64_t)t ^ (int64_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("00100?? ????? ????? 010 ????? 01011 11", amoxor.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, (int32_t)t ^ (int32_t)src2);
+            vaddr_write_w(R(rs1), (int32_t)t ^ (int32_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("10100?? ????? ????? 011 ????? 01011 11", amomax.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, MAX((int64_t)t, (int64_t)src2));
+            vaddr_write_d(R(rs1), MAX((int64_t)t, (int64_t)R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("10100?? ????? ????? 010 ????? 01011 11", amomax.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, MAX((int32_t)t, (int32_t)src2));
+            vaddr_write_w(R(rs1), MAX((int32_t)t, (int32_t)R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("11100?? ????? ????? 011 ????? 01011 11", amomaxu.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, MAX(t, src2));
+            vaddr_write_d(R(rs1), MAX(t, R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("11100?? ????? ????? 010 ????? 01011 11", amomaxu.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, MAX((uint32_t)t, (uint32_t)src2));
+            vaddr_write_w(R(rs1), MAX((uint32_t)t, (uint32_t)R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("10000?? ????? ????? 011 ????? 01011 11", amomin.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, MIN((int64_t)t, (int64_t)src2));
+            vaddr_write_d(R(rs1), MIN((int64_t)t, (int64_t)R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("10000?? ????? ????? 010 ????? 01011 11", amomin.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, MIN((int32_t)t, (int32_t)src2));
+            vaddr_write_w(R(rs1), MIN((int32_t)t, (int32_t)R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("11000?? ????? ????? 011 ????? 01011 11", amominu.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, MIN(t, src2));
+            vaddr_write_d(R(rs1), MIN(t, R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("11000?? ????? ????? 010 ????? 01011 11", amominu.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, MIN((uint32_t)t, (uint32_t)src2));
+            vaddr_write_w(R(rs1), MIN((uint32_t)t, (uint32_t)R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("00001?? ????? ????? 011 ????? 01011 11", amoswap.d, R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, src2);
+            vaddr_write_d(R(rs1), R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("00001?? ????? ????? 010 ????? 01011 11", amoswap.w, R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, src2);
+            vaddr_write_w(R(rs1), R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
+        }
+    );
+
+    // RV64F instructions
+    INSTPAT("???????????? ????? 010 ????? 00001 11", flw, I,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint32_t val = vaddr_read_w(R(rs1) + imm);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                rv.F[rd].u64 = nan_box_f32(val);
+                set_fs_dirty();
+            }
+        }
+    );
+    INSTPAT("??????? ????? ????? 010 ????? 01001 11", fsw, S,
+        if (!fp_enabled())
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        else
+            vaddr_write_w(R(rs1) + imm, rv.F[rs2].u32);
+    );
+    INSTPAT("0000000 ????? ????? ??? ????? 10100 11", fadd.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t result = f32_add(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64));
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0000100 ????? ????? ??? ????? 10100 11", fsub.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t result = f32_sub(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64));
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0001000 ????? ????? ??? ????? 10100 11", fmul.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t result = f32_mul(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64));
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0001100 ????? ????? ??? ????? 10100 11", fdiv.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t result = f32_div(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64));
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0101100 00000 ????? ??? ????? 10100 11", fsqrt.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t result = f32_sqrt(get_f32(rv.F[rs1].u64));
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0010000 ????? ????? 000 ????? 10100 11", fsgnj.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint32_t val1 = get_f32(rv.F[rs1].u64).v;
+            uint32_t val2 = get_f32(rv.F[rs2].u64).v;
+            uint32_t result = (val1 & 0x7FFFFFFF) | (val2 & 0x80000000);
+            rv.F[rd].u64 = nan_box_f32(result);
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0010000 ????? ????? 001 ????? 10100 11", fsgnjn.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint32_t val1 = get_f32(rv.F[rs1].u64).v;
+            uint32_t val2 = get_f32(rv.F[rs2].u64).v;
+            uint32_t result = (val1 & 0x7FFFFFFF) | ((~val2) & 0x80000000);
+            rv.F[rd].u64 = nan_box_f32(result);
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0010000 ????? ????? 010 ????? 10100 11", fsgnjx.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint32_t val1 = get_f32(rv.F[rs1].u64).v;
+            uint32_t val2 = get_f32(rv.F[rs2].u64).v;
+            uint32_t result = val1 ^ (val2 & 0x80000000);
+            rv.F[rd].u64 = nan_box_f32(result);
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0010100 ????? ????? 000 ????? 10100 11", fmin.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            float32_t f1 = get_f32(rv.F[rs1].u64);
+            float32_t f2 = get_f32(rv.F[rs2].u64);
+            bool f1_nan = f32_isSignalingNaN(f1) || f32_isNaN(f1);
+            bool f2_nan = f32_isSignalingNaN(f2) || f32_isNaN(f2);
+            float32_t result;
+            if (f1_nan && f2_nan)
+                result.v = 0x7fc00000; // Canonical NaN
+            else if (f1_nan)
+                result = f2;
+            else if (f2_nan)
+                result = f1;
+            else
+                result = f32_le(f1, f2) ? f1 : f2;
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0010100 ????? ????? 001 ????? 10100 11", fmax.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            float32_t f1 = get_f32(rv.F[rs1].u64);
+            float32_t f2 = get_f32(rv.F[rs2].u64);
+            bool f1_nan = f32_isSignalingNaN(f1) || f32_isNaN(f1);
+            bool f2_nan = f32_isSignalingNaN(f2) || f32_isNaN(f2);
+            float32_t result;
+            if (f1_nan && f2_nan)
+                result.v = 0x7fc00000; // Canonical NaN
+            else if (f1_nan)
+                result = f2;
+            else if (f2_nan)
+                result = f1;
+            else
+                result = f32_le(f2, f1) ? f1 : f2;
+            
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("1100000 00000 ????? ??? ????? 10100 11", fcvt.w.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            int32_t result = f32_to_i32(get_f32(rv.F[rs1].u64), softfloat_roundingMode, true);
+            R(rd) = SEXT(result, 32);
+            update_fflags();
+        }
+    );
+    INSTPAT("1100000 00001 ????? ??? ????? 10100 11", fcvt.wu.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            uint32_t result = f32_to_ui32(get_f32(rv.F[rs1].u64), softfloat_roundingMode, true);
+            R(rd) = SEXT(result, 32);
+            update_fflags();
+        }
+    );
+    INSTPAT("1100000 00010 ????? ??? ????? 10100 11", fcvt.l.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            R(rd) = f32_to_i64(get_f32(rv.F[rs1].u64), softfloat_roundingMode, true);
+            update_fflags();
+        }
+    );
+    INSTPAT("1100000 00011 ????? ??? ????? 10100 11", fcvt.lu.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            R(rd) = f32_to_ui64(get_f32(rv.F[rs1].u64), softfloat_roundingMode, true);
+            update_fflags();
+        }
+    );
+    INSTPAT("1101000 00000 ????? ??? ????? 10100 11", fcvt.s.w, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t result = i32_to_f32((int32_t)R(rs1));
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("1101000 00001 ????? ??? ????? 10100 11", fcvt.s.wu, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t result = ui32_to_f32((uint32_t)R(rs1));
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("1101000 00010 ????? ??? ????? 10100 11", fcvt.s.l, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t result = i64_to_f32(R(rs1));
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("1101000 00011 ????? ??? ????? 10100 11", fcvt.s.lu, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t result = ui64_to_f32(R(rs1));
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("1111000 00000 ????? 000 ????? 10100 11", fmv.x.w, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            R(rd) = SEXT(rv.F[rs1].u32, 32);
+        }
+    );
+    INSTPAT("1111000 00000 ????? 000 ????? 10100 11", fmv.w.x, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            rv.F[rd].u64 = nan_box_f32((uint32_t)R(rs1));
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("1110000 00000 ????? 001 ????? 10100 11", fclass.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            float32_t val = get_f32(rv.F[rs1].u64);
+            uint64_t result = 0;
+            if (f32_isSignalingNaN(val)) result |= (1 << 8);
+            else if (f32_isNaN(val)) result |= (1 << 9);
+            else if (val.v == 0xFF800000) result |= (1 << 0); // -inf
+            else if (val.v == 0x7F800000) result |= (1 << 7); // +inf
+            else if ((val.v & 0x7F800000) == 0) {
+                if (val.v & 0x80000000) result |= (1 << 2); // -subnormal
+                else result |= (1 << 5); // +subnormal
+            } else if (val.v == 0x80000000) result |= (1 << 3); // -0
+            else if (val.v == 0x00000000) result |= (1 << 4); // +0
+            else if (val.v & 0x80000000) result |= (1 << 1); // -normal
+            else result |= (1 << 6); // +normal
+            R(rd) = result;
+        }
+    );
+    INSTPAT("1010000 ????? ????? 010 ????? 10100 11", feq.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            R(rd) = f32_eq(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64));
+            update_fflags();
+        }
+    );
+    INSTPAT("1010000 ????? ????? 001 ????? 10100 11", flt.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            R(rd) = f32_lt(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64));
+            update_fflags();
+        }
+    );
+    INSTPAT("1010000 ????? ????? 000 ????? 10100 11", fle.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            R(rd) = f32_le(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64));
+            update_fflags();
+        }
+    );
+    INSTPAT("????? ?? ????? ????? ??? ????? 10000 11", fmadd.s, R4,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t result = f32_mulAdd(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64), get_f32(rv.F[rs3].u64));
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("????? ?? ????? ????? ??? ????? 10001 11", fmsub.s, R4,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t neg_rs3 = {get_f32(rv.F[rs3].u64).v ^ 0x80000000};
+            float32_t result = f32_mulAdd(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64), neg_rs3);
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("????? ?? ????? ????? ??? ????? 10010 11", fnmsub.s, R4,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t result = f32_mulAdd(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64), get_f32(rv.F[rs3].u64));
+            rv.F[rd].u64 = nan_box_f32(result.v ^ 0x80000000);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("????? ?? ????? ????? ??? ????? 10011 11", fnmadd.s, R4,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t neg_rs3 = {get_f32(rv.F[rs3].u64).v ^ 0x80000000};
+            float32_t result = f32_mulAdd(get_f32(rv.F[rs1].u64), get_f32(rv.F[rs2].u64), neg_rs3);
+            rv.F[rd].u64 = nan_box_f32(result.v ^ 0x80000000);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+
+    // RV64D instructions
+    INSTPAT("??????? ????? ????? 011 ????? 00001 11", fld, I,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint64_t val = vaddr_read_d(R(rs1) + imm);
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                rv.F[rd].u64 = val;
+                set_fs_dirty();
+            }
+        }
+    );
+    INSTPAT("??????? ????? ????? 011 ????? 01000 11", fsd, S,
+        if (!fp_enabled())
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        else
+            vaddr_write_d(R(rs1) + imm, rv.F[rs2].u64);
+    );
+    INSTPAT("0000001 ????? ????? ??? ????? 10100 11", fadd.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            rv.F[rd].f64 = f64_add(rv.F[rs1].f64, rv.F[rs2].f64);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0000101 ????? ????? ??? ????? 10100 11", fsub.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            rv.F[rd].f64 = f64_sub(rv.F[rs1].f64, rv.F[rs2].f64);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0001001 ????? ????? ??? ????? 10100 11", fmul.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            rv.F[rd].f64 = f64_mul(rv.F[rs1].f64, rv.F[rs2].f64);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0001101 ????? ????? ??? ????? 10100 11", fdiv.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            rv.F[rd].f64 = f64_div(rv.F[rs1].f64, rv.F[rs2].f64);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0101101 00000 ????? ??? ????? 10100 11", fsqrt.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            rv.F[rd].f64 = f64_sqrt(rv.F[rs1].f64);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0010001 ????? ????? 000 ????? 10100 11", fsgnj.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint64_t sign_mask = 0x8000000000000000ULL;
+            rv.F[rd].u64 = (rv.F[rs1].u64 & ~sign_mask) | (rv.F[rs2].u64 & sign_mask);
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0010001 ????? ????? 001 ????? 10100 11", fsgnjn.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint64_t sign_mask = 0x8000000000000000ULL;
+            rv.F[rd].u64 = (rv.F[rs1].u64 & ~sign_mask) | ((~rv.F[rs2].u64) & sign_mask);
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0010001 ????? ????? 010 ????? 10100 11", fsgnjx.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint64_t sign_mask = 0x8000000000000000ULL;
+            uint64_t xor_sign = (rv.F[rs1].u64 ^ rv.F[rs2].u64) & sign_mask;
+            rv.F[rd].u64 = (rv.F[rs1].u64 & ~sign_mask) | xor_sign;
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0010101 ????? ????? 000 ????? 10100 11", fmin.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            float64_t a = rv.F[rs1].f64;
+            float64_t b = rv.F[rs2].f64;
+            if (f64_isNaN(a) && f64_isNaN(b))
+                rv.F[rd].f64 = (float64_t){0x7FF8000000000000ULL}; // Canonical NaN
+            else if (f64_isNaN(a))
+                rv.F[rd].f64 = b;
+            else if (f64_isNaN(b))
+                rv.F[rd].f64 = a;
+            else
+                rv.F[rd].f64 = f64_le(a, b) ? a : b;
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0010101 ????? ????? 001 ????? 10100 11", fmax.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            float64_t a = rv.F[rs1].f64;
+            float64_t b = rv.F[rs2].f64;
+            if (f64_isNaN(a) && f64_isNaN(b))
+                rv.F[rd].f64 = (float64_t){0x7FF8000000000000ULL}; // Canonical NaN
+            else if (f64_isNaN(a))
+                rv.F[rd].f64 = b;
+            else if (f64_isNaN(b))
+                rv.F[rd].f64 = a;
+            else
+                rv.F[rd].f64 = f64_le(a, b) ? b : a;
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("1100001 00000 ????? ??? ????? 10100 11", fcvt.w.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            int32_t result = f64_to_i32(rv.F[rs1].f64, softfloat_roundingMode, true);
+            R(rd) = SEXT(result, 32);
+            update_fflags();
+        }
+    );
+    INSTPAT("1100001 00001 ????? ??? ????? 10100 11", fcvt.wu.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            uint32_t result = f64_to_ui32(rv.F[rs1].f64, softfloat_roundingMode, true);
+            R(rd) = SEXT(result, 32);
+            update_fflags();
+        }
+    );
+    INSTPAT("1100001 00010 ????? ??? ????? 10100 11", fcvt.l.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            R(rd) = f64_to_i64(rv.F[rs1].f64, softfloat_roundingMode, true);
+            update_fflags();
+        }
+    );
+    INSTPAT("1100001 00011 ????? ??? ????? 10100 11", fcvt.lu.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            R(rd) = f64_to_ui64(rv.F[rs1].f64, softfloat_roundingMode, true);
+            update_fflags();
+        }
+    );
+    INSTPAT("1101001 00000 ????? ??? ????? 10100 11", fcvt.d.w, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            rv.F[rd].f64 = i32_to_f64((int32_t)R(rs1));
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("1101001 00001 ????? ??? ????? 10100 11", fcvt.d.wu, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            rv.F[rd].f64 = ui32_to_f64((uint32_t)R(rs1));
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("1101001 00010 ????? ??? ????? 10100 11", fcvt.d.l, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            rv.F[rd].f64 = i64_to_f64(R(rs1));
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("1101001 00011 ????? ??? ????? 10100 11", fcvt.d.lu, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            rv.F[rd].f64 = ui64_to_f64(R(rs1));
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0100000 00001 ????? ??? ????? 10100 11", fcvt.s.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float32_t result = f64_to_f32(rv.F[rs1].f64);
+            rv.F[rd].u64 = nan_box_f32(result.v);
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("0100001 00000 ????? ??? ????? 10100 11", fcvt.d.s, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            rv.F[rd].f64 = f32_to_f64(get_f32(rv.F[rs1].u64));
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("1111001 00000 ????? 000 ????? 10100 11", fmv.x.d, R,
+        if (!fp_enabled())
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        else
+            R(rd) = rv.F[rs1].u64;
+    );
+    INSTPAT("1111101 00000 ????? 000 ????? 10100 11", fmv.d.x, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            rv.F[rd].u64 = R(rs1);
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("1110001 00000 ????? 001 ????? 10100 11", fclass.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            float64_t val = rv.F[rs1].f64;
+            uint64_t result = 0;
+            
+            if (f64_isSignalingNaN(val)) result |= (1 << 8);
+            else if (f64_isNaN(val)) result |= (1 << 9);
+            else if (val.v == 0xFFF0000000000000ULL) result |= (1 << 0); // -inf
+            else if (val.v == 0x7FF0000000000000ULL) result |= (1 << 7); // +inf
+            else if ((val.v & 0x7FF0000000000000ULL) == 0) {
+                if (val.v & 0x8000000000000000ULL) result |= (1 << 2); // -subnormal
+                else result |= (1 << 5); // +subnormal
+            } else if (val.v == 0x8000000000000000ULL) result |= (1 << 3); // -0
+            else if (val.v == 0x0000000000000000ULL) result |= (1 << 4); // +0
+            else if (val.v & 0x8000000000000000ULL) result |= (1 << 1); // -normal
+            else result |= (1 << 6); // +normal
+            R(rd) = result;
+        }
+    );
+    INSTPAT("1010001 ????? ????? 010 ????? 10100 11", feq.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            R(rd) = f64_eq(rv.F[rs1].f64, rv.F[rs2].f64);
+            update_fflags();
+        }
+    );
+    INSTPAT("1010001 ????? ????? 001 ????? 10100 11", flt.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            R(rd) = f64_lt(rv.F[rs1].f64, rv.F[rs2].f64);
+            update_fflags();
+        }
+    );
+    INSTPAT("1010001 ????? ????? 000 ????? 10100 11", fle.d, R,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            R(rd) = f64_le(rv.F[rs1].f64, rv.F[rs2].f64);
+            update_fflags();
+        }
+    );
+    INSTPAT("????? ?? ????? ????? ??? ????? 10000 01", fmadd.d, R4,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float64_t result = f64_mulAdd(rv.F[rs1].f64, rv.F[rs2].f64, rv.F[rs3].f64);
+            rv.F[rd].f64 = result;
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("????? ?? ????? ????? ??? ????? 10001 01", fmsub.d, R4,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float64_t neg_rs3 = {rv.F[rs3].u64 ^ 0x8000000000000000ULL};
+            float64_t result = f64_mulAdd(rv.F[rs1].f64, rv.F[rs2].f64, neg_rs3);
+            rv.F[rd].f64 = result;
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("????? ?? ????? ????? ??? ????? 10010 01", fnmsub.d, R4,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float64_t result = f64_mulAdd(rv.F[rs1].f64, rv.F[rs2].f64, rv.F[rs3].f64);
+            rv.F[rd].u64 = result.v ^ 0x8000000000000000ULL;
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+    INSTPAT("????? ?? ????? ????? ??? ????? 10011 01", fnmadd.d, R4,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t rm = get_rounding_mode(imm & 0x7);
+            set_softfloat_rounding_mode(rm);
+            float64_t neg_rs3 = {rv.F[rs3].u64 ^ 0x8000000000000000ULL};
+            float64_t result = f64_mulAdd(rv.F[rs1].f64, rv.F[rs2].f64, neg_rs3);
+            rv.F[rd].u64 = result.v ^ 0x8000000000000000ULL;
+            update_fflags();
+            set_fs_dirty();
+        }
+    );
+
+    // CSR instructions for floating-point control and status register
+    INSTPAT("0000000 00001 00000 010 ????? 11100 11", frcsr, I,
+        if (!fp_enabled())
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        else
+            R(rd) = rv.fcsr.raw;
+    );
+    INSTPAT("0000000 00001 ????? 001 00000 11100 11", fscsr, I,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint32_t old_fcsr = rv.fcsr.raw;
+            rv.fcsr.raw = R(rs1) & 0xFF; // Only bits [7:0] are writable
+            R(rd) = old_fcsr;
+        }
+    );
+    INSTPAT("0000000 00010 00000 010 ????? 11100 11", frrm, I,
+        if (!fp_enabled())
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        else
+            R(rd) = rv.fcsr.frm;
+    );
+    INSTPAT("0000000 00010 ????? 001 00000 11100 11", fsrm, I,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t old_frm = rv.fcsr.frm;
+            rv.fcsr.frm = R(rs1) & 0x7; // Only bits [2:0] are valid
+            R(rd) = old_frm;
+        }
+    );
+    INSTPAT("0000000 00011 00000 010 ????? 11100 11", frflags, I,
+        if (!fp_enabled())
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        else
+            R(rd) = rv.fcsr.fflags;
+    );
+    INSTPAT("0000000 00011 ????? 001 00000 11100 11", fsflags, I,
+        if (!fp_enabled()) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);
+        } else {
+            uint8_t old_fflags = rv.fcsr.fflags;
+            rv.fcsr.fflags = R(rs1) & 0x1F; // Only bits [4:0] are valid
+            R(rd) = old_fflags;
         }
     );
 
