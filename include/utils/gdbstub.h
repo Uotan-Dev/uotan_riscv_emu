@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "../../mini-gdbstub/include/gdbstub.h" // IWYU pragma: keep
+#include "../../thirdparty/mini-gdbstub/include/gdbstub.h" // IWYU pragma: keep
 
 void gdbstub_emu_start();
 

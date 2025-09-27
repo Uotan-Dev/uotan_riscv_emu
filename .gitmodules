@@ -1,6 +1,9 @@
-[submodule "riscv-tests"]
-	path = riscv-tests
-	url = https://github.com/riscv-software-src/riscv-tests
-[submodule "mini-gdbstub"]
-	path = mini-gdbstub
+[submodule "thirdparty/riscv-tests"]
+	path = thirdparty/riscv-tests
+	url = https://github.com/riscv-software-src/riscv-tests.git
+[submodule "thirdparty/berkeley-softfloat-3"]
+	path = thirdparty/berkeley-softfloat-3
+	url = https://github.com/ucb-bar/berkeley-softfloat-3.git
+[submodule "thirdparty/mini-gdbstub"]
+	path = thirdparty/mini-gdbstub
 	url = https://github.com/RinHizakura/mini-gdbstub.git

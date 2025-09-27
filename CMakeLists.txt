@@ -30,11 +30,11 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Werror -Wno-sign-compare")
 # GDB Stub
 add_custom_target(gdbstub_build
     COMMAND $(MAKE)
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/mini-gdbstub
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/thirdparty/mini-gdbstub
     COMMENT "Building libgdbstub.a via Makefile"
 )
 
-set(GDBSTUB_LIB ${CMAKE_SOURCE_DIR}/mini-gdbstub/build/libgdbstub.a)
+set(GDBSTUB_LIB ${CMAKE_SOURCE_DIR}/thirdparty/mini-gdbstub/build/libgdbstub.a)
 
 # Find all .c and .cpp files in the src directory.
 file(GLOB_RECURSE SOURCES "src/*.c" "src/*.cpp")
@@ -74,9 +74,9 @@ function(build_asm asm_path out_path target_name)
         add_custom_command(
             OUTPUT ${temp_elf}
             COMMAND riscv64-unknown-elf-gcc
-                -T${CMAKE_SOURCE_DIR}/riscv-tests/env/p/link.ld
-                -I${CMAKE_SOURCE_DIR}/riscv-tests/env/p
-                -I${CMAKE_SOURCE_DIR}/riscv-tests/isa/macros/scalar
+                -T${CMAKE_SOURCE_DIR}/thirdparty/riscv-tests/env/p/link.ld
+                -I${CMAKE_SOURCE_DIR}/thirdparty/riscv-tests/env/p
+                -I${CMAKE_SOURCE_DIR}/thirdparty/riscv-tests/isa/macros/scalar
                 -nostdlib -ffreestanding -march=rv64ima_zicsr_zifencei -g -mabi=lp64 -nostartfiles -O0
                 -o ${temp_elf}
                 ${file}
@@ -116,23 +116,23 @@ function(build_asm asm_path out_path target_name)
 endfunction()
 
 # Build RISC-V test binaries
-build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64mi/*.S"
+build_asm("${CMAKE_SOURCE_DIR}/thirdparty/riscv-tests/isa/rv64mi/*.S"
           "${CMAKE_BINARY_DIR}/testbins/rv64mi"
           "riscv_tests_rv64mi")
 
-build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64si/*.S"
+build_asm("${CMAKE_SOURCE_DIR}/thirdparty/riscv-tests/isa/rv64si/*.S"
           "${CMAKE_BINARY_DIR}/testbins/rv64si"
           "riscv_tests_rv64si")
 
-build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64ui/*.S"
+build_asm("${CMAKE_SOURCE_DIR}/thirdparty/riscv-tests/isa/rv64ui/*.S"
           "${CMAKE_BINARY_DIR}/testbins/rv64ui"
           "riscv_tests_rv64ui")
 
-build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64um/*.S"
+build_asm("${CMAKE_SOURCE_DIR}/thirdparty/riscv-tests/isa/rv64um/*.S"
           "${CMAKE_BINARY_DIR}/testbins/rv64um"
           "riscv_tests_rv64um")
 
-build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64ua/*.S"
+build_asm("${CMAKE_SOURCE_DIR}/thirdparty/riscv-tests/isa/rv64ua/*.S"
           "${CMAKE_BINARY_DIR}/testbins/rv64ua"
           "riscv_tests_rv64ua")
 
