@@ -91,13 +91,13 @@ int main(int argc, char *argv[]) {
     } else {
         FILE *fp = fopen(bin_file, "rb");
         if (fp == NULL) {
-            fprintf(stderr, "fopen failed\n");
+            log_error("fopen failed\n");
             exit(EXIT_FAILURE);
         }
         fseek(fp, 0, SEEK_END);
         long size = ftell(fp);
         if (size == 0) {
-            fprintf(stderr, "file size is 0\n");
+            log_error("file size is 0");
             exit(EXIT_FAILURE);
         }
         buf_size = size;

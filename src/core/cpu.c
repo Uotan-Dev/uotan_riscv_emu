@@ -251,7 +251,7 @@ FORCE_INLINE void _mret(Decode *s) {
 
     mstatus |= MSTATUS_MPIE;
 
-    mstatus &= ~MSTATUS_MPP; // Why, We don't have U-mode implemented
+    mstatus &= ~MSTATUS_MPP;
 
     cpu_write_csr(CSR_MSTATUS, mstatus);
 }
@@ -279,7 +279,7 @@ FORCE_INLINE void _sret(Decode *s) {
 
     sstatus |= SSTATUS_SPIE;
 
-    sstatus &= ~SSTATUS_SPP; // Why, We don't have U-mode implemented
+    sstatus &= ~SSTATUS_SPP;
 
     cpu_write_csr(CSR_SSTATUS, sstatus);
 }
