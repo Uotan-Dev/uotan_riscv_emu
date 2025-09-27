@@ -166,7 +166,7 @@ void generateTests(std::ostream &out, const std::string &typeName,
             out << ";\n";
 
             // Calculate expected result
-            T expected;
+            T expected = 0;
             if (op == "+")
                 expected = values[i] + values[j];
             else if (op == "-")
