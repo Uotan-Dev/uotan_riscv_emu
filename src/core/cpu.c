@@ -26,6 +26,7 @@
 #include "device/uart.h"
 #include "ui/ui.h"
 #include "utils/logger.h"
+#include "utils/slowtimer.h"
 
 // Raise an exception
 // This should only be called in the decode / exec proccess
@@ -833,8 +834,17 @@ void __cpu_exec_once() {
 
 // This can also be called directly from tests
 void __cpu_start() {
-    while (!unlikely(rv.shutdown))
+    uint64_t start = slowtimer_get_microseconds();
+    uint64_t inst_cnt = 0;
+    while (!unlikely(rv.shutdown)) {
         CPU_EXEC_COMMON();
+        inst_cnt++;
+    }
+    uint64_t end = slowtimer_get_microseconds();
+    double delta = (double)(end - start) / 1000000.0;
+    log_info("Simulation time: %f seconds (%" PRIu64 " microseconds)\n", delta,
+             end - start);
+    log_info("Simulation speed: %f insts per second\n", inst_cnt / delta);
 }
 
 void cpu_start() {
