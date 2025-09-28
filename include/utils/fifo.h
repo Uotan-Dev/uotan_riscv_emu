@@ -27,13 +27,13 @@ extern "C" {
 #include "../common.h"
 
 // TODO: support dynamic size
-#define FIFO_SIZE 16
+#define FIFO_SIZE 512
 
 typedef struct {
     uint8_t buffer[FIFO_SIZE];
-    uint8_t head;
-    uint8_t tail;
-    uint8_t count;
+    size_t head;
+    size_t tail;
+    size_t count;
 } fifo_t;
 
 FORCE_INLINE void fifo_init(fifo_t *f) { memset(f, 0, sizeof(fifo_t)); }
