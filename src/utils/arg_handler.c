@@ -28,16 +28,10 @@ typedef struct {
     uint64_t load_addr;
 } file_spec_t;
 
-// Maximum number of extra files supported
-#define MAX_EXTRA_FILES 16
-
-// Global variables
 static bool opt_gdb = false;
 static char *bin_file = NULL;
 static file_spec_t file_specs[MAX_EXTRA_FILES];
 static int file_spec_count = 0;
-
-// Final load buffer array
 static rv_load_t load_buffers[MAX_EXTRA_FILES + 1];
 static int load_buffer_count = 0;
 
@@ -48,12 +42,6 @@ static void print_usage(const char *progname) {
     printf("      --gdb                     Enable gdbstub support\n");
     printf("  -l, --load FILE@ADDR          Load additional file to specified "
            "address\n");
-    printf("      --dtb FILE                Load device tree blob (equivalent "
-           "to -l FILE@0x82200000)\n");
-    printf("      --kernel FILE             Load kernel image (equivalent to "
-           "-l FILE@0x80200000)\n");
-    printf("      --initrd FILE             Load initrd image (equivalent to "
-           "-l FILE@0x84000000)\n");
     printf("\nAddress format:\n");
     printf(
         "  Addresses can be specified in decimal or hexadecimal (0x prefix)\n");
@@ -63,11 +51,10 @@ static void print_usage(const char *progname) {
     printf("  %s --gdb fw_payload.bin\n", progname);
     printf("  %s fw_jump.bin -l Image@0x80200000 -l system.dtb@0x82200000\n",
            progname);
-    printf("  %s fw_jump.bin --kernel Image --dtb system.dtb\n", progname);
-    printf("  %s opensbi.bin --kernel vmlinux --dtb qemu.dtb --initrd "
-           "initramfs.cpio\n",
-           progname);
     printf("  %s fw_jump.bin -l bbl@0x80000000 -l Image@0x80200000\n",
+           progname);
+    printf("  %s opensbi.bin -l vmlinux@0x80200000 -l qemu.dtb@0x82200000 -l "
+           "initramfs.cpio@0x84000000\n",
            progname);
 }
 
@@ -216,9 +203,6 @@ void parse_args(int argc, char *argv[]) {
         {"help",    no_argument,       NULL, 'h'},
         {"gdb",     no_argument,       NULL,  1},
         {"load",    required_argument, NULL, 'l'},
-        {"dtb",     required_argument, NULL,  2},
-        {"kernel",  required_argument, NULL,  3},
-        {"initrd",  required_argument, NULL,  4},
         {NULL, 0, NULL, 0}
     };
     // clang-format on
@@ -234,18 +218,6 @@ void parse_args(int argc, char *argv[]) {
 
             case 'l': // --load FILE@ADDR
                 parse_load_option(optarg);
-                break;
-
-            case 2: // --dtb FILE
-                add_file_spec(optarg, 0x82200000);
-                break;
-
-            case 3: // --kernel FILE
-                add_file_spec(optarg, 0x80200000);
-                break;
-
-            case 4: // --initrd FILE
-                add_file_spec(optarg, 0x84000000);
                 break;
 
             case '?':
