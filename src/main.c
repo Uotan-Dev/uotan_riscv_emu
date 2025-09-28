@@ -21,48 +21,10 @@
 
 #include "core/cpu.h"
 #include "core/riscv.h"
+#include "utils/arg_handler.h"
 #include "utils/gdbstub.h"
 #include "utils/logger.h"
 #include "utils/timer.h"
-
-static const char *bin_file = NULL;
-static bool opt_gdb = false;
-
-static void print_usage(const char *progname) {
-    printf("Usage: %s [OPTIONS] IMAGE\n\n", progname);
-    printf("Options:\n");
-    printf("  -h, --help        Show this help message and exit\n");
-    printf("      --gdb         Enable gdbstub support\n");
-    printf("\nExamples:\n");
-    printf("  %s hello.bin\n", progname);
-    printf("  %s --gdb hello.bin\n", progname);
-    printf("  %s --help\n", progname);
-}
-
-static void parse_args(int argc, char *argv[]) {
-    // clang-format off
-    const struct option long_options[] = {
-        {"help", no_argument, NULL, 'h'},
-        {"gdb",  no_argument, NULL,  1},
-        {NULL, 0, NULL, 0}
-    };
-    // clang-format on
-
-    int opt;
-    while ((opt = getopt_long(argc, argv, "h", long_options, NULL)) != -1) {
-        switch (opt) {
-            case 'h': print_usage(argv[0]); exit(EXIT_SUCCESS);
-            case 1: // --gdb
-                opt_gdb = true;
-                break;
-            case '?':
-            default: print_usage(argv[0]); exit(EXIT_FAILURE);
-        }
-    }
-
-    if (optind < argc)
-        bin_file = argv[optind];
-}
 
 int main(int argc, char *argv[]) {
     parse_args(argc, argv);
@@ -77,50 +39,22 @@ int main(int argc, char *argv[]) {
     }
     atexit(timer_stop);
 
-    // Load the bin_file
-    void *buf = NULL;
-    size_t buf_size = 0;
-    if (unlikely(!bin_file || bin_file[0] == '\0')) {
-        extern const uint8_t bare_min_firmware_bin[];
-        extern size_t bare_min_firmware_bin_len;
-        buf_size = bare_min_firmware_bin_len;
-        buf = malloc(buf_size);
-        assert(buf);
-        memcpy(buf, bare_min_firmware_bin, buf_size);
-        log_info("Loaded builtin_img from %p", bare_min_firmware_bin);
-    } else {
-        FILE *fp = fopen(bin_file, "rb");
-        if (fp == NULL) {
-            log_error("fopen failed\n");
-            exit(EXIT_FAILURE);
-        }
-        fseek(fp, 0, SEEK_END);
-        long size = ftell(fp);
-        if (size == 0) {
-            log_error("file size is 0");
-            exit(EXIT_FAILURE);
-        }
-        buf_size = size;
-        buf = malloc(buf_size);
-        assert(buf);
-        fseek(fp, 0, SEEK_SET);
-        unsigned long res = fread(buf, size, 1, fp);
-        assert(res == 1);
-        fclose(fp);
-        log_info("Loaded image %s of size %ld...", bin_file, size);
+    atexit(cleanup_load_buffers);
+
+    int buffer_count;
+    rv_load_t *loads = get_load_buffers(&buffer_count);
+    if (loads == NULL) {
+        log_error("create_load_buffer() failed");
+        exit(EXIT_FAILURE);
     }
 
-    // Initialize our RISC-V machine
-    rv_init(buf, buf_size);
-    free(buf);
+    log_info("Start with %d buffers", buffer_count);
+    rv_init(loads, (size_t)buffer_count);
 
-    if (!opt_gdb) {
-        // Start CPU
-        cpu_start();
-    } else {
-        // Start with GDB
+    if (is_gdb_enabled())
         gdbstub_emu_start();
-    }
+    else
+        cpu_start();
 
     return EXIT_SUCCESS;
 }

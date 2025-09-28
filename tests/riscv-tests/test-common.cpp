@@ -32,7 +32,8 @@ extern "C" void __cpu_exec_once();
 bool test_binary(std::string bin) {
     std::vector<char> buffer;
     load_file(bin, buffer);
-    rv_init(buffer.data(), buffer.size());
+    rv_load_t load = {buffer.data(), buffer.size(), RESET_PC};
+    rv_init(&load, 1);
     const auto time_start = std::chrono::high_resolution_clock::now();
     bool timeout = false, failed_on_exception = false;
     uint64_t a0 = -1, gp = -1;

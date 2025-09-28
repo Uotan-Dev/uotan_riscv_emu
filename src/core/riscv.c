@@ -37,7 +37,7 @@
 
 riscv_t rv;
 
-void rv_init(const void *buf, size_t buf_size) {
+void rv_init(const rv_load_t *loads, size_t n) {
     // clear the whole struct
     memset(&rv, 0, sizeof(rv));
 
@@ -84,8 +84,18 @@ void rv_init(const void *buf, size_t buf_size) {
     rv.last_exception = CAUSE_EXCEPTION_NONE;
 
     // Load kernel
-    assert(buf && buf_size && buf_size <= MSIZE);
-    memcpy(GUEST_TO_HOST(RESET_PC), buf, buf_size);
+    assert(loads && n);
+    for (size_t i = 0; i < n; i++) {
+        const void *buf = loads[i].buf;
+        size_t sz = loads[i].n;
+        uint64_t addr = loads[i].addr;
+
+        assert(buf);
+        assert(paddr_in_pmem(addr));
+
+        // Load the buf into memory
+        memcpy(GUEST_TO_HOST(addr), buf, sz);
+    }
 
     // Misc
     rv.shutdown = false;
