@@ -303,7 +303,7 @@ typedef struct {
     exception_t last_exception; // this is now only used in memory system
 
     // Memory
-#define MSIZE 0x8000000
+#define MSIZE 0x10000000
 #define MBASE 0x80000000
     uint8_t memory[MSIZE] __attribute((aligned(4096)));
 
