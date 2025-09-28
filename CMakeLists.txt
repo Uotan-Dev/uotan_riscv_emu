@@ -74,8 +74,8 @@ function(build_asm asm_path out_path target_name)
         add_custom_command(
             OUTPUT ${temp_elf}
             COMMAND riscv64-unknown-elf-gcc
-                -T${CMAKE_SOURCE_DIR}/riscv-tests/env/p/link.ld
-                -I${CMAKE_SOURCE_DIR}/riscv-tests/env/p
+                -T${CMAKE_SOURCE_DIR}/riscv-tests/env/v/link.ld
+                -I${CMAKE_SOURCE_DIR}/riscv-tests/env/v
                 -I${CMAKE_SOURCE_DIR}/riscv-tests/isa/macros/scalar
                 -nostdlib -ffreestanding -march=rv64ima_zicsr_zifencei -g -mabi=lp64 -nostartfiles -O0
                 -o ${temp_elf}
