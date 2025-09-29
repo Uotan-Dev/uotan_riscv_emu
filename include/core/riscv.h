@@ -95,6 +95,13 @@ extern "C" {
 #define MCOUNTEREN_TM (1U << 1)
 #define MCOUNTEREN_IR (1U << 2)
 
+// MSECCFG
+#define MSECCFG_MML (1ULL << 0)   // Machine Mode Lockdown
+#define MSECCFG_MMWP (1ULL << 1)  // Machine Mode Whitelist Policy
+#define MSECCFG_RLB (1ULL << 2)   // Rule Locking Bypass
+#define MSECCFG_USEED (1ULL << 8) // User seed access
+#define MSECCFG_SSEED (1ULL << 9) // Supervisor seed access
+
 // SSTATUS
 #define SSTATUS_SIE_SHIFT 1
 #define SSTATUS_SPIE_SHIFT 5
@@ -138,6 +145,12 @@ extern "C" {
 #define GET_SATP_MODE(satp) ((satp & SATP_MODE_MASK) >> SATP_MODE_SHIFT)
 #define GET_SATP_ASID(satp) ((satp & SATP_ASID_MASK) >> SATP_ASID_SHIFT)
 #define GET_SATP_PPN(satp) ((satp & SATP_PPN_MASK) >> SATP_PPN_SHIFT)
+
+// SEED
+#define SEED_OPST_BIST 0x00000000U
+#define SEED_OPST_WAIT 0x00000001U
+#define SEED_OPST_ES16 0x00000002U
+#define SEED_OPST_DEAD 0x00000003U
 
 // riscv privilege level
 typedef enum : uint64_t {
@@ -211,6 +224,9 @@ enum {
     CSR_MTVAL = 0x343,    // Machine bad address or instruction
     CSR_MIP = 0x344,      // Machine interrupt pending
 
+    // Machine Configuration
+    CSR_MSECCFG = 0x747, // Machine security configuration register
+
     // Machine Counter/Timers
     CSR_MCYCLE = 0xB00,   // Machine cycle counter
     CSR_MINSTRET = 0xB02, // Machine instructions-retired counter
@@ -236,6 +252,9 @@ enum {
     CSR_TIME = 0xC01,  // Timer for RDTIME instruction
     CSR_INSTRET =
         0xC02, // Instructions-retired counter for RDINSTRET instruction
+
+    // Unprivileged Entropy Source Extension CSR
+    CSR_SEED = 0x015, // Seed for cryptographic random bit generators
 };
 
 typedef enum : int {
@@ -274,6 +293,7 @@ typedef struct {
     uint64_t MIP;        // Machine interrupt pending
     uint64_t MCYCLE;     // Machine cycle counter
     uint64_t MINSTRET;   // Machine instructions-retired counter
+    uint64_t MSECCFG;    // Machine security configuration register
 
     uint64_t MTIME; // Mirrored from clint
 
@@ -301,6 +321,10 @@ typedef struct {
 
     // Last exception
     exception_t last_exception; // this is now only used in memory system
+
+    // Seed CSR related
+    bool seed_written;
+    uint32_t seed_state;
 
     // Memory
 #define MSIZE 0x10000000

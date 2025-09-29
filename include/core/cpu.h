@@ -19,6 +19,7 @@
 #include <assert.h>
 #include <stdint.h>
 
+#include "entropy.h"
 #include "mem.h"
 #include "riscv.h"
 
@@ -96,6 +97,23 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
             return 0;
         }
+        case CSR_SEED:
+            if (!rv.seed_written) {
+                // The seed CSR is always available in machine mode as normal (with a CSR
+                // readwrite instruction.) Attempted read without a write raises an
+                // illegal-instruction exception regardless of mode and access control bits.
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                return 0;
+            } else if (rv.privilege == PRIV_S && !(rv.MSECCFG & MSECCFG_SSEED)) {
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                return 0;
+            } else if (rv.privilege == PRIV_U && !(rv.MSECCFG & MSECCFG_USEED)) {
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                return 0;
+            }
+            rv.seed_written = false;
+            rv.seed_written = false;
+            return (SEED_OPST_ES16 << 30) | generate_entropy();
 
         // CSR not implemented
         default: return 0;
@@ -125,7 +143,7 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
             rv.suppress_minstret_increase = true;
             break;
         macro(MTVEC) macro(MSCRATCH) macro(MCAUSE) macro(MTVAL) macro(MIE)
-        macro(MIP) macro(MSTATUS) macro(MCYCLE)
+        macro(MIP) macro(MSTATUS) macro(MCYCLE) macro(MSECCFG)
 
         // S-mode
         case CSR_SEPC:
@@ -173,6 +191,16 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
             break;
         case CSR_TIME:
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+            break;
+        case CSR_SEED:
+            if (rv.privilege == PRIV_S && !(rv.MSECCFG & MSECCFG_SSEED)) {
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                break;
+            } else if (rv.privilege == PRIV_U && !(rv.MSECCFG & MSECCFG_USEED)) {
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                break;
+            }
+            rv.seed_written = true;
             break;
 
         // CSR not implemented
