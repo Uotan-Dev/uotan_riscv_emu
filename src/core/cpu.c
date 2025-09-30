@@ -411,10 +411,10 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr   , I,
         uint64_t t = s->pc + 4;
         uint64_t target = (src1 + imm) & ~1ULL;
-        if (unlikely(target & 3) != 0) {
+        if (unlikely((target & 3) != 0)) {
             cpu_raise_exception(CAUSE_MISALIGNED_FETCH, target);
         } else {
-            s->npc = (src1 + imm) & ~1ULL;
+            s->npc = target;
             R(rd) = t;
         }    
     );
