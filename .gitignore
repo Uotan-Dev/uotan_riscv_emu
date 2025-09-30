@@ -56,3 +56,5 @@ build
 *.bin
 *.dtb
 testbins
+__pycache__
+riscof_work

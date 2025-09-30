@@ -16,6 +16,7 @@
 
 #include <assert.h>
 #include <fcntl.h>
+#include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -153,9 +154,12 @@ void dump_signature(const char *elf_file_path, const char *sig_file_path) {
     }
 
     // Dump word by word
+    log_info("Dump signature from [0x%08" PRIx64 ", 0x%08" PRIx64 ")",
+             start_addr, end_addr);
     for (uint64_t addr = start_addr; addr < end_addr; addr += 4) {
-        uint32_t w = *(uint32_t *)(GUEST_TO_HOST(addr));
-        fprintf(f, "%08x\n", w);
+        uint32_t v;
+        memcpy(&v, GUEST_TO_HOST(addr), sizeof(v));
+        fprintf(f, "%08x\n", v);
     }
 
     fclose(f);

@@ -26,6 +26,7 @@
 #include "utils/elf.h"
 #include "utils/gdbstub.h"
 #include "utils/logger.h"
+#include "utils/slowtimer.h"
 #include "utils/timer.h"
 
 static const char *bin_file = NULL;
@@ -131,9 +132,15 @@ int main(int argc, char *argv[]) {
     if (opt_gdb) {
         gdbstub_emu_start();
     } else if (signature_out_file) {
-        log_error("Not implemented");
-        // FIXME: Implement
-        return EXIT_FAILURE;
+        // FIXME: Use a better way to end the test
+        extern void __cpu_exec_once();
+        uint64_t start = slowtimer_get_microseconds();
+        for (size_t i = 0; i < SIZE_MAX; i++) {
+            if (i % 1000 == 1 && slowtimer_get_microseconds() - start > 4000000)
+                break;
+            __cpu_exec_once();
+        }
+        dump_signature(bin_file, signature_out_file);
     } else {
         cpu_start();
     }
