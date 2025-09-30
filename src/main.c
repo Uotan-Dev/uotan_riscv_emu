@@ -15,17 +15,21 @@
  */
 
 #include <getopt.h>
+#include <inttypes.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "core/cpu.h"
 #include "core/riscv.h"
+#include "utils/elf.h"
 #include "utils/gdbstub.h"
 #include "utils/logger.h"
 #include "utils/timer.h"
 
 static const char *bin_file = NULL;
+static const char *signature_out_file = NULL;
 static bool opt_gdb = false;
 
 static void print_usage(const char *progname) {
@@ -40,86 +44,98 @@ static void print_usage(const char *progname) {
 }
 
 static void parse_args(int argc, char *argv[]) {
-    // clang-format off
-    const struct option long_options[] = {
-        {"help", no_argument, NULL, 'h'},
-        {"gdb",  no_argument, NULL,  1},
-        {NULL, 0, NULL, 0}
-    };
-    // clang-format on
-
-    int opt;
-    while ((opt = getopt_long(argc, argv, "h", long_options, NULL)) != -1) {
-        switch (opt) {
-            case 'h': print_usage(argv[0]); exit(EXIT_SUCCESS);
-            case 1: // --gdb
-                opt_gdb = true;
-                break;
-            case '?':
-            default: print_usage(argv[0]); exit(EXIT_FAILURE);
+    int i = 1;
+    while (i < argc) {
+        if (argv[i][0] == '+') {
+            if (strncmp(argv[i], "+signature=", 11) == 0)
+                signature_out_file = argv[i] + 11;
+            i++;
+            continue;
         }
+        if (argv[i][0] == '-') {
+            if (strcmp(argv[i], "--gdb") == 0) {
+                opt_gdb = true;
+            } else if (strcmp(argv[i], "-h") == 0 ||
+                       strcmp(argv[i], "--help") == 0) {
+                print_usage(argv[0]);
+                exit(EXIT_SUCCESS);
+            }
+            // We ignore arguments like --isa
+            i++;
+            continue;
+        }
+        if (bin_file == NULL)
+            bin_file = argv[i];
+        i++;
     }
 
-    if (optind < argc)
-        bin_file = argv[optind];
+    if (bin_file == NULL) {
+        log_error("No image file specified.");
+        print_usage(argv[0]);
+        exit(EXIT_FAILURE);
+    }
 }
 
 int main(int argc, char *argv[]) {
     parse_args(argc, argv);
 
-    // Initialize the logger
     log_set_output(stderr);
-    log_info("Logger started");
+    log_info("uEmu - A simple RISC-V emulator");
 
+    rv_init(NULL, 0);
+
+    // Parse binary file
+    uint64_t entry_point = 0;
+    assert(bin_file);
+    if (is_elf(bin_file)) {
+        log_info("Loading ELF file %s", bin_file);
+        entry_point = elf_load(bin_file);
+        if (!paddr_in_pmem(entry_point)) {
+            log_error("Entry point not in pmem");
+            exit(EXIT_FAILURE);
+        }
+    } else {
+        if (signature_out_file) {
+            log_error("signature out file cannot be used with bins");
+            exit(EXIT_FAILURE);
+        }
+        log_info("Loading BIN file %s", bin_file);
+        FILE *fp = fopen(bin_file, "rb");
+        if (!fp) {
+            log_error("fopen failed");
+            exit(EXIT_FAILURE);
+        }
+        fseek(fp, 0, SEEK_END);
+        long size = ftell(fp);
+        assert(size);
+        fseek(fp, 0, SEEK_SET);
+        unsigned long res = fread(GUEST_TO_HOST(MBASE), size, 1, fp);
+        assert(res == 1);
+        fclose(fp);
+        entry_point = MBASE;
+    }
+
+    // Update start PC
+    if (entry_point != MBASE) {
+        log_warn("Setting PC to non-default 0x%08" PRIx64 "", entry_point);
+        rv.PC = entry_point;
+    }
+
+    // Setup timer
     if (timer_start(1) != 0) {
         log_error("timer_start() failed!\n");
         exit(EXIT_FAILURE);
     }
     atexit(timer_stop);
 
-    // Load the bin_file
-    void *buf = NULL;
-    size_t buf_size = 0;
-    if (unlikely(!bin_file || bin_file[0] == '\0')) {
-        extern const uint8_t bare_min_firmware_bin[];
-        extern size_t bare_min_firmware_bin_len;
-        buf_size = bare_min_firmware_bin_len;
-        buf = malloc(buf_size);
-        assert(buf);
-        memcpy(buf, bare_min_firmware_bin, buf_size);
-        log_info("Loaded builtin_img from %p", bare_min_firmware_bin);
-    } else {
-        FILE *fp = fopen(bin_file, "rb");
-        if (fp == NULL) {
-            log_error("fopen failed\n");
-            exit(EXIT_FAILURE);
-        }
-        fseek(fp, 0, SEEK_END);
-        long size = ftell(fp);
-        if (size == 0) {
-            log_error("file size is 0");
-            exit(EXIT_FAILURE);
-        }
-        buf_size = size;
-        buf = malloc(buf_size);
-        assert(buf);
-        fseek(fp, 0, SEEK_SET);
-        unsigned long res = fread(buf, size, 1, fp);
-        assert(res == 1);
-        fclose(fp);
-        log_info("Loaded image %s of size %ld...", bin_file, size);
-    }
-
-    // Initialize our RISC-V machine
-    rv_init(buf, buf_size);
-    free(buf);
-
-    if (!opt_gdb) {
-        // Start CPU
-        cpu_start();
-    } else {
-        // Start with GDB
+    if (opt_gdb) {
         gdbstub_emu_start();
+    } else if (signature_out_file) {
+        log_error("Not implemented");
+        // FIXME: Implement
+        return EXIT_FAILURE;
+    } else {
+        cpu_start();
     }
 
     return EXIT_SUCCESS;

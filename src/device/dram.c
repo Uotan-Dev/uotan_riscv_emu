@@ -15,8 +15,6 @@
  */
 
 #include <stdlib.h>
-#include <string.h>
-#include <time.h>
 
 #include "core/mem.h"
 #include "core/riscv.h"
@@ -44,10 +42,6 @@ void dram_write(uint64_t addr, uint64_t value, size_t n) {
 }
 
 void dram_init() {
-    // Fill the memory with random junk
-    srand(time(NULL));
-    memset(rv.memory, rand(), sizeof(rv.memory));
-
     rv_add_device((device_t){
         .name = "DRAM",
         .start = MBASE,

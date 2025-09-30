@@ -84,13 +84,13 @@ void rv_init(const void *buf, size_t buf_size) {
     rv.last_exception = CAUSE_EXCEPTION_NONE;
 
     // Load kernel
-    assert(buf && buf_size && buf_size <= MSIZE);
-    memcpy(GUEST_TO_HOST(RESET_PC), buf, buf_size);
+    if (buf) {
+        assert(buf_size && buf_size <= MSIZE);
+        memcpy(GUEST_TO_HOST(RESET_PC), buf, buf_size);
+    }
 
     // Misc
     rv.shutdown = false;
-
-    log_info("RV initialized!");
 }
 
 void rv_add_device(device_t dev) {
