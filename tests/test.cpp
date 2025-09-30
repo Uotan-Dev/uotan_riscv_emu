@@ -25,14 +25,7 @@
 // include some emu headers
 #include "core/riscv.h"
 #include "utils/timer.h"
-
 extern "C" void __cpu_start();
-
-// Wrapper
-static inline void test_rv_init(const void *buf, size_t n) {
-    rv_load_t load = {(void *)buf, n, RESET_PC};
-    rv_init(&load, 1);
-}
 
 /* Sample Tests */
 
@@ -101,7 +94,7 @@ TEST(M_modeTestSuite, TRAP_TEST) {
 
     // clang-format on
 
-    test_rv_init(trap_test_firmware_bin, sizeof(trap_test_firmware_bin));
+    rv_init(trap_test_firmware_bin, sizeof(trap_test_firmware_bin));
     __cpu_start();
     ASSERT_EQ(rv.shutdown_code, 52);
     ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
@@ -110,7 +103,7 @@ TEST(M_modeTestSuite, TRAP_TEST) {
 #include "m_mode-tests/intr_tests.hpp"
 
 TEST(M_modeTestSuite, INTR_TEST) {
-    test_rv_init(intr_test_firmware_bin, sizeof(intr_test_firmware_bin));
+    rv_init(intr_test_firmware_bin, sizeof(intr_test_firmware_bin));
     __cpu_start();
     ASSERT_EQ(rv.shutdown_code, 0);
     ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
@@ -132,7 +125,7 @@ TEST(BusTestSuite, BUS_TEST) {
 
     auto dummy = new uint8_t[8];
     assert(dummy);
-    test_rv_init(dummy, 8);
+    rv_init(dummy, 8);
     delete[] dummy;
     rv_add_device(uart);
     uint32_t v = bus_read(SIMPLE_UART_BASE_ADDR, 4);
@@ -440,7 +433,7 @@ TEST(ALUTestSuite, RV64IM_TEST) {
 
     std::vector<char> buffer;
     load_file("firmware.bin", buffer);
-    test_rv_init(buffer.data(), buffer.size());
+    rv_init(buffer.data(), buffer.size());
 
     __cpu_start();
 

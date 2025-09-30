@@ -346,15 +346,8 @@ typedef struct {
 
 extern riscv_t rv __attribute((aligned(4096)));
 
-// buffers to be load into memory
-typedef struct {
-    void *buf;
-    size_t n;
-    size_t addr;
-} rv_load_t;
-
 // Initialize the machine
-void rv_init(const rv_load_t *loads, size_t n);
+void rv_init(const void *buf, size_t buf_size);
 
 // Add a device
 void rv_add_device(device_t dev);
