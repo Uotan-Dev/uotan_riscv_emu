@@ -520,7 +520,7 @@ static inline void decode_exec(Decode *s) {
             }
         }
     );
-    INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak     , N, cpu_raise_exception(CAUSE_BREAKPOINT, 0));
+    INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak     , N, cpu_raise_exception(CAUSE_BREAKPOINT, s->pc));
     INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall      , N, _ecall(s));
     INSTPAT("0011000 00010 00000 000 00000 11100 11", mret       , N, _mret(s));
     INSTPAT("0001001 ????? ????? 000 00000 11100 11", sfence.vma , R, _sfence_vma(s));
