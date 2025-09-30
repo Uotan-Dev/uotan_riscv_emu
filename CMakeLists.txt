@@ -46,9 +46,9 @@ add_dependencies(riscv_sim_lib gdbstub_build)
 
 # Create the main executable.
 file(GLOB_RECURSE APP_SOURCES "src/main.c" "src/main.cpp")
-add_executable(riscv-sim ${APP_SOURCES})
-target_link_libraries(riscv-sim PRIVATE riscv_sim_lib pthread m readline ncurses ${GDBSTUB_LIB})
-set_property(TARGET riscv-sim PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+add_executable(uemu ${APP_SOURCES})
+target_link_libraries(uemu PRIVATE riscv_sim_lib pthread m readline ncurses ${GDBSTUB_LIB})
+set_property(TARGET uemu PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # --- RISC-V Assembly Build Function ---
 function(build_asm asm_path out_path target_name)
