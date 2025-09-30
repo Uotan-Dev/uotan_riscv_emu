@@ -298,8 +298,7 @@ FORCE_INLINE void _sfence_vma(Decode *s) {
 #define LOAD(rd, addr, type, sz_type, sz)                                      \
     do {                                                                       \
         type __v = vaddr_read_##sz_type(addr);                                 \
-        if (rv.last_exception != CAUSE_LOAD_ACCESS &&                          \
-            rv.last_exception != CAUSE_LOAD_PAGEFAULT) {                       \
+        if (rv.last_exception == CAUSE_EXCEPTION_NONE) {                       \
             R(rd) = (uint64_t)__v;                                             \
         }                                                                      \
     } while (0)
@@ -307,15 +306,14 @@ FORCE_INLINE void _sfence_vma(Decode *s) {
 #define LOAD_SEXT(rd, addr, type, sz_type, sz)                                 \
     do {                                                                       \
         type __v = vaddr_read_##sz_type(addr);                                 \
-        if (rv.last_exception != CAUSE_LOAD_ACCESS &&                          \
-            rv.last_exception != CAUSE_LOAD_PAGEFAULT) {                       \
+        if (rv.last_exception == CAUSE_EXCEPTION_NONE) {                       \
             R(rd) = SEXT(__v, sz);                                             \
         }                                                                      \
     } while (0)
 
 #define CSR_CHECK_PERM(csr)                                                    \
     do {                                                                       \
-        if ((((csr >> 8) & 0x3) == 3 && rv.privilege < PRIV_M) ||              \
+        if (((((csr) >> 8) & 0x3) == 3 && rv.privilege < PRIV_M) ||            \
             ((((csr) >> 8) & 0x3) == 1 && rv.privilege < PRIV_S))              \
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);      \
     } while (0)

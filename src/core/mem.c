@@ -177,6 +177,10 @@ FORCE_INLINE void vaddr_raise_pagefault(mmu_result_t r, uint64_t addr) {
 
 #define VADDR_READ_IMPL(size, type, n)                                         \
     type vaddr_read_##size(uint64_t addr) {                                    \
+        if (unlikely((addr & ((n) - 1)) != 0)) {                               \
+            cpu_raise_exception(CAUSE_MISALIGNED_LOAD, addr);                  \
+            return 0;                                                          \
+        }                                                                      \
         uint64_t paddr;                                                        \
         mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_LOAD);           \
         if (r != TRANSLATE_OK) {                                               \
@@ -193,6 +197,10 @@ VADDR_READ_IMPL(b, uint8_t, 1)
 
 #define VADDR_WRITE_IMPL(size, type, n)                                        \
     void vaddr_write_##size(uint64_t addr, type data) {                        \
+        if (unlikely((addr & ((n) - 1)) != 0)) {                               \
+            cpu_raise_exception(CAUSE_MISALIGNED_STORE, addr);                 \
+            return;                                                            \
+        }                                                                      \
         uint64_t paddr;                                                        \
         mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_STORE);          \
         if (r != TRANSLATE_OK) {                                               \
@@ -208,6 +216,10 @@ VADDR_WRITE_IMPL(s, uint16_t, 2)
 VADDR_WRITE_IMPL(b, uint8_t, 1)
 
 uint32_t vaddr_ifetch(uint64_t addr) {
+    if (unlikely((addr & 0x3) != 0)) {
+        cpu_raise_exception(CAUSE_MISALIGNED_FETCH, addr);
+        return 0;
+    }
     uint64_t paddr;
     mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_INSN);
     if (r != TRANSLATE_OK) {
