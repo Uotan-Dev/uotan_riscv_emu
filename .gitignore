@@ -59,3 +59,4 @@ testbins
 __pycache__
 riscof_work
 config.ini
+test.dump
