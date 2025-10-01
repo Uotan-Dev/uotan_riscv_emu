@@ -216,7 +216,7 @@ VADDR_WRITE_IMPL(s, uint16_t, 2)
 VADDR_WRITE_IMPL(b, uint8_t, 1)
 
 uint32_t vaddr_ifetch(uint64_t addr) {
-    if (unlikely((addr & 0x3) != 0)) {
+    if (unlikely((addr & 0x1) != 0)) {
         cpu_raise_exception(CAUSE_MISALIGNED_FETCH, addr);
         return 0;
     }
