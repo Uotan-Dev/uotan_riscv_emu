@@ -29,7 +29,8 @@
 static std::mutex log_mutex;
 static FILE *stream_output = nullptr;
 
-static void log_print(const char *level, const char *color, const char *fmt, va_list args) {
+static void log_print(const char *level, const char *color, const char *fmt,
+                      va_list args) {
     std::lock_guard<std::mutex> lock(log_mutex);
     fprintf(stream_output, "%s[%s] ", color, level);
     vfprintf(stream_output, fmt, args);
