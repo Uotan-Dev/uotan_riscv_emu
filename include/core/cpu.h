@@ -52,7 +52,8 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
             return rv.MCOUNTEREN & (MCOUNTEREN_CY | MCOUNTEREN_TM | MCOUNTEREN_IR);
         macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID) macro(MIP)
         macro(MISA) macro(MTVEC) macro(MSCRATCH) macro(MEPC) macro(MCAUSE)
-        macro(MTVAL) macro(MIE) macro(MCYCLE) macro(MINSTRET)
+        macro(MTVAL) macro(MIE) macro(MCYCLE) macro(MINSTRET) macro(MIDELEG)
+        macro(MEDELEG)
 
         // S-mode
         case CSR_SSTATUS: return rv.MSTATUS & SSTATUS_MASK;
@@ -143,7 +144,8 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
             rv.suppress_minstret_increase = true;
             break;
         macro(MTVEC) macro(MSCRATCH) macro(MCAUSE) macro(MTVAL) macro(MIE)
-        macro(MIP) macro(MSTATUS) macro(MCYCLE) macro(MSECCFG)
+        macro(MIP) macro(MSTATUS) macro(MCYCLE) macro(MSECCFG) macro(MIDELEG)
+        macro(MEDELEG)
 
         // S-mode
         case CSR_SEPC:
