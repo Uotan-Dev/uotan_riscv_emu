@@ -69,7 +69,7 @@ void difftest_dut_step() {
     ref_difftest_exec(1);
 }
 
-void difftest_chk_reg() {
+bool difftest_chk_reg() {
     struct diff_context_t ctx;
     ref_difftest_regcpy(&ctx, DIFFTEST_TO_DUT);
     bool good = true;
@@ -89,4 +89,5 @@ void difftest_chk_reg() {
         log_error("Shutdown at DUT PC 0x%08" PRIx64 "", rv.decode.pc);
         rv_shutdown(-1, SHUTDOWN_CAUSE_GUEST_PANIC);
     }
+    return good;
 }

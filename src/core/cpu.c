@@ -15,6 +15,7 @@
  */
 
 #include <assert.h>
+#include <capstone/capstone.h>
 #include <inttypes.h>
 #include <stdio.h>
 
@@ -791,10 +792,54 @@ void cpu_start_arch_test() {
 }
 
 void cpu_start_difftest() {
+    struct disasm {
+        uint64_t pc;
+        char buf[64];
+    };
+    static struct disasm iringbuf[32];
+    static size_t iringbuf_top = 0;
+    static bool cs_ready = false;
+    static csh cs_handle = 0;
+
+    if (!cs_ready) {
+        cs_err err = cs_open(CS_ARCH_RISCV, CS_MODE_RISCV64, &cs_handle);
+        assert(err == CS_ERR_OK);
+        cs_ready = true;
+    }
+    assert(cs_handle);
+
     while (!unlikely(rv.shutdown)) {
         CPU_EXEC_COMMON();
         difftest_dut_step();
-        difftest_chk_reg();
+
+        iringbuf[iringbuf_top].pc = rv.decode.pc;
+
+        uint32_t inst = rv.decode.inst;
+        cs_insn *insn = NULL;
+        size_t count = cs_disasm(cs_handle, (const uint8_t *)&inst,
+                                 sizeof(inst), rv.decode.pc, 0, &insn);
+        if (likely(count == 1)) {
+            int r =
+                snprintf(iringbuf[iringbuf_top].buf, 64, "%s", insn->mnemonic);
+            if (insn->op_str[0])
+                snprintf(iringbuf[iringbuf_top].buf + r, 64 - r, "\t%s",
+                         insn->op_str);
+        } else {
+            snprintf(iringbuf[iringbuf_top].buf, 64, "0x%08" PRIx32 "", inst);
+        }
+
+        iringbuf_top = (iringbuf_top + 1) % 32;
+
+        // Print the iringbuf if difftest fails
+        if (!difftest_chk_reg()) {
+            for (size_t i = 0; i < 32; i++) {
+                if (i == (iringbuf_top + 32 - 1) % 32)
+                    printf("--> ");
+                else
+                    printf("    ");
+                printf("0x%08" PRIx64 " %s\n", iringbuf[i].pc, iringbuf[i].buf);
+            }
+        }
     }
 }
 

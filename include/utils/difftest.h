@@ -16,6 +16,8 @@
 
 #pragma once
 
+#include <stdbool.h>
+
 void difftest_init(const char *ref_so_file);
 void difftest_dut_step();
-void difftest_chk_reg();
+bool difftest_chk_reg();
