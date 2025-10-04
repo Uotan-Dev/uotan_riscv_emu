@@ -51,6 +51,7 @@ void rv_init(const void *buf, size_t buf_size) {
     rv.MVENDORID = MVENDORID_DEFAULT;
     rv.MARCHID = MARCHID_DEFAULT;
     rv.MIMPID = MIMPID_DEFAULT;
+    rv.MSTATUS = 0xa00000000; // Initialize with correct SXL and UXL
     // keep other CSRs zero
 
     // set the privilege level

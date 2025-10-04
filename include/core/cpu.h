@@ -46,14 +46,12 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
 
     switch (csr & 0xFFF) {
         // M-mode
-        case CSR_MSTATUS:
-            return rv.MSTATUS | 0x200000000ULL;
         case CSR_MCOUNTEREN:
             return rv.MCOUNTEREN & (MCOUNTEREN_CY | MCOUNTEREN_TM | MCOUNTEREN_IR);
         macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID) macro(MIP)
         macro(MISA) macro(MTVEC) macro(MSCRATCH) macro(MEPC) macro(MCAUSE)
         macro(MTVAL) macro(MIE) macro(MCYCLE) macro(MINSTRET) macro(MIDELEG)
-        macro(MEDELEG)
+        macro(MEDELEG) macro(MSTATUS)
 
         // S-mode
         case CSR_SSTATUS: return rv.MSTATUS & SSTATUS_MASK;
