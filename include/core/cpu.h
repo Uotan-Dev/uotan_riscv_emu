@@ -189,7 +189,8 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
                 cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
             break;
         case CSR_TIME:
-            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+            if (value != rv.MTIME)
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
             break;
         case CSR_SEED:
             if (rv.privilege == PRIV_S && !(rv.MSECCFG & MSECCFG_SSEED)) {
