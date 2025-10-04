@@ -75,7 +75,7 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
     // Check superpage
     uint64_t pte_ppn = (pte & PTE_PPN_MASK) >> PTE_PPN_SHIFT;
     if (i > 0) {
-        uint64_t mask = (1ULL << i * VPN_BITS) - 1;
+        uint64_t mask = (1ULL << (i * VPN_BITS)) - 1;
         if (pte_ppn & mask)
             goto page_fault;
     }
@@ -151,7 +151,7 @@ access_fault:
     __UNREACHABLE;
 }
 
-FORCE_INLINE void vaddr_raise_pagefault(mmu_result_t r, uint64_t addr) {
+FORCE_INLINE void vaddr_raise_exception(mmu_result_t r, uint64_t addr) {
     switch (r) {
         case TRANSLATE_FETCH_PAGE_FAULT:
             cpu_raise_exception(CAUSE_INSN_PAGEFAULT, addr);
@@ -184,7 +184,7 @@ FORCE_INLINE void vaddr_raise_pagefault(mmu_result_t r, uint64_t addr) {
         uint64_t paddr;                                                        \
         mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_LOAD);           \
         if (r != TRANSLATE_OK) {                                               \
-            vaddr_raise_pagefault(r, addr);                                    \
+            vaddr_raise_exception(r, addr);                                    \
             return 0;                                                          \
         }                                                                      \
         return bus_read(paddr, n);                                             \
@@ -204,7 +204,7 @@ VADDR_READ_IMPL(b, uint8_t, 1)
         uint64_t paddr;                                                        \
         mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_STORE);          \
         if (r != TRANSLATE_OK) {                                               \
-            vaddr_raise_pagefault(r, addr);                                    \
+            vaddr_raise_exception(r, addr);                                    \
             return;                                                            \
         }                                                                      \
         bus_write(paddr, data, n);                                             \
@@ -223,7 +223,7 @@ uint32_t vaddr_ifetch(uint64_t addr) {
     uint64_t paddr;
     mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_INSN);
     if (r != TRANSLATE_OK) {
-        vaddr_raise_pagefault(r, addr);
+        vaddr_raise_exception(r, addr);
         return 0;
     }
     return bus_ifetch(paddr);

@@ -111,7 +111,6 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
                 return 0;
             }
             rv.seed_written = false;
-            rv.seed_written = false;
             return (SEED_OPST_ES16 << 30) | generate_entropy();
 
         // CSR not implemented
