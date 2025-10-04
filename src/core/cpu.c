@@ -25,6 +25,7 @@
 #include "device/clint.h"
 #include "device/uart.h"
 #include "ui/ui.h"
+#include "utils/difftest.h"
 #include "utils/logger.h"
 #include "utils/slowtimer.h"
 
@@ -780,6 +781,23 @@ void __cpu_start() {
     log_info("Simulation speed: %f insts per second", inst_cnt / delta);
 }
 
+void cpu_start_arch_test() {
+    uint64_t start = slowtimer_get_microseconds();
+    for (size_t i = 0; i < SIZE_MAX; i++) {
+        if (i % 1000 == 1 && slowtimer_get_microseconds() - start > 4000000)
+            break;
+        __cpu_exec_once();
+    }
+}
+
+void cpu_start_difftest() {
+    while (!unlikely(rv.shutdown)) {
+        CPU_EXEC_COMMON();
+        difftest_dut_step();
+        difftest_chk_reg();
+    }
+}
+
 void cpu_start() {
     __cpu_start();
     log_info("Machine has shutdown, Starting the UI");
@@ -789,7 +807,7 @@ void cpu_start() {
 /* Some tools */
 
 // clang-format off
-static const char *regs[] = {
+const char *regs[] = {
     "$0", "ra", "sp",  "gp",  "tp", "t0", "t1", "t2",
     "s0", "s1", "a0",  "a1",  "a2", "a3", "a4", "a5",
     "a6", "a7", "s2",  "s3",  "s4", "s5", "s6", "s7",

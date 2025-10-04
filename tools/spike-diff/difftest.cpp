@@ -15,19 +15,16 @@
 
 #include <sys/syscall.h> // IWYU pragma: keep
 
+#include "../../include/utils/difftest-defs.h"
+
 #include "mmu.h"
 #include "sim.h"
-
-#define NR_GPR 32
-#define MSIZE 0x10000000
-
-enum { DIFFTEST_TO_DUT, DIFFTEST_TO_REF };
 
 static std::vector<std::pair<reg_t, abstract_device_t *>>
     difftest_plugin_devices;
 static std::vector<std::string> difftest_htif_args;
 static std::vector<std::pair<reg_t, mem_t *>>
-    difftest_mem(1, std::make_pair(reg_t(DRAM_BASE), new mem_t(MSIZE)));
+    difftest_mem(1, std::make_pair(reg_t(DRAM_BASE), new mem_t(REF_MSIZE)));
 static debug_module_config_t difftest_dm_config = {
     .progbufsize = 2,
     .max_sba_data_width = 0,
@@ -38,11 +35,6 @@ static debug_module_config_t difftest_dm_config = {
     .support_abstract_fpr_access = true,
     .support_haltgroups = true,
     .support_impebreak = true};
-
-struct diff_context_t {
-    uint64_t gpr[NR_GPR];
-    uint64_t pc;
-};
 
 static sim_t *s = NULL;
 static processor_t *p = NULL;
@@ -57,7 +49,7 @@ void sim_t::diff_step(uint64_t n) { step(n); }
 
 void sim_t::diff_get_regs(void *diff_context) {
     struct diff_context_t *ctx = (struct diff_context_t *)diff_context;
-    for (int i = 0; i < NR_GPR; i++) {
+    for (int i = 0; i < REF_NR_GPR; i++) {
         ctx->gpr[i] = state->XPR[i];
     }
     ctx->pc = state->pc;
@@ -65,7 +57,7 @@ void sim_t::diff_get_regs(void *diff_context) {
 
 void sim_t::diff_set_regs(void *diff_context) {
     struct diff_context_t *ctx = (struct diff_context_t *)diff_context;
-    for (int i = 0; i < NR_GPR; i++) {
+    for (int i = 0; i < REF_NR_GPR; i++) {
         state->XPR.write(i, (int64_t)ctx->gpr[i]);
     }
     state->pc = ctx->pc;
@@ -104,7 +96,7 @@ __attribute__((visibility("default"))) void difftest_exec(uint64_t n) {
 
 __attribute__((visibility("default"))) void difftest_init(int port) {
     difftest_htif_args.push_back("");
-    const char *isa = "RV64MAFDC";
+    const char *isa = "RV64IMAFDC";
     cfg_t *cfg =
         new cfg_t(/*default_initrd_bounds=*/std::make_pair((reg_t)0, (reg_t)0),
                   /*default_bootargs=*/nullptr,

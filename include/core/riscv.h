@@ -342,6 +342,7 @@ typedef struct {
     int shutdown_code;
     shutdown_cause_t shutdown_cause;
     bool is_interrupted_gdb; // for gdbstub
+    bool difftest_enabled;
 } riscv_t;
 
 extern riscv_t rv __attribute((aligned(4096)));

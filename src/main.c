@@ -23,14 +23,15 @@
 
 #include "core/cpu.h"
 #include "core/riscv.h"
+#include "utils/difftest.h"
 #include "utils/elf.h"
 #include "utils/gdbstub.h"
 #include "utils/logger.h"
-#include "utils/slowtimer.h"
 #include "utils/timer.h"
 
 static const char *bin_file = NULL;
 static const char *signature_out_file = NULL;
+static const char *difftest_ref_so = NULL;
 static bool opt_gdb = false;
 
 static void print_usage(const char *progname) {
@@ -60,6 +61,16 @@ static void parse_args(int argc, char *argv[]) {
                        strcmp(argv[i], "--help") == 0) {
                 print_usage(argv[0]);
                 exit(EXIT_SUCCESS);
+            } else if (strcmp(argv[i], "--ref") == 0) {
+                // Parse args like --ref spike.so
+                if (i + 1 >= argc) {
+                    puts("--ref option requires an argument (e.g., spike.so)");
+                    print_usage(argv[0]);
+                    exit(EXIT_FAILURE);
+                }
+                difftest_ref_so = argv[i + 1];
+                i += 2;
+                continue;
             }
             // We ignore arguments like --isa
             i++;
@@ -78,9 +89,10 @@ static void parse_args(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
+    log_set_output(stdout);
+
     parse_args(argc, argv);
 
-    log_set_output(stderr);
     log_info("uEmu - A simple RISC-V emulator");
 
     rv_init(NULL, 0);
@@ -122,6 +134,13 @@ int main(int argc, char *argv[]) {
         rv.PC = entry_point;
     }
 
+    // Setup difftest
+    rv.difftest_enabled = (bool)difftest_ref_so;
+    if (rv.difftest_enabled) {
+        difftest_init(difftest_ref_so);
+        log_warn("Difftest is enabled!");
+    }
+
     // Setup timer
     if (timer_start(1) != 0) {
         log_error("timer_start() failed!\n");
@@ -132,15 +151,12 @@ int main(int argc, char *argv[]) {
     if (opt_gdb) {
         gdbstub_emu_start();
     } else if (signature_out_file) {
-        // FIXME: Use a better way to end the test
-        extern void __cpu_exec_once();
-        uint64_t start = slowtimer_get_microseconds();
-        for (size_t i = 0; i < SIZE_MAX; i++) {
-            if (i % 1000 == 1 && slowtimer_get_microseconds() - start > 4000000)
-                break;
-            __cpu_exec_once();
-        }
+        if (rv.difftest_enabled)
+            log_warn("Not running with difftest");
+        cpu_start_arch_test();
         dump_signature(bin_file, signature_out_file);
+    } else if (rv.difftest_enabled) {
+        cpu_start_difftest();
     } else {
         cpu_start();
     }

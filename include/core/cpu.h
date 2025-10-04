@@ -27,7 +27,11 @@
 extern "C" {
 #endif
 
+extern const char *regs[];
+
 void cpu_start();
+void cpu_start_arch_test();
+void cpu_start_difftest();
 void cpu_print_registers();
 
 void cpu_raise_exception(exception_t cause, uint64_t tval);
