@@ -23,7 +23,32 @@
 
 enum : bool { DIFFTEST_TO_DUT, DIFFTEST_TO_REF };
 
+#define CSR_LIST                                                               \
+    X(uint64_t, MSTATUS, mstatus)                                              \
+    X(uint64_t, MISA, misa)                                                    \
+    X(uint64_t, MEDELEG, medeleg)                                              \
+    X(uint64_t, MIDELEG, mideleg)                                              \
+    X(uint64_t, MIE, mie)                                                      \
+    X(uint64_t, MTVEC, mtvec)                                                  \
+    X(uint32_t, MCOUNTEREN, mcounteren)                                        \
+    X(uint64_t, MEPC, mepc)                                                    \
+    X(uint64_t, MCAUSE, mcause)                                                \
+    X(uint64_t, MTVAL, mtval)                                                  \
+    X(uint64_t, MIP, mip)                                                      \
+    X(uint64_t, MCYCLE, mcycle)                                                \
+    X(uint64_t, MINSTRET, minstret)                                            \
+    X(uint64_t, MSECCFG, mseccfg)                                              \
+    X(uint64_t, STVEC, stvec)                                                  \
+    X(uint32_t, SCOUNTEREN, scounteren)                                        \
+    X(uint64_t, SEPC, sepc)                                                    \
+    X(uint64_t, SCAUSE, scause)                                                \
+    X(uint64_t, STVAL, stval)                                                  \
+    X(uint64_t, SATP, satp)
+
 struct diff_context_t {
     uint64_t gpr[REF_NR_GPR];
     uint64_t pc;
+#define X(type, name1, name2) type name1;
+    CSR_LIST
+#undef X
 };

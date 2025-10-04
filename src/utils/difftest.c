@@ -35,6 +35,10 @@ static void (*ref_difftest_raise_intr)(uint64_t NO) = NULL;
 static void difftest_prepare_ctx(struct diff_context_t *ctx) {
     memcpy(ctx->gpr, rv.X, sizeof(rv.X));
     ctx->pc = rv.PC;
+    ctx->MCAUSE = rv.MCAUSE;
+#define X(type, NAME, name) ctx->NAME = rv.NAME;
+    CSR_LIST
+#undef X
 }
 
 void difftest_init(const char *ref_so_file) {
@@ -90,4 +94,15 @@ bool difftest_chk_reg() {
         rv_shutdown(-1, SHUTDOWN_CAUSE_GUEST_PANIC);
     }
     return good;
+}
+
+void difftest_print_ref() {
+    struct diff_context_t ctx;
+    ref_difftest_regcpy(&ctx, DIFFTEST_TO_DUT);
+    for (size_t i = 0; i < NR_GPR; i++)
+        printf("%s\t0x%08" PRIx64 "\n", regs[i], ctx.gpr[i]);
+    printf("%s\t0x%08" PRIx64 "\n", "pc", ctx.pc);
+#define X(type, NAME, name) printf("%s\t0x%08" PRIx64 "\n", str(name), (uint64_t)ctx.NAME);
+    CSR_LIST
+#undef X
 }

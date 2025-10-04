@@ -53,6 +53,9 @@ void sim_t::diff_get_regs(void *diff_context) {
         ctx->gpr[i] = state->XPR[i];
     }
     ctx->pc = state->pc;
+#define X(type, CTX_F, STATE_M) (ctx)->CTX_F = (type)((state)->STATE_M->read());
+    CSR_LIST
+#undef X
 }
 
 void sim_t::diff_set_regs(void *diff_context) {
@@ -61,6 +64,11 @@ void sim_t::diff_set_regs(void *diff_context) {
         state->XPR.write(i, (int64_t)ctx->gpr[i]);
     }
     state->pc = ctx->pc;
+    state->misa->write(ctx->MISA);
+#define X(type, CTX_F, STATE_M)                                                \
+    (state)->STATE_M->write((uint64_t)((type)((ctx)->CTX_F)));
+    CSR_LIST
+#undef X
 }
 
 void sim_t::diff_memcpy(reg_t dest, void *src, size_t n) {

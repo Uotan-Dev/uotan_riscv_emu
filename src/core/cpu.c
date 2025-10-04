@@ -830,8 +830,8 @@ void cpu_start_difftest() {
 
         iringbuf_top = (iringbuf_top + 1) % 32;
 
-        // Print the iringbuf if difftest fails
         if (!difftest_chk_reg()) {
+            puts("============ begin iringbuf ==============");
             for (size_t i = 0; i < 32; i++) {
                 if (i == (iringbuf_top + 32 - 1) % 32)
                     printf("--> ");
@@ -839,6 +839,13 @@ void cpu_start_difftest() {
                     printf("    ");
                 printf("0x%08" PRIx64 " %s\n", iringbuf[i].pc, iringbuf[i].buf);
             }
+            puts("============== end iringbuf ==============");
+            puts("============= begin DUT ==================");
+            cpu_print_registers();
+            puts("============= end DUT ==================");
+            puts("============= begin REF ==================");
+            difftest_print_ref();
+            puts("============= end REF ==================");
         }
     }
 }

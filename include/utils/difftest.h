@@ -21,3 +21,4 @@
 void difftest_init(const char *ref_so_file);
 void difftest_dut_step();
 bool difftest_chk_reg();
+void difftest_print_ref();
