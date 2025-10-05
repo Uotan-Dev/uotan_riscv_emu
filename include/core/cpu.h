@@ -169,8 +169,7 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
             break;
         }
         case CSR_SIP: {
-            uint64_t x = rv.MIDELEG & SIP_SSIP;
-            uint64_t v = (rv.MIP & ~x) | (value & x);
+            uint64_t v = (rv.MIP & ~rv.MIDELEG) | (value & rv.MIDELEG);
             rv.MIP = v;
             break;
         }
