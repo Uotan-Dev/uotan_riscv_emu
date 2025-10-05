@@ -739,7 +739,8 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     s->inst = vaddr_ifetch(pc);
     // printf("%" PRIx64 " %" PRIx32 "\n", s->pc, s->inst);
     // assert(s->pc);
-    decode_exec(s);
+    if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+        decode_exec(s);
     rv.PC = s->npc;
     rv.MCYCLE++;
     if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE &&
