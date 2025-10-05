@@ -16,6 +16,7 @@
 
 #include <cstdarg>
 #include <cstdio>
+#include <mutex>
 
 #include "common.h"
 #include "utils/logger.h"
@@ -25,16 +26,21 @@
 #define COLOR_WARN "\033[33m"
 #define COLOR_ERROR "\033[31m"
 
+static std::mutex log_mutex;
 static FILE *stream_output = nullptr;
 
 static void log_print(const char *level, const char *color, const char *fmt,
                       va_list args) {
+    std::lock_guard<std::mutex> lock(log_mutex);
     fprintf(stream_output, "%s[%s] ", color, level);
     vfprintf(stream_output, fmt, args);
     fprintf(stream_output, "%s\n", COLOR_RESET);
 }
 
-void log_set_output(FILE *__restrict stream) { stream_output = stream; }
+void log_set_output(FILE *__restrict stream) {
+    std::lock_guard<std::mutex> lock(log_mutex);
+    stream_output = stream;
+}
 
 void log_info(const char *fmt, ...) {
     if (unlikely(!stream_output))

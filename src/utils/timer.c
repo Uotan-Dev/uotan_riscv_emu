@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
+
 #include <errno.h> // IWYU pragma: keep
 #include <pthread.h>
 #include <stdatomic.h>
