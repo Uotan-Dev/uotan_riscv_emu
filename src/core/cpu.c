@@ -754,14 +754,11 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
         cpu_exec_once(&rv.decode, rv.PC);                                      \
     } while (0)
 
-void cpu_step() {
-    alarm_turn(true);
-    if (!unlikely(rv.shutdown))
-        CPU_EXEC_COMMON();
-    alarm_turn(false);
-}
+static pthread_t cpu_thread;
+static volatile bool cpu_thread_running = false;
 
-void cpu_start() {
+// Child CPU thread
+static void *cpu_thread_func(void *arg) {
     uint64_t start = slowtimer_get_microseconds();
     uint64_t inst_cnt = 0;
     alarm_turn(true);
@@ -775,6 +772,36 @@ void cpu_start() {
     log_info("Simulation time: %f seconds (%" PRIu64 " microseconds)", delta,
              end - start);
     log_info("Simulation speed: %f insts per second", inst_cnt / delta);
+    return NULL;
+}
+
+static inline void cpu_thread_start() {
+    if (unlikely(cpu_thread_running)) {
+        log_warn("CPU thread already running");
+        return;
+    }
+    cpu_thread_running = true;
+    pthread_create(&cpu_thread, NULL, cpu_thread_func, NULL);
+}
+
+static inline void cpu_thread_join() {
+    if (!cpu_thread_running) {
+        return;
+    }
+    pthread_join(cpu_thread, NULL);
+    cpu_thread_running = false;
+}
+
+void cpu_start() {
+    cpu_thread_start();
+    cpu_thread_join();
+}
+
+void cpu_step() {
+    alarm_turn(true);
+    if (!unlikely(rv.shutdown))
+        CPU_EXEC_COMMON();
+    alarm_turn(false);
 }
 
 void cpu_start_archtest() {
