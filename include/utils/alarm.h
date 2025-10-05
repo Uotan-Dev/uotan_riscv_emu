@@ -14,29 +14,40 @@
  * limitations under the License.
  */
 
-#include <gtest/gtest.h>
-#include <iostream>
+#pragma once
 
-#include "utils/alarm.h"
-#include "utils/timer.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-class UemuEnv : public ::testing::Environment {
-public:
-    void SetUp() override {
-        std::cout << "[UemuEnv] Init" << std::endl;
-        if (timer_start(1) != 0)
-            exit(EXIT_FAILURE);
-        alarm_init();
-    }
+#include <stdbool.h>
 
-    void TearDown() override {
-        std::cout << "[UemuEnv] CleanUp" << std::endl;
-        timer_stop();
-    }
-};
+#define TIMER_HZ 60
 
-int main(int argc, char *argv[]) {
-    ::testing::InitGoogleTest(&argc, argv);
-    ::testing::AddGlobalTestEnvironment(new UemuEnv);
-    return RUN_ALL_TESTS();
+typedef void (*alarm_handler_t)();
+
+/**
+ * @brief Initializes the alarm.
+ */
+void alarm_init();
+
+/**
+ * @brief Turns on/off the alarm.
+ *
+ * @param on  New status of the alarm.
+ */
+void alarm_turn(bool on);
+
+/**
+ * @brief Adds a handler to the alarm.
+ *
+ * This function adds a handler to the alarm. Added handlers will be called with
+ * TIMER_HZ.
+ *
+ * @param h  A function pointer to the handler.
+ */
+void alarm_add_handle(alarm_handler_t h);
+
+#ifdef __cplusplus
 }
+#endif

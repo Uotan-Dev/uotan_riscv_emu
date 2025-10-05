@@ -24,6 +24,7 @@
 #include "core/cpu.h"
 #include "core/riscv.h"
 #include "ui/ui.h"
+#include "utils/alarm.h"
 #include "utils/elf.h"
 #include "utils/gdbstub.h"
 #include "utils/logger.h"
@@ -128,6 +129,9 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
     atexit(timer_stop);
+
+    // Start the alarm
+    alarm_init();
 
     // Start CPU
     if (opt_gdb) {

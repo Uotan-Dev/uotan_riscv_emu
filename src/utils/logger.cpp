@@ -34,9 +34,7 @@ static void log_print(const char *level, const char *color, const char *fmt,
     fprintf(stream_output, "%s\n", COLOR_RESET);
 }
 
-void log_set_output(FILE *__restrict stream) {
-    stream_output = stream;
-}
+void log_set_output(FILE *__restrict stream) { stream_output = stream; }
 
 void log_info(const char *fmt, ...) {
     if (unlikely(!stream_output))

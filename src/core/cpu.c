@@ -24,6 +24,7 @@
 #include "core/riscv.h"
 #include "device/clint.h"
 #include "device/uart.h"
+#include "utils/alarm.h"
 #include "utils/logger.h"
 #include "utils/slowtimer.h"
 
@@ -754,17 +755,21 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     } while (0)
 
 void cpu_step() {
+    alarm_turn(true);
     if (!unlikely(rv.shutdown))
         CPU_EXEC_COMMON();
+    alarm_turn(false);
 }
 
 void cpu_start() {
     uint64_t start = slowtimer_get_microseconds();
     uint64_t inst_cnt = 0;
+    alarm_turn(true);
     while (!unlikely(rv.shutdown)) {
         CPU_EXEC_COMMON();
         inst_cnt++;
     }
+    alarm_turn(false);
     uint64_t end = slowtimer_get_microseconds();
     double delta = (double)(end - start) / 1000000.0;
     log_info("Simulation time: %f seconds (%" PRIu64 " microseconds)", delta,
@@ -775,11 +780,13 @@ void cpu_start() {
 void cpu_start_archtest() {
     // FIXME: Use a better way to end the test
     uint64_t start = slowtimer_get_microseconds();
+    alarm_turn(true);
     for (size_t i = 0; i < SIZE_MAX; i++) {
         if (i % 1000 == 1 && slowtimer_get_microseconds() - start > 4000000)
             break;
         cpu_step();
     }
+    alarm_turn(false);
 }
 
 // clang-format off
