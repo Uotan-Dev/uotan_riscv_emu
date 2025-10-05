@@ -17,6 +17,8 @@
 #include <assert.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #include "core/cpu.h"
 #include "core/decode.h"
@@ -24,6 +26,7 @@
 #include "core/riscv.h"
 #include "device/clint.h"
 #include "device/uart.h"
+#include "ui/ui.h"
 #include "utils/alarm.h"
 #include "utils/logger.h"
 #include "utils/slowtimer.h"
@@ -755,46 +758,78 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     } while (0)
 
 static pthread_t cpu_thread;
-static volatile bool cpu_thread_running = false;
+static pthread_mutex_t cpu_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t cpu_cond = PTHREAD_COND_INITIALIZER;
+static bool cpu_thread_running = false;
 
-// Child CPU thread
+/* Child CPU thread */
 static void *cpu_thread_func(void *arg) {
+    // Notify the main thread that the child thread has started
+    pthread_mutex_lock(&cpu_mutex);
+    cpu_thread_running = true;
+    pthread_cond_broadcast(&cpu_cond);
+    pthread_mutex_unlock(&cpu_mutex);
+
     uint64_t start = slowtimer_get_microseconds();
     uint64_t inst_cnt = 0;
-    alarm_turn(true);
+
     while (!unlikely(rv.shutdown)) {
         CPU_EXEC_COMMON();
         inst_cnt++;
     }
-    alarm_turn(false);
     uint64_t end = slowtimer_get_microseconds();
     double delta = (double)(end - start) / 1000000.0;
     log_info("Simulation time: %f seconds (%" PRIu64 " microseconds)", delta,
              end - start);
     log_info("Simulation speed: %f insts per second", inst_cnt / delta);
+
+    sleep(1);
+
+    // Notify the main thread again
+    pthread_mutex_lock(&cpu_mutex);
+    cpu_thread_running = false;
+    pthread_cond_broadcast(&cpu_cond);
+    pthread_mutex_unlock(&cpu_mutex);
+
     return NULL;
 }
 
 static inline void cpu_thread_start() {
-    if (unlikely(cpu_thread_running)) {
+    pthread_mutex_lock(&cpu_mutex);
+    if (cpu_thread_running) {
         log_warn("CPU thread already running");
+        pthread_mutex_unlock(&cpu_mutex);
         return;
     }
-    cpu_thread_running = true;
-    pthread_create(&cpu_thread, NULL, cpu_thread_func, NULL);
-}
 
-static inline void cpu_thread_join() {
-    if (!cpu_thread_running) {
-        return;
+    if (pthread_create(&cpu_thread, NULL, cpu_thread_func, NULL) != 0) {
+        pthread_mutex_unlock(&cpu_mutex);
+        log_error("pthread_create failed");
+        exit(EXIT_FAILURE);
     }
-    pthread_join(cpu_thread, NULL);
-    cpu_thread_running = false;
+
+    while (!cpu_thread_running)
+        pthread_cond_wait(&cpu_cond, &cpu_mutex);
+    pthread_mutex_unlock(&cpu_mutex);
 }
 
 void cpu_start() {
+    alarm_turn(true);
     cpu_thread_start();
-    cpu_thread_join();
+
+    while (true) {
+        pthread_mutex_lock(&cpu_mutex);
+        bool running = cpu_thread_running;
+        pthread_mutex_unlock(&cpu_mutex);
+
+        if (!running)
+            break;
+
+        ui_update();
+    }
+
+    alarm_turn(false);
+    pthread_join(cpu_thread, NULL);
 }
 
 void cpu_step() {

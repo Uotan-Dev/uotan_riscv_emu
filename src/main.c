@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <SDL2/SDL_main.h>
 #include <getopt.h>
 #include <inttypes.h>
 #include <stdbool.h>
@@ -84,6 +85,12 @@ int main(int argc, char *argv[]) {
     parse_args(argc, argv);
     log_info("uEmu - A simple RISC-V emulator");
 
+    // Start the alarm
+    alarm_init();
+
+    // Start the UI
+    ui_init();
+
     // Initialize the machine
     rv_init();
 
@@ -130,9 +137,6 @@ int main(int argc, char *argv[]) {
     }
     atexit(timer_stop);
 
-    // Start the alarm
-    alarm_init();
-
     // Start CPU
     if (opt_gdb) {
         gdbstub_emu_start();
@@ -141,9 +145,9 @@ int main(int argc, char *argv[]) {
         dump_signature(bin_file, signature_out_file);
     } else {
         cpu_start();
-        log_info("Machine has shutdown, Starting the UI");
-        ui_start();
     }
+
+    ui_close();
 
     return EXIT_SUCCESS;
 }

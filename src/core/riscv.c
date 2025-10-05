@@ -30,6 +30,7 @@
 #include "device/plic.h"
 #include "device/rtc.h"
 #include "device/sifive_test.h"
+#include "device/simple_fb.h"
 #include "device/uart.h"
 #include "utils/logger.h"
 #include "utils/timer.h"
@@ -73,6 +74,8 @@ void rv_init() {
     sifive_test_init();
     // setup NS16550A UART
     uart_init();
+    // setup simple-fb
+    simple_fb_init();
 
     // We always put DRAM as the first device
     if (unlikely(strcmp(rv.bus.devices[0].name, "DRAM"))) {

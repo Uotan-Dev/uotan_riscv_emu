@@ -1,0 +1,83 @@
+/*
+ * Copyright 2025 Nuo Shen, Nanjing University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <SDL2/SDL.h>
+#include <assert.h>
+#include <atomic>
+#include <mutex>
+
+#include "core/riscv.h"
+#include "device/simple_fb.h"
+#include "ui/ui.h"
+
+typedef struct {
+    uint8_t vram[FB_SIZE];
+    std::atomic_bool dirty; // Whether vram has been written
+    std::mutex m;
+} simple_fb_t;
+
+simple_fb_t simple_fb;
+
+static uint64_t simple_fb_read(uint64_t addr, size_t n) {
+    assert(n <= 8);
+    uint64_t offset = addr - SIMPLEFB_BASE;
+    if (offset >= SIMPLEFB_BASE)
+        return 0;
+    uint64_t v = 0;
+    {
+        std::lock_guard<std::mutex> guard(simple_fb.m);
+        memcpy(&v, simple_fb.vram + offset, n);
+    }
+    return v;
+}
+
+static void simple_fb_write(uint64_t addr, uint64_t value, size_t n) {
+    uint64_t offset = addr - SIMPLEFB_BASE;
+    if (offset > SIMPLEFB_BASE)
+        return;
+    {
+        std::lock_guard<std::mutex> guard(simple_fb.m);
+        memcpy(simple_fb.vram + offset, &value, n);
+        simple_fb.dirty = true;
+    }
+}
+
+bool simple_fb_tick(struct SDL_Texture *texture) {
+    if (!ui_initialized()) [[unlikely]]
+        return false;
+    if (!simple_fb.dirty)
+        return false;
+
+    {
+        std::lock_guard<std::mutex> guard(simple_fb.m);
+        SDL_UpdateTexture(texture, NULL, simple_fb.vram, FB_WIDTH * FB_BPP);
+        simple_fb.dirty = false;
+    }
+
+    return true;
+}
+
+void simple_fb_init() {
+    std::fill(simple_fb.vram, simple_fb.vram + FB_SIZE, UINT8_C(0));
+    simple_fb.dirty = false;
+    rv_add_device((device_t){
+        .name = "simple-framebuffer",
+        .start = SIMPLEFB_BASE,
+        .end = SIMPLEFB_BASE + SIMPLEFB_SIZE - 1ULL,
+        .read = simple_fb_read,
+        .write = simple_fb_write,
+    });
+}

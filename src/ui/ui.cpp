@@ -1,0 +1,108 @@
+/*
+ * Copyright 2025 Nuo Shen, Nanjing University
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+#include <SDL2/SDL.h>
+#include <assert.h>
+#include <signal.h>
+
+#include "common.h"
+#include "device/simple_fb.h"
+#include "ui/ui.h"
+#include "utils/alarm.h"
+#include "utils/logger.h"
+
+static struct SDL_Window *window;
+static struct SDL_Renderer *renderer;
+static struct SDL_Texture *texture;
+
+static bool initialized;
+
+static sig_atomic_t ui_update_requested;
+
+void ui_init() {
+    if (SDL_Init(SDL_INIT_VIDEO) != 0)
+        goto fail;
+
+    // Create the window
+    window = SDL_CreateWindow("uEmu RISC-V Emulator", SDL_WINDOWPOS_CENTERED,
+                              SDL_WINDOWPOS_CENTERED, FB_WIDTH, FB_HEIGHT, 0);
+    if (!window)
+        goto fail;
+
+    // Create the renderer
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    if (!renderer)
+        goto fail;
+
+    // Create the texture
+    texture =
+        SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+                          SDL_TEXTUREACCESS_STREAMING, FB_WIDTH, FB_HEIGHT);
+    if (!texture)
+        goto fail;
+
+    // Make global update periodic
+    ui_update_requested = 0;
+    alarm_add_handle([]() -> void { ui_update_requested = 1; });
+
+    initialized = true;
+
+    return;
+
+fail:
+    log_error("UI initialization failed. Last SDL error: %s", SDL_GetError());
+    exit(EXIT_FAILURE);
+}
+
+void ui_close() {
+    initialized = false;
+    if (texture) {
+        SDL_DestroyTexture(texture);
+        texture = NULL;
+    }
+    if (renderer) {
+        SDL_DestroyRenderer(renderer);
+        renderer = NULL;
+    }
+    if (window) {
+        SDL_DestroyWindow(window);
+        window = NULL;
+    }
+    SDL_Quit();
+}
+
+bool ui_initialized() { return initialized; }
+
+void ui_update() {
+    if (!initialized)
+        return;
+
+    SDL_Event event;
+    while (SDL_PollEvent(&event))
+        if (unlikely(event.type == SDL_QUIT))
+            exit(EXIT_SUCCESS);
+
+    if (!ui_update_requested)
+        return;
+
+    if (simple_fb_tick(texture)) {
+        SDL_RenderClear(renderer);
+        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        SDL_RenderPresent(renderer);
+    }
+
+    ui_update_requested = 0;
+}

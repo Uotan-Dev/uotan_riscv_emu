@@ -27,6 +27,10 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Werror -Wno-sign-compare")
 set(CMAKE_C_FLAGS_RELEASE   "-O3 -Wall -Werror -flto")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Werror -Wno-sign-compare -flto")
 
+# Find SDL2 library
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(SDL2 REQUIRED sdl2)
+
 # GDB Stub
 add_custom_target(gdbstub_build
     COMMAND $(MAKE)
@@ -40,14 +44,17 @@ set(GDBSTUB_LIB ${CMAKE_SOURCE_DIR}/mini-gdbstub/build/libgdbstub.a)
 file(GLOB_RECURSE SOURCES "src/*.c" "src/*.cpp")
 list(FILTER SOURCES EXCLUDE REGEX ".*/main\\.c$")
 add_library(riscv_sim_lib ${SOURCES})
-target_include_directories(riscv_sim_lib PUBLIC include)
+target_include_directories(riscv_sim_lib PUBLIC include ${SDL2_INCLUDE_DIRS})
+target_compile_options(riscv_sim_lib PUBLIC ${SDL2_CFLAGS_OTHER})
 set_property(TARGET riscv_sim_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 add_dependencies(riscv_sim_lib gdbstub_build)
 
 # Create the main executable.
 file(GLOB_RECURSE APP_SOURCES "src/main.c" "src/main.cpp")
 add_executable(uemu ${APP_SOURCES})
-target_link_libraries(uemu PRIVATE riscv_sim_lib pthread m readline ncurses ${GDBSTUB_LIB})
+target_link_libraries(uemu PRIVATE riscv_sim_lib pthread m readline ncurses ${GDBSTUB_LIB} ${SDL2_LIBRARIES})
+target_include_directories(uemu PRIVATE ${SDL2_INCLUDE_DIRS})
+target_compile_options(uemu PRIVATE ${SDL2_CFLAGS_OTHER})
 set_property(TARGET uemu PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # --- RISC-V Assembly Build Function ---
@@ -149,7 +156,9 @@ FetchContent_MakeAvailable(googletest)
 # Find all your test source files.
 file(GLOB_RECURSE TEST_SOURCES "tests/*.c" "tests/*.cpp")
 add_executable(run_tests ${TEST_SOURCES})
-target_link_libraries(run_tests PRIVATE riscv_sim_lib GTest::gtest_main readline ncurses ${GDBSTUB_LIB})
+target_link_libraries(run_tests PRIVATE riscv_sim_lib GTest::gtest_main readline ncurses ${GDBSTUB_LIB} ${SDL2_LIBRARIES})
+target_include_directories(run_tests PRIVATE ${SDL2_INCLUDE_DIRS})
+target_compile_options(run_tests PRIVATE ${SDL2_CFLAGS_OTHER})
 
 # Add the test executable to CTest's list of tests.
 include(GoogleTest)

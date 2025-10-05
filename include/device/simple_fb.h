@@ -16,18 +16,25 @@
 
 #pragma once
 
+#include <SDL2/SDL.h>
+#include <stdbool.h>
+#include <stddef.h>
+#include <stdint.h>
+
+#define FB_WIDTH 1024
+#define FB_HEIGHT 768
+#define FB_BPP 4 // Bytes per pixel (32-bit color)
+#define FB_SIZE (FB_WIDTH * FB_HEIGHT * FB_BPP)
+
+#define SIMPLEFB_BASE 0x50000000
+#define SIMPLEFB_SIZE FB_SIZE
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdbool.h>
-
-void ui_init();
-void ui_close();
-bool ui_initialized();
-void ui_request_global_update();
-void ui_request_display_update(const void *buf);
-void ui_update();
+void simple_fb_init();
+bool simple_fb_tick(struct SDL_Texture *texture);
 
 #ifdef __cplusplus
 }
