@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-#include <errno.h>
+#include <errno.h> // IWYU pragma: keep
 #include <inttypes.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "core/cpu.h"
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "utils/gdbstub.h" // IWYU pragma: keep
 #include "utils/logger.h"
-
-extern void __cpu_exec_once();
 
 // Software breakpoints
 typedef struct {
@@ -92,7 +91,7 @@ static gdb_action_t uemu_cont(void *args) {
     while (!unlikely(rv.shutdown) && !uemu_is_interrupt()) {
         if (uemu_find_breakpoint(rv.PC))
             break;
-        __cpu_exec_once();
+        cpu_step();
     }
 
     __atomic_store_n(&rv.is_interrupted_gdb, false, __ATOMIC_RELAXED);
@@ -103,7 +102,7 @@ static gdb_action_t uemu_cont(void *args) {
 static gdb_action_t uemu_stepi(void *args) {
     log_info("gdbstub: stepi()");
     if (!unlikely(rv.shutdown))
-        __cpu_exec_once();
+        cpu_step();
     return rv.shutdown ? ACT_SHUTDOWN : ACT_RESUME;
 }
 

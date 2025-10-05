@@ -26,38 +26,112 @@
 extern "C" {
 #endif
 
-/* Host memory operations*/
-
 #define GUEST_TO_HOST(paddr) ((void *)(rv.memory + ((uint64_t)(paddr) - MBASE)))
 #define HOST_TO_GUEST(haddr)                                                   \
     ((uint64_t)((void *)(haddr) - (void *)rv.memory + MBASE))
 
-/* Physical address operations */
-
+/**
+ * @brief Checks whether a physical address falls within a given range.
+ *
+ * @param addr  The physical address to check.
+ * @param base  The base address of the range.
+ * @param n     The size (in bytes) of the range.
+ * @return true if addr is within [base, base + n), false otherwise.
+ */
 FORCE_INLINE bool addr_in_range(uint64_t addr, uint64_t base, size_t n) {
     return addr >= base && addr < base + n;
 }
 
+/**
+ * @brief Determines whether a physical address belongs to main memory (PMEM).
+ *
+ * @param addr  The physical address to test.
+ * @return true if the address lies within the physical memory region
+ *         [MBASE, MBASE + MSIZE), false otherwise.
+ */
 FORCE_INLINE bool paddr_in_pmem(uint64_t addr) {
     return addr_in_range(addr, MBASE, MSIZE);
 }
 
-/* Virtual address operations */
-
+/**
+ * @brief Reads a 64-bit doubleword from the specified virtual address.
+ *
+ * Performs address translation under SV39 and returns the value
+ * read from the corresponding physical memory.
+ *
+ * @param addr  The virtual address to read from.
+ * @return The 64-bit value loaded from memory.
+ */
 uint64_t vaddr_read_d(uint64_t addr);
+
+/**
+ * @brief Reads a 32-bit word from the specified virtual address.
+ *
+ * @param addr  The virtual address to read from.
+ * @return The 32-bit value loaded from memory.
+ */
 uint32_t vaddr_read_w(uint64_t addr);
+
+/**
+ * @brief Reads a 16-bit halfword from the specified virtual address.
+ *
+ * @param addr  The virtual address to read from.
+ * @return The 16-bit value loaded from memory.
+ */
 uint16_t vaddr_read_s(uint64_t addr);
+
+/**
+ * @brief Reads an 8-bit byte from the specified virtual address.
+ *
+ * @param addr  The virtual address to read from.
+ * @return The 8-bit value loaded from memory.
+ */
 uint8_t vaddr_read_b(uint64_t addr);
 
+/**
+ * @brief Writes a 64-bit doubleword to the specified virtual address.
+ *
+ * @param addr  The virtual address to write to.
+ * @param data  The 64-bit value to store.
+ */
 void vaddr_write_d(uint64_t addr, uint64_t data);
+
+/**
+ * @brief Writes a 32-bit word to the specified virtual address.
+ *
+ * @param addr  The virtual address to write to.
+ * @param data  The 32-bit value to store.
+ */
 void vaddr_write_w(uint64_t addr, uint32_t data);
+
+/**
+ * @brief Writes a 16-bit halfword to the specified virtual address.
+ *
+ * @param addr  The virtual address to write to.
+ * @param data  The 16-bit value to store.
+ */
 void vaddr_write_s(uint64_t addr, uint16_t data);
+
+/**
+ * @brief Writes an 8-bit byte to the specified virtual address.
+ *
+ * @param addr  The virtual address to write to.
+ * @param data  The 8-bit value to store.
+ */
 void vaddr_write_b(uint64_t addr, uint8_t data);
 
+/**
+ * @brief Fetches a 32-bit instruction from the specified virtual address.
+ *
+ * Performs instruction fetch translation under SV39 and returns the
+ * instruction word from the corresponding physical memory.
+ *
+ * @param addr  The virtual address of the instruction to fetch.
+ * @return The 32-bit instruction word.
+ */
 uint32_t vaddr_ifetch(uint64_t addr);
 
-/* Paging */
-
+// SATP Mode
 #define SATP_MODE_BARE 0ULL
 #define SATP_MODE_SV39 8ULL
 

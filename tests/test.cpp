@@ -23,9 +23,9 @@
 #include "utils/test_utils.hpp"
 
 // include some emu headers
+#include "core/cpu.h"
 #include "core/riscv.h"
 #include "utils/timer.h"
-extern "C" void __cpu_start();
 
 /* Sample Tests */
 
@@ -93,9 +93,9 @@ TEST(M_modeTestSuite, TRAP_TEST) {
     //     80000040:   30200073                mret
 
     // clang-format on
-
-    rv_init(trap_test_firmware_bin, sizeof(trap_test_firmware_bin));
-    __cpu_start();
+    rv_init();
+    rv_load(trap_test_firmware_bin, sizeof(trap_test_firmware_bin));
+    cpu_start();
     ASSERT_EQ(rv.shutdown_code, 52);
     ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
 }
@@ -103,8 +103,9 @@ TEST(M_modeTestSuite, TRAP_TEST) {
 #include "m_mode-tests/intr_tests.hpp"
 
 TEST(M_modeTestSuite, INTR_TEST) {
-    rv_init(intr_test_firmware_bin, sizeof(intr_test_firmware_bin));
-    __cpu_start();
+    rv_init();
+    rv_load(intr_test_firmware_bin, sizeof(intr_test_firmware_bin));
+    cpu_start();
     ASSERT_EQ(rv.shutdown_code, 0);
     ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
     ASSERT_TRUE(rv.MTVEC == UINT64_C(0x0000000080000018));
@@ -125,7 +126,8 @@ TEST(BusTestSuite, BUS_TEST) {
 
     auto dummy = new uint8_t[8];
     assert(dummy);
-    rv_init(dummy, 8);
+    rv_init();
+    rv_load(dummy, 8);
     delete[] dummy;
     rv_add_device(uart);
     uint32_t v = bus_read(SIMPLE_UART_BASE_ADDR, 4);
@@ -433,9 +435,9 @@ TEST(ALUTestSuite, RV64IM_TEST) {
 
     std::vector<char> buffer;
     load_file("firmware.bin", buffer);
-    rv_init(buffer.data(), buffer.size());
-
-    __cpu_start();
+    rv_init();
+    rv_load(buffer.data(), buffer.size());
+    cpu_start();
 
     ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
     ASSERT_EQ(rv.shutdown_code, 0);

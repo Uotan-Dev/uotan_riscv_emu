@@ -19,7 +19,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include "common.h"
 #include "core/cpu.h"
@@ -37,7 +36,7 @@
 
 riscv_t rv;
 
-void rv_init(const void *buf, size_t buf_size) {
+void rv_init() {
     // clear the whole struct
     memset(&rv, 0, sizeof(rv));
 
@@ -83,15 +82,11 @@ void rv_init(const void *buf, size_t buf_size) {
 
     // reset last exception
     rv.last_exception = CAUSE_EXCEPTION_NONE;
+}
 
-    // Load kernel
-    if (buf) {
-        assert(buf_size && buf_size <= MSIZE);
-        memcpy(GUEST_TO_HOST(RESET_PC), buf, buf_size);
-    }
-
-    // Misc
-    rv.shutdown = false;
+void rv_load(const void *buf, size_t n) {
+    assert(buf);
+    memcpy(GUEST_TO_HOST(MBASE), buf, n);
 }
 
 void rv_add_device(device_t dev) {

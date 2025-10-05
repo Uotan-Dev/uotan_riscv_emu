@@ -30,7 +30,7 @@ typedef struct {
     uint32_t inst; // instruction
 } Decode;
 
-/*
+/**
  * The decoding algorithm is taken from NJU emulator
  * Keeping the original license here
  */

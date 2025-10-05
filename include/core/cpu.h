@@ -27,12 +27,56 @@
 extern "C" {
 #endif
 
+/**
+ * @brief Let the CPU step once.
+ *
+ * This function is usually for debugging and testing purposes.
+ */
+void cpu_step();
+
+/**
+ * @brief Starts normal CPU execution.
+ *
+ * This function enters the main execution loop and only returns when the
+ * machine is shut down by the SiFive test mechanism.
+ */
 void cpu_start();
+
+/**
+ * @brief Starts CPU execution for riscv-arch-test.
+ *
+ * This function enters the main execution loop and only returns when it has
+ * reached the time limit.
+ */
+void cpu_start_archtest();
+
+/**
+ * @brief Prints the state of registers.
+ */
 void cpu_print_registers();
 
+/**
+ * @brief Raises a CPU exception.
+ *
+ * This function triggers an exception with the given cause and trap value. It
+ * should only be called inside a CPU loop.
+ *
+ * @param cause  The exception cause.
+ * @param tval   The trap value associated with the exception (e.g., faulting
+ * address or instruction).
+ */
 void cpu_raise_exception(exception_t cause, uint64_t tval);
 
-// CSR read, should only be used for instruction simulation
+/**
+ * @brief Reads the value of a control and status register (CSR).
+ *
+ * This function retrieves the current value of the specified CSR from the
+ * simulated CPU state. It should only be used during instruction execution or
+ * when simulating CSR read operations.
+ *
+ * @param csr  The CSR address (e.g., `CSR_MSTATUS`, `CSR_MEPC`, etc.).
+ * @return The 64-bit value currently stored in the specified CSR.
+ */
 FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
     // clang-format off
 #define macro(csr_name)                                                        \
@@ -122,7 +166,15 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
     __UNREACHABLE;
 }
 
-// CSR write, should only be used for instruction simulation
+/**
+ * @brief Writes the value of a control and status register (CSR).
+ *
+ * This function should only be used during instruction execution or
+ * when simulating CSR read operations.
+ *
+ * @param csr  The CSR address (e.g., `CSR_MSTATUS`, `CSR_MEPC`, etc.).
+ * @param value The value to be assigned to the register.
+ */
 FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
     // clang-format off
 #define macro(csr_name)                                                        \

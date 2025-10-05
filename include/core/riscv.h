@@ -346,16 +346,53 @@ typedef struct {
 
 extern riscv_t rv __attribute((aligned(4096)));
 
-// Initialize the machine
-void rv_init(const void *buf, size_t buf_size);
+/**
+ * @brief Initializes the RISC-V machine.
+ *
+ * This function is reponsible for initializeing core components like CPU, DRAM
+ * and bus.
+ */
+void rv_init();
 
-// Add a device
+/**
+ * @brief Copys some data into the machine memory.
+ *
+ * This function can only be called after rv_init().
+ *
+ * @param buf A pointer to the buffer.
+ * @param n   Bytes to copy.
+ */
+void rv_load(const void *buf, size_t n);
+
+/**
+ * @brief Connects a device to the machine.
+ *
+ * This function calls bus_add_device() in the background to add a device to the
+ * bus.
+ *
+ * @param dev A struct that contains device information.
+ */
 void rv_add_device(device_t dev);
 
-// Get an interrupt
+/**
+ * @brief Gets a pending interruption.
+ *
+ * This function calculates and returns the interruption with highest priority.
+ *
+ * @return A 64-bit value indicating the interruption type.
+ */
 interrupt_t rv_get_pending_interrupt();
 
-// Shutdown the machine
+/**
+ * @brief Powers off the simulated RISC-V machine.
+ *
+ * This function terminates CPU execution and performs system shutdown
+ * with the specified exit code and cause. It is typically invoked by
+ * the SiFive test device or when an unrecoverable exception occurs.
+ *
+ * @param code   Exit code returned to the host environment (e.g., test result).
+ * @param cause  The reason for shutdown, defined by shutdown_cause_t.
+ */
 void rv_shutdown(int code, shutdown_cause_t cause);
 
 #ifdef __cplusplus

@@ -24,12 +24,9 @@
 #include "core/riscv.h"
 #include "device/clint.h"
 #include "device/uart.h"
-#include "ui/ui.h"
 #include "utils/logger.h"
 #include "utils/slowtimer.h"
 
-// Raise an exception
-// This should only be called in the decode / exec proccess
 void cpu_raise_exception(exception_t cause, uint64_t tval) {
     assert(((uint64_t)cause & INTERRUPT_FLAG) == 0);
 
@@ -83,12 +80,15 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
     rv.last_exception = cause;
 }
 
-// Process intr
-// This is not a part of decode/exec process,
-// so not using Decode struct to change PC here
+/**
+ * @brief Processes an interruption.
+ *
+ * This function should only be used during instruction execution.
+ *
+ * @param intr  The interruption number.
+ */
 FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
     assert((uint64_t)intr & INTERRUPT_FLAG);
-    // printf("intr: %llu\n", (unsigned long long)intr & ~INTERRUPT_FLAG);
 
     privilege_level_t priv = rv.privilege;
     uint64_t cause = (uint64_t)intr & ~INTERRUPT_FLAG;
@@ -141,7 +141,7 @@ FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-/*
+/**
  * The decoding algorithm is taken from NJU emulator
  * Keeping the original license here
  */
@@ -283,11 +283,6 @@ FORCE_INLINE void _sret(Decode *s) {
     sstatus &= ~SSTATUS_SPP;
 
     cpu_write_csr(CSR_SSTATUS, sstatus);
-}
-
-FORCE_INLINE void _wfi(Decode *s) {
-    // Implement as NOP
-    ;
 }
 
 FORCE_INLINE void _sfence_vma(Decode *s) {
@@ -460,7 +455,7 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("0011000 00010 00000 000 00000 11100 11", mret       , N, _mret(s));
     INSTPAT("0001001 ????? ????? 000 00000 11100 11", sfence.vma , R, _sfence_vma(s));
     INSTPAT("0001000 00010 00000 000 00000 11100 11", sret       , N, _sret(s));
-    INSTPAT("0001000 00101 00000 000 00000 11100 11", wfi        , N, _wfi(s));
+    INSTPAT("0001000 00101 00000 000 00000 11100 11", wfi        , N, /* nop */);
 
     // RV64M instructions
     INSTPAT("0000001 ????? ????? 100 ????? 01100 11", div    , R,
@@ -737,8 +732,6 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     s->pc = pc;
     s->npc = pc + 4;
     s->inst = vaddr_ifetch(pc);
-    // printf("%" PRIx64 " %" PRIx32 "\n", s->pc, s->inst);
-    // assert(s->pc);
     if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
         decode_exec(s);
     rv.PC = s->npc;
@@ -760,14 +753,12 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
         cpu_exec_once(&rv.decode, rv.PC);                                      \
     } while (0)
 
-// This should only be used for tests
-void __cpu_exec_once() {
+void cpu_step() {
     if (!unlikely(rv.shutdown))
         CPU_EXEC_COMMON();
 }
 
-// This can also be called directly from tests
-void __cpu_start() {
+void cpu_start() {
     uint64_t start = slowtimer_get_microseconds();
     uint64_t inst_cnt = 0;
     while (!unlikely(rv.shutdown)) {
@@ -781,13 +772,15 @@ void __cpu_start() {
     log_info("Simulation speed: %f insts per second", inst_cnt / delta);
 }
 
-void cpu_start() {
-    __cpu_start();
-    log_info("Machine has shutdown, Starting the UI");
-    ui_start();
+void cpu_start_archtest() {
+    // FIXME: Use a better way to end the test
+    uint64_t start = slowtimer_get_microseconds();
+    for (size_t i = 0; i < SIZE_MAX; i++) {
+        if (i % 1000 == 1 && slowtimer_get_microseconds() - start > 4000000)
+            break;
+        cpu_step();
+    }
 }
-
-/* Some tools */
 
 // clang-format off
 static const char *regs[] = {
@@ -839,7 +832,4 @@ void cpu_print_registers() {
     for (size_t i = 0; i < ARRAY_SIZE(implemented_csrs); i++)
         printf("%s\t0x%08" PRIx64 "\n", csrs[implemented_csrs[i]],
                cpu_read_csr(implemented_csrs[i]));
-
-    printf("priv: %" PRIu64 "\n", (uint64_t)rv.privilege);
-    // printf("last exception: 0x%08" PRIx64 "\n", (uint64_t)rv.last_exception);
 }

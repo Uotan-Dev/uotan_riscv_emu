@@ -15,13 +15,12 @@
  */
 
 #define _GNU_SOURCE
-#include <errno.h>
+#include <errno.h> // IWYU pragma: keep
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 

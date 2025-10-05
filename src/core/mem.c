@@ -18,6 +18,27 @@
 #include "core/cpu.h"
 #include "device/bus.h"
 
+/**
+ * @brief Translates a virtual address under the RISC-V SV39 scheme.
+ *
+ * This function performs a virtual-to-physical address translation
+ * according to the SV39 page-based virtual memory system. It walks
+ * the three-level page table starting from the root page table
+ * (pointed to by `satp.ppn`), checking access permissions and updating
+ * the A/D bits as needed.
+ *
+ * On success, the corresponding physical address is stored in `*pa`.
+ * On failure (e.g., page fault, misaligned access, or invalid PTE),
+ * an appropriate exception is raised or an error code is returned.
+ *
+ * @param va    The virtual address to be translated.
+ * @param pa    Output pointer for the resulting physical address.
+ * @param type  The type of memory access (instruction fetch, load, or store),
+ *              defined by @ref mmu_access_t.
+ *
+ * @return The translation result, defined by @ref mmu_result_t.
+ *         Typically indicates success or the specific fault cause.
+ */
 FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
                                           mmu_access_t type) {
     // TODO: Try TLB first

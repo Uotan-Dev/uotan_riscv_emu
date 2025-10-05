@@ -22,6 +22,11 @@
 extern "C" {
 #endif
 
+/**
+ * @brief Generate 16-bit entropy.
+ *
+ * @return A 16-bit entropy value.
+ */
 uint16_t generate_entropy();
 
 #ifdef __cplusplus

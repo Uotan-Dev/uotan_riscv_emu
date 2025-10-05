@@ -23,10 +23,10 @@
 
 #include "core/cpu.h"
 #include "core/riscv.h"
+#include "ui/ui.h"
 #include "utils/elf.h"
 #include "utils/gdbstub.h"
 #include "utils/logger.h"
-#include "utils/slowtimer.h"
 #include "utils/timer.h"
 
 static const char *bin_file = NULL;
@@ -78,16 +78,16 @@ static void parse_args(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-    parse_args(argc, argv);
+    log_set_output(stdout);
 
-    log_set_output(stderr);
+    parse_args(argc, argv);
     log_info("uEmu - A simple RISC-V emulator");
 
-    rv_init(NULL, 0);
+    // Initialize the machine
+    rv_init();
 
-    // Parse binary file
+    // Parse and load the binary file
     uint64_t entry_point = 0;
-    assert(bin_file);
     if (is_elf(bin_file)) {
         log_info("Loading ELF file %s", bin_file);
         entry_point = elf_load(bin_file);
@@ -129,20 +129,16 @@ int main(int argc, char *argv[]) {
     }
     atexit(timer_stop);
 
+    // Start CPU
     if (opt_gdb) {
         gdbstub_emu_start();
     } else if (signature_out_file) {
-        // FIXME: Use a better way to end the test
-        extern void __cpu_exec_once();
-        uint64_t start = slowtimer_get_microseconds();
-        for (size_t i = 0; i < SIZE_MAX; i++) {
-            if (i % 1000 == 1 && slowtimer_get_microseconds() - start > 4000000)
-                break;
-            __cpu_exec_once();
-        }
+        cpu_start_archtest();
         dump_signature(bin_file, signature_out_file);
     } else {
         cpu_start();
+        log_info("Machine has shutdown, Starting the UI");
+        ui_start();
     }
 
     return EXIT_SUCCESS;
