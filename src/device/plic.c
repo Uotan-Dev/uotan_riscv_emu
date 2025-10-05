@@ -20,7 +20,6 @@
 
 #include "core/cpu.h"
 #include "device/plic.h"
-#include "utils/misc.h"
 
 #define PLIC_BITMAP_WORDS (((PLIC_MAX_SOURCES) + 31) / 32)
 
@@ -113,79 +112,50 @@ static void update_all_outputs(void) {
         update_intr_output(i);
 }
 
-static inline bool is_full_word_access(uint32_t byte_offset, size_t n) {
-    return (byte_offset == 0 && n == 4);
-}
-
-// For normal registers, return the corresponding fields
-// For the claim register, execute only if n == 4
 static uint64_t plic_read(uint64_t addr, size_t n) {
-    const uint64_t mask = make_mask_bytes(n);
-    uint64_t offset = addr - PLIC_BASE;
-
-    uint64_t pri_base = (PLIC_PRIORITY_BASE - PLIC_BASE);
-    uint64_t pri_end = pri_base + PLIC_PRIORITY_SIZE;
-    uint64_t pend_base = (PLIC_PENDING_BASE - PLIC_BASE);
-    uint64_t pend_end = pend_base + PLIC_PENDING_SIZE;
-    uint64_t en_base = (PLIC_ENABLE_BASE - PLIC_BASE);
-    uint64_t en_end = en_base + PLIC_ENABLE_SIZE;
-    uint64_t ctx_base = (PLIC_CONTEXT_BASE - PLIC_BASE);
-    uint64_t ctx_end = ctx_base + PLIC_CONTEXT_SIZE;
-
-    if (offset >= pri_base && offset < pri_end) {
-        // Priority registers
-        uint64_t reg_offset = offset - pri_base;
-        uint32_t source = reg_offset / 4;
-        uint32_t byte_offset = reg_offset % 4;
+    if (n != 4 || addr % 4 != 0)
+        return 0;
+    if (addr >= PLIC_PRIORITY_BASE &&
+        addr < PLIC_PRIORITY_BASE + PLIC_PRIORITY_SIZE) {
+        uint64_t reg_offset = addr - PLIC_PRIORITY_BASE;
+        uint32_t source = (uint32_t)(reg_offset / 4);
         if (source < PLIC_MAX_SOURCES) {
-            uint32_t reg_val = plic.priority[source] & 0x7U;
-            return (reg_val >> (byte_offset * 8)) & mask;
+            return (uint64_t)(plic.priority[source] & 0x7U);
         }
-    } else if (offset >= pend_base && offset < pend_end) {
-        // Pending registers
-        uint64_t reg_offset = offset - pend_base;
-        uint32_t word = reg_offset / 4;
-        uint32_t byte_offset = reg_offset % 4;
+    } else if (addr >= PLIC_PENDING_BASE &&
+               addr < PLIC_PENDING_BASE + PLIC_PENDING_SIZE) {
+        uint64_t reg_offset = addr - PLIC_PENDING_BASE;
+        uint32_t word = (uint32_t)(reg_offset / 4);
         if (word < PLIC_BITMAP_WORDS) {
-            uint32_t reg_val = plic.pending[word];
-            return (reg_val >> (byte_offset * 8)) & mask;
+            return (uint64_t)plic.pending[word];
         }
-    } else if (offset >= en_base && offset < en_end) {
-        // Enable registers
-        uint64_t reg_offset = offset - en_base;
-        uint32_t context = reg_offset / PLIC_ENABLE_CONTEXT_SIZE;
-        uint32_t ctx_off = reg_offset % PLIC_ENABLE_CONTEXT_SIZE;
+    } else if (addr >= PLIC_ENABLE_BASE &&
+               addr < PLIC_ENABLE_BASE + PLIC_ENABLE_SIZE) {
+        uint64_t reg_offset = addr - PLIC_ENABLE_BASE;
+        uint32_t context = (uint32_t)(reg_offset / PLIC_ENABLE_CONTEXT_SIZE);
+        uint32_t ctx_off = (uint32_t)(reg_offset % PLIC_ENABLE_CONTEXT_SIZE);
         uint32_t word = ctx_off / 4;
-        uint32_t byte_offset = ctx_off % 4;
         if (context < PLIC_MAX_CONTEXTS && word < PLIC_BITMAP_WORDS) {
-            uint32_t reg_val = plic.enable[context][word];
-            return (reg_val >> (byte_offset * 8)) & mask;
+            return (uint64_t)plic.enable[context][word];
         }
-    } else if (offset >= ctx_base && offset < ctx_end) {
-        // Context registers（threshold and claim/complete)
-        uint64_t reg_offset = offset - ctx_base;
-        uint32_t context = reg_offset / PLIC_CONTEXT_STRIDE;
-        uint32_t context_offset = reg_offset % PLIC_CONTEXT_STRIDE;
-        uint32_t byte_offset = context_offset % 4;
+    } else if (addr >= PLIC_CONTEXT_BASE &&
+               addr < PLIC_CONTEXT_BASE + PLIC_CONTEXT_SIZE) {
+        uint64_t reg_offset = addr - PLIC_CONTEXT_BASE;
+        uint32_t context = (uint32_t)(reg_offset / PLIC_CONTEXT_STRIDE);
+        uint32_t context_offset = (uint32_t)(reg_offset % PLIC_CONTEXT_STRIDE);
         if (context < PLIC_MAX_CONTEXTS) {
             if (context_offset == PLIC_THRESHOLD_OFFSET) {
-                uint32_t reg_val = plic.threshold[context] & 0x7U;
-                return (reg_val >> (byte_offset * 8)) & mask;
+                return (uint64_t)(plic.threshold[context] & 0x7U);
             } else if (context_offset == PLIC_CLAIM_OFFSET) {
-                if (is_full_word_access(byte_offset, n)) {
-                    uint32_t source = find_best_intr(context);
-                    if (source != 0) {
-                        set_pending(source, 0);
-                        plic.claimed[context] = source;
-                        update_all_outputs();
-                    } else {
-                        plic.claimed[context] = 0;
-                    }
-                    return (uint64_t)source & mask;
+                uint32_t source = find_best_intr(context);
+                if (source != 0) {
+                    set_pending(source, 0);
+                    plic.claimed[context] = source;
+                    update_all_outputs();
                 } else {
-                    uint32_t cur = plic.claimed[context];
-                    return ((uint64_t)cur >> (byte_offset * 8)) & mask;
+                    plic.claimed[context] = 0;
                 }
+                return (uint64_t)source;
             }
         }
     }
@@ -194,69 +164,40 @@ static uint64_t plic_read(uint64_t addr, size_t n) {
 }
 
 static void plic_write(uint64_t addr, uint64_t value, size_t n) {
-    const uint64_t mask = make_mask_bytes(n);
-    uint64_t offset = addr - PLIC_BASE;
-
-    uint64_t pri_base = (PLIC_PRIORITY_BASE - PLIC_BASE);
-    uint64_t pri_end = pri_base + PLIC_PRIORITY_SIZE;
-    uint64_t en_base = (PLIC_ENABLE_BASE - PLIC_BASE);
-    uint64_t en_end = en_base + PLIC_ENABLE_SIZE;
-    uint64_t ctx_base = (PLIC_CONTEXT_BASE - PLIC_BASE);
-    uint64_t ctx_end = ctx_base + PLIC_CONTEXT_SIZE;
-
-    if (offset >= pri_base && offset < pri_end) {
-        // Priority
-        uint64_t reg_offset = offset - pri_base;
-        uint32_t source = reg_offset / 4;
-        uint32_t byte_offset = reg_offset % 4;
+    if (n != 4 || addr % 4 != 0)
+        return;
+    if (addr >= PLIC_PRIORITY_BASE &&
+        addr < PLIC_PRIORITY_BASE + PLIC_PRIORITY_SIZE) {
+        uint64_t reg_offset = addr - PLIC_PRIORITY_BASE;
+        uint32_t source = (uint32_t)(reg_offset / 4);
         if (source < PLIC_MAX_SOURCES) {
-            uint32_t cur = plic.priority[source];
-            uint32_t reg_val = cur;
-            uint32_t clear_mask = ~((uint32_t)mask << (byte_offset * 8));
-            reg_val &= clear_mask;
-            reg_val |= (uint32_t)((value & mask) << (byte_offset * 8));
-            plic.priority[source] = reg_val & 0x7U;
+            plic.priority[source] = (uint32_t)(value & 0x7U);
             update_all_outputs();
         }
-    } else if (offset >= en_base && offset < en_end) {
-        // Enable
-        uint64_t reg_offset = offset - en_base;
-        uint32_t context = reg_offset / PLIC_ENABLE_CONTEXT_SIZE;
-        uint32_t ctx_off = reg_offset % PLIC_ENABLE_CONTEXT_SIZE;
+    } else if (addr >= PLIC_ENABLE_BASE &&
+               addr < PLIC_ENABLE_BASE + PLIC_ENABLE_SIZE) {
+        uint64_t reg_offset = addr - PLIC_ENABLE_BASE;
+        uint32_t context = (uint32_t)(reg_offset / PLIC_ENABLE_CONTEXT_SIZE);
+        uint32_t ctx_off = (uint32_t)(reg_offset % PLIC_ENABLE_CONTEXT_SIZE);
         uint32_t word = ctx_off / 4;
-        uint32_t byte_offset = ctx_off % 4;
         if (context < PLIC_MAX_CONTEXTS && word < PLIC_BITMAP_WORDS) {
-            uint32_t cur = plic.enable[context][word];
-            uint32_t reg_val = cur;
-            uint32_t clear_mask = ~((uint32_t)mask << (byte_offset * 8));
-            reg_val &= clear_mask;
-            reg_val |= (uint32_t)((value & mask) << (byte_offset * 8));
-            plic.enable[context][word] = reg_val;
+            plic.enable[context][word] = (uint32_t)value;
             update_all_outputs();
         }
-    } else if (offset >= ctx_base && offset < ctx_end) {
-        // Context
-        uint64_t reg_offset = offset - ctx_base;
-        uint32_t context = reg_offset / PLIC_CONTEXT_STRIDE;
-        uint32_t context_offset = reg_offset % PLIC_CONTEXT_STRIDE;
-        uint32_t byte_offset = context_offset % 4;
-
+    } else if (addr >= PLIC_CONTEXT_BASE &&
+               addr < PLIC_CONTEXT_BASE + PLIC_CONTEXT_SIZE) {
+        uint64_t reg_offset = addr - PLIC_CONTEXT_BASE;
+        uint32_t context = (uint32_t)(reg_offset / PLIC_CONTEXT_STRIDE);
+        uint32_t context_offset = (uint32_t)(reg_offset % PLIC_CONTEXT_STRIDE);
         if (context < PLIC_MAX_CONTEXTS) {
             if (context_offset == PLIC_THRESHOLD_OFFSET) {
-                uint32_t cur = plic.threshold[context];
-                uint32_t reg_val = cur;
-                uint32_t clear_mask = ~((uint32_t)mask << (byte_offset * 8));
-                reg_val &= clear_mask;
-                reg_val |= (uint32_t)((value & mask) << (byte_offset * 8));
-                plic.threshold[context] = reg_val & 0x7U;
+                plic.threshold[context] = (uint32_t)(value & 0x7U);
                 update_all_outputs();
             } else if (context_offset == PLIC_CLAIM_OFFSET) {
-                if (is_full_word_access(byte_offset, n)) {
-                    uint32_t source = (uint32_t)(value & 0xFFFFFFFFU);
-                    if (plic.claimed[context] == source && source != 0) {
-                        plic.claimed[context] = 0;
-                        update_all_outputs();
-                    }
+                uint32_t source = (uint32_t)(value & 0xFFFFFFFFU);
+                if (plic.claimed[context] == source && source != 0) {
+                    plic.claimed[context] = 0;
+                    update_all_outputs();
                 }
             }
         }
