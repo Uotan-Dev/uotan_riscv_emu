@@ -23,7 +23,7 @@
     model = "uemu-virt";
 
     chosen {
-        bootargs = "root=/dev/mem rw console=ttyS0,115200 earlycon=sbi";
+        bootargs = "root=/dev/mem rw console=tty0 earlycon=sbi";
         stdout-path = "/soc/uart@10000000";
     };
 
@@ -113,6 +113,17 @@
             clock-frequency = <0x384000>;
             reg = <0x0 0x10000000 0x0 0x100>;
             compatible = "ns16550a";
+        };
+
+        simplefb: frame-buffer@50000000 {
+            compatible = "simple-framebuffer";
+            reg = <0x0 0x50000000  0x0 0x300000>;
+            width = <1024>;
+            height = <768>;
+            stride = <4096>;
+            format = "a8r8g8b8";
+            status = "okay";
+            linux,fb-type = "simple";
         };
     };
 };
