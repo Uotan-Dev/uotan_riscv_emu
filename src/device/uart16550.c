@@ -20,7 +20,7 @@
 
 #include "core/riscv.h"
 #include "device/plic.h"
-#include "device/uart.h"
+#include "device/uart16550.h"
 #include "utils/fifo.h"
 #include "utils/misc.h"
 

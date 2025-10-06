@@ -19,8 +19,8 @@
 #include <time.h>
 
 #include "core/riscv.h"
+#include "device/goldfish_rtc.h"
 #include "device/plic.h"
-#include "device/rtc.h"
 
 static uint64_t get_host_time_ns() {
     struct timespec ts;

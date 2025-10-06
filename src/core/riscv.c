@@ -27,11 +27,11 @@
 #include "device/bus.h"
 #include "device/clint.h"
 #include "device/dram.h"
+#include "device/goldfish_rtc.h"
 #include "device/plic.h"
-#include "device/rtc.h"
 #include "device/sifive_test.h"
 #include "device/simple_fb.h"
-#include "device/uart.h"
+#include "device/uart16550.h"
 #include "utils/logger.h"
 
 riscv_t rv;

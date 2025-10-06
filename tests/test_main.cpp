@@ -26,9 +26,7 @@ public:
         alarm_init();
     }
 
-    void TearDown() override {
-        std::cout << "[UemuEnv] CleanUp" << std::endl;
-    }
+    void TearDown() override { std::cout << "[UemuEnv] CleanUp" << std::endl; }
 };
 
 int main(int argc, char *argv[]) {
