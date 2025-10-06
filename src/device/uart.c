@@ -106,6 +106,8 @@ typedef struct {
     uint8_t fcr;
 
     int thr_ipending;
+
+    pthread_mutex_t m;
 } uart_t;
 
 static uart_t uart;
@@ -153,6 +155,8 @@ static inline void uart_receive_char(uint8_t ch) {
 static uint64_t uart_read(uint64_t addr, size_t n) {
     uint32_t offset = addr & 0x7;
     uint32_t ret = 0;
+
+    pthread_mutex_lock(&uart.m);
 
     switch (offset) {
         case 0:
@@ -205,12 +209,17 @@ static uint64_t uart_read(uint64_t addr, size_t n) {
             break;
         case 7: ret = uart.scr; break;
     }
+
+    pthread_mutex_unlock(&uart.m);
+
     return ret;
 }
 
 static void uart_write(uint64_t addr, uint64_t value, size_t n) {
     uint32_t offset = addr & 0x7;
     value &= 0xff;
+
+    pthread_mutex_lock(&uart.m);
 
     switch (offset) {
         case 0:
@@ -258,12 +267,17 @@ static void uart_write(uint64_t addr, uint64_t value, size_t n) {
         case 6: /* MSR is read-only */ break;
         case 7: uart.scr = value; break;
     }
+
+    pthread_mutex_unlock(&uart.m);
 }
 
 void uart_tick() {
     // Input from host
     char c;
     int ret = read(STDIN_FILENO, &c, 1);
+
+    pthread_mutex_lock(&uart.m);
+
     if (ret > 0)
         uart_receive_char((uint8_t)c);
 
@@ -283,6 +297,8 @@ void uart_tick() {
         uart.thr_ipending = 1;
         uart_update_irq();
     }
+
+    pthread_mutex_unlock(&uart.m);
 }
 
 void uart_init() {

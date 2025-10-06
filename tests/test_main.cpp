@@ -18,20 +18,16 @@
 #include <iostream>
 
 #include "utils/alarm.h"
-#include "utils/timer.h"
 
 class UemuEnv : public ::testing::Environment {
 public:
     void SetUp() override {
         std::cout << "[UemuEnv] Init" << std::endl;
-        if (timer_start(1) != 0)
-            exit(EXIT_FAILURE);
         alarm_init();
     }
 
     void TearDown() override {
         std::cout << "[UemuEnv] CleanUp" << std::endl;
-        timer_stop();
     }
 };
 

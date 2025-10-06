@@ -14,21 +14,23 @@
  * limitations under the License.
  */
 
-#include <string.h>
+#include <atomic>
+#include <cstring>
 
 #include "core/cpu.h"
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "device/clint.h"
 #include "utils/misc.h"
-#include "utils/timer.h"
+#include "utils/slowtimer.h"
 
 typedef struct {
-    uint32_t msip;
-    uint64_t mtimecmp;
-    uint64_t mtime;
+    std::atomic_uint_fast32_t msip;
+    std::atomic_uint_fast64_t mtimecmp;
+    std::atomic_uint_fast64_t mtime;
 } clint_t;
 
+static uint64_t clint_start;
 static clint_t clint;
 
 static uint64_t clint_read(uint64_t addr, size_t n) {
@@ -85,9 +87,11 @@ static void clint_write(uint64_t addr, uint64_t value, size_t n) {
 }
 
 void clint_init() {
-    memset(&clint, 0, sizeof(clint_t));
-
+    clint.msip = 0;
+    clint.mtime = 0;
     clint.mtimecmp = UINT64_MAX;
+    clint_start = slowtimer_get_microseconds();
+
     rv_add_device((device_t){
         .name = "CLINT",
         .start = CLINT_BASE,
@@ -98,7 +102,7 @@ void clint_init() {
 }
 
 void clint_tick() {
-    rv.MTIME = clint.mtime = timer_get_milliseconds() * 1000;
+    rv.MTIME = clint.mtime = slowtimer_get_microseconds() - clint_start;
 
     // A machine timer interrupt becomes pending whenever mtime contains a value
     // greater than or equal to mtimecmp

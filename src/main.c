@@ -29,7 +29,6 @@
 #include "utils/elf.h"
 #include "utils/gdbstub.h"
 #include "utils/logger.h"
-#include "utils/timer.h"
 
 static const char *bin_file = NULL;
 static const char *signature_out_file = NULL;
@@ -126,13 +125,6 @@ int main(int argc, char *argv[]) {
         log_warn("Setting PC to non-default 0x%08" PRIx64 "", entry_point);
         rv.PC = entry_point;
     }
-
-    // Setup timer
-    if (timer_start(1) != 0) {
-        log_error("timer_start() failed!\n");
-        exit(EXIT_FAILURE);
-    }
-    atexit(timer_stop);
 
     // Start CPU
     if (opt_gdb) {

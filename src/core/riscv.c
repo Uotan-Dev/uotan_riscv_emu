@@ -33,7 +33,6 @@
 #include "device/simple_fb.h"
 #include "device/uart.h"
 #include "utils/logger.h"
-#include "utils/timer.h"
 
 riscv_t rv;
 
@@ -59,9 +58,6 @@ void rv_init() {
 
     // set the privilege level
     rv.privilege = PRIV_M; // boot in M mode
-
-    // Reset the timer
-    timer_restart();
 
     // init BUS
     bus_init();

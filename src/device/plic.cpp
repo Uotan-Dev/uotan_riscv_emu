@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
-#include <stdbool.h>
-#include <stdint.h>
-#include <string.h>
+#include <algorithm>
+#include <atomic>
+#include <cstdint>
+#include <cstring>
 
 #include "core/cpu.h"
 #include "device/plic.h"
@@ -24,11 +25,11 @@
 #define PLIC_BITMAP_WORDS (((PLIC_MAX_SOURCES) + 31) / 32)
 
 typedef struct {
-    uint32_t priority[PLIC_MAX_SOURCES];
-    uint32_t pending[PLIC_BITMAP_WORDS];
-    uint32_t enable[PLIC_MAX_CONTEXTS][PLIC_BITMAP_WORDS];
-    uint32_t threshold[PLIC_MAX_CONTEXTS];
-    uint32_t claimed[PLIC_MAX_CONTEXTS];
+    std::atomic_uint_fast32_t priority[PLIC_MAX_SOURCES];
+    std::atomic_uint_fast32_t pending[PLIC_BITMAP_WORDS];
+    std::atomic_uint_fast32_t enable[PLIC_MAX_CONTEXTS][PLIC_BITMAP_WORDS];
+    std::atomic_uint_fast32_t threshold[PLIC_MAX_CONTEXTS];
+    std::atomic_uint_fast32_t claimed[PLIC_MAX_CONTEXTS];
 } plic_t;
 
 static plic_t plic;
@@ -205,7 +206,13 @@ static void plic_write(uint64_t addr, uint64_t value, size_t n) {
 }
 
 void plic_init(void) {
-    memset(&plic, 0, sizeof(plic_t));
+    std::fill(plic.priority, plic.priority + PLIC_MAX_SOURCES, 0);
+    std::fill(plic.pending, plic.pending + PLIC_BITMAP_WORDS, 0);
+    for (size_t i = 0; i < PLIC_MAX_CONTEXTS; i++)
+        std::fill(plic.enable[i], plic.enable[i] + PLIC_BITMAP_WORDS, 0);
+    std::fill(plic.threshold, plic.threshold + PLIC_MAX_CONTEXTS, 0);
+    std::fill(plic.claimed, plic.claimed + PLIC_MAX_CONTEXTS, 0);
+
     rv_add_device((device_t){
         .name = "PLIC",
         .start = PLIC_BASE,
