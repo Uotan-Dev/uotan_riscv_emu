@@ -132,5 +132,14 @@
             status = "okay";
             linux,fb-type = "simple";
         };
+
+        goldfish_events: events@10002000 {
+            compatible = "google,goldfish-events-keypad";
+            reg = <0x0 0x10002000 0x0 0x1000>;
+            interrupts = <2>;
+            interrupt-parent = <&plic0>;
+            label = "goldfish-events";
+            status = "okay";
+        };
     };
 };
