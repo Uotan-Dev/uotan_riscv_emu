@@ -115,6 +115,13 @@
             compatible = "ns16550a";
         };
 
+        rtc@10000100 {
+            compatible = "google,goldfish-rtc";
+            reg = <0x0 0x10000100 0x0 0x100>;
+            interrupts = <11>;
+            interrupt-parent = <&plic0>;
+        };
+
         simplefb: frame-buffer@50000000 {
             compatible = "simple-framebuffer";
             reg = <0x0 0x50000000  0x0 0x300000>;
