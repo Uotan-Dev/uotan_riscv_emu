@@ -25,6 +25,7 @@
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "device/clint.h"
+#include "device/rtc.h"
 #include "device/uart.h"
 #include "ui/ui.h"
 #include "utils/alarm.h"
@@ -851,6 +852,8 @@ void cpu_start() {
         clint_tick();
         // Update UART
         uart_tick();
+        // Update RTC
+        rtc_tick();
     }
 
     alarm_turn(false);

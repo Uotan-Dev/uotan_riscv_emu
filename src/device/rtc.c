@@ -19,156 +19,175 @@
 #include <time.h>
 
 #include "core/riscv.h"
+#include "device/plic.h"
 #include "device/rtc.h"
 
-static inline time_t mktimegm(struct tm *tm) {
-    time_t t;
-    int y = tm->tm_year + 1900, m = tm->tm_mon + 1, d = tm->tm_mday;
-    if (m < 3) {
-        m += 12;
-        y--;
-    }
-    t = 86400ULL * (d + (153 * m - 457) / 5 + 365 * y + y / 4 - y / 100 +
-                    y / 400 - 719469);
-    t += 3600 * tm->tm_hour + 60 * tm->tm_min + tm->tm_sec;
-    return t;
-}
-
-static time_t rtc_ref_timedate() {
+static uint64_t get_host_time_ns() {
     struct timespec ts;
-    if (likely(clock_gettime(CLOCK_REALTIME, &ts) == 0))
-        return ts.tv_sec;
-    else
-        return time(NULL);
-}
-
-static time_t rtc_timedate_diff(struct tm *tm) {
-    time_t s = mktimegm(tm);
-    return s - rtc_ref_timedate();
-}
-
-static void rtc_get_timedate(struct tm *tm, time_t offset) {
-    time_t ti = rtc_ref_timedate() + offset;
-    gmtime_r(&ti, tm);
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000 + (uint64_t)ts.tv_nsec;
 }
 
 //
-// ASPEED Real Time Clock
+// Goldfish virtual platform RTC
 //
-// Implementation inspired by QEMU's aspeed_rtc emulation (hw/rtc/aspeed_rtc.c)
-// QEMU is licensed under GPL v2 or later.
+// Implementation inspired by QEMU's goldfish_rtc emulation
+// (hw/rtc/goldfish_rtc.c) QEMU is licensed under GPL v2 or later.
 //
-// https://github.com/qemu/qemu/blob/master/hw/rtc/aspeed_rtc.c
+// https://github.com/qemu/qemu/blob/master/hw/rtc/goldfish_rtc.c
+//
+// For more details on Google Goldfish virtual platform refer:
+// https://android.googlesource.com/platform/external/qemu/+/refs/heads/emu-2.0-release/docs/GOLDFISH-VIRTUAL-HARDWARE.TXT
 //
 
-#define COUNTER1 (0x00 / 4)
-#define COUNTER2 (0x04 / 4)
-#define ALARM (0x08 / 4)
-#define CONTROL (0x10 / 4)
-#define ALARM_STATUS (0x14 / 4)
-
-#define RTC_UNLOCKED (1UL << 1)
-#define RTC_ENABLED (1UL << 0)
+#define RTC_TIME_LOW 0x00
+#define RTC_TIME_HIGH 0x04
+#define RTC_ALARM_LOW 0x08
+#define RTC_ALARM_HIGH 0x0c
+#define RTC_IRQ_ENABLED 0x10
+#define RTC_CLEAR_ALARM 0x14
+#define RTC_ALARM_STATUS 0x18
+#define RTC_CLEAR_INTERRUPT 0x1c
 
 typedef struct {
-    uint32_t reg[0x18];
-    int64_t offset;
+    uint64_t tick_offset;   // Offset between host time and guest time
+    uint64_t alarm_next;    // The time for the next alarm
+    uint32_t alarm_running; // Flag indicating if an alarm is set
+    uint32_t irq_pending;   // Flag indicating if an interrupt is pending
+    uint32_t irq_enabled;   // Flag for the interrupt enable register
+    uint32_t time_high;     // Latched high 32 bits of the current time
+
+    pthread_mutex_t m;
 } rtc_t;
 
 static rtc_t rtc;
 
-static void rtc_calc_offset() {
-    struct tm tm;
+// Helper to get the current emulated time in nanoseconds
+static uint64_t rtc_get_count() { return get_host_time_ns() + rtc.tick_offset; }
 
-    memset(&tm, 0, sizeof(tm));
-
-    uint32_t year, cent;
-    uint32_t reg1 = rtc.reg[COUNTER1];
-    uint32_t reg2 = rtc.reg[COUNTER2];
-
-    tm.tm_mday = (reg1 >> 24) & 0x1f;
-    tm.tm_hour = (reg1 >> 16) & 0x1f;
-    tm.tm_min = (reg1 >> 8) & 0x3f;
-    tm.tm_sec = (reg1 >> 0) & 0x3f;
-
-    cent = (reg2 >> 16) & 0x1f;
-    year = (reg2 >> 8) & 0x7f;
-    tm.tm_mon = ((reg2 >> 0) & 0x0f) - 1;
-    tm.tm_year = year + (cent * 100) - 1900;
-
-    rtc.offset = rtc_timedate_diff(&tm);
+// Update the IRQ line to the PLIC
+static void rtc_update_irq() {
+    plic_set_irq(RTC_IRQ, (rtc.irq_pending && rtc.irq_enabled) ? 1 : 0);
 }
 
-static uint32_t rtc_get_counter(int r) {
-    uint32_t year, cent;
-    struct tm now;
+// Called when an alarm fires
+static void rtc_interrupt() {
+    rtc.alarm_running = 0;
+    rtc.irq_pending = 1;
+    rtc_update_irq();
+}
 
-    rtc_get_timedate(&now, rtc.offset);
+static void rtc_clear_alarm() { rtc.alarm_running = 0; }
 
-    switch (r) {
-        case COUNTER1:
-            return (now.tm_mday << 24) | (now.tm_hour << 16) |
-                   (now.tm_min << 8) | now.tm_sec;
-        case COUNTER2:
-            cent = (now.tm_year + 1900) / 100;
-            year = now.tm_year % 100;
-            return ((cent & 0x1f) << 16) | ((year & 0x7f) << 8) |
-                   ((now.tm_mon + 1) & 0xf);
-        default: __UNREACHABLE;
+static void rtc_set_alarm() {
+    uint64_t ticks = rtc_get_count();
+    uint64_t event = rtc.alarm_next;
+
+    if (event <= ticks) {
+        rtc_clear_alarm();
+        rtc_interrupt();
+    } else {
+        rtc.alarm_running = 1;
     }
 }
 
 static uint64_t rtc_read(uint64_t addr, size_t n) {
-    uint64_t val;
-    uint32_t r = addr >> 2;
+    uint64_t offset = addr - RTC_BASE;
+    uint64_t r = 0;
 
-    switch (r) {
-        case COUNTER1:
-        case COUNTER2:
-            if (rtc.reg[CONTROL] & RTC_ENABLED)
-                rtc.reg[r] = rtc_get_counter(r);
-            // fall through
-        case CONTROL: val = rtc.reg[r]; break;
-        case ALARM:
-        case ALARM_STATUS:
-        default:
-            // Unimplemented
-            return 0;
+    pthread_mutex_lock(&rtc.m);
+
+    /*
+     * From the documentation linked at the top of the file:
+     *
+     *   To read the value, the kernel must perform an IO_READ(TIME_LOW), which
+     *   returns an unsigned 32-bit value, before an IO_READ(TIME_HIGH), which
+     *   returns a signed 32-bit value, corresponding to the higher half of the
+     *   full value.
+     */
+
+    switch (offset) {
+        case RTC_TIME_LOW:
+            r = rtc_get_count();
+            rtc.time_high = r >> 32;
+            r &= 0xffffffff;
+            break;
+        case RTC_TIME_HIGH: r = rtc.time_high; break;
+        case RTC_ALARM_LOW: r = rtc.alarm_next & 0xffffffff; break;
+        case RTC_ALARM_HIGH: r = rtc.alarm_next >> 32; break;
+        case RTC_IRQ_ENABLED: r = rtc.irq_enabled; break;
+        case RTC_ALARM_STATUS: r = rtc.alarm_running; break;
+        default: break;
     }
 
-    return val;
+    pthread_mutex_unlock(&rtc.m);
+
+    return r;
 }
 
 static void rtc_write(uint64_t addr, uint64_t value, size_t n) {
-    uint32_t r = addr >> 2;
+    uint64_t offset = addr - RTC_BASE;
+    uint64_t current_tick, new_tick;
 
-    switch (r) {
-        case COUNTER1:
-        case COUNTER2:
-            if (!(rtc.reg[CONTROL] & RTC_UNLOCKED))
-                break;
-            // fall through
-        case CONTROL:
-            rtc.reg[r] = value;
-            rtc_calc_offset();
+    value &= 0xFFFFFFFF;
+
+    pthread_mutex_lock(&rtc.m);
+
+    switch (offset) {
+        case RTC_TIME_LOW:
+            current_tick = rtc_get_count();
+            new_tick = (current_tick & 0xFFFFFFFF00000000) | value;
+            rtc.tick_offset += new_tick - current_tick;
             break;
-        case ALARM:
-        case ALARM_STATUS:
-        default:
-            // Unimplemented
+        case RTC_TIME_HIGH:
+            current_tick = rtc_get_count();
+            new_tick = (current_tick & 0x00000000FFFFFFFF) | (value << 32);
+            rtc.tick_offset += new_tick - current_tick;
             break;
+        case RTC_ALARM_LOW:
+            rtc.alarm_next = (rtc.alarm_next & 0xFFFFFFFF00000000) | value;
+            rtc_set_alarm();
+            break;
+        case RTC_ALARM_HIGH:
+            rtc.alarm_next =
+                (rtc.alarm_next & 0x00000000FFFFFFFF) | (value << 32);
+            break;
+        case RTC_IRQ_ENABLED:
+            rtc.irq_enabled = value & 1;
+            rtc_update_irq();
+            break;
+        case RTC_CLEAR_ALARM: rtc_clear_alarm(); break;
+        case RTC_CLEAR_INTERRUPT:
+            rtc.irq_pending = 0;
+            rtc_update_irq();
+            break;
+        default: break;
     }
+
+    pthread_mutex_unlock(&rtc.m);
+}
+
+void rtc_tick() {
+    pthread_mutex_lock(&rtc.m);
+
+    if (!rtc.alarm_running) {
+        pthread_mutex_unlock(&rtc.m);
+        return;
+    }
+
+    if (rtc_get_count() >= rtc.alarm_next)
+        rtc_interrupt();
+
+    pthread_mutex_unlock(&rtc.m);
 }
 
 void rtc_init() {
-    memset(&rtc, 0, sizeof(rtc_t));
+    memset(&rtc, 0, sizeof(rtc));
 
-    rtc.reg[CONTROL] = RTC_ENABLED;
-    rtc.reg[COUNTER1] = rtc_get_counter(COUNTER1);
-    rtc.reg[COUNTER2] = rtc_get_counter(COUNTER2);
+    rtc.tick_offset = (uint64_t)time(NULL) * 1000000000 - get_host_time_ns();
 
     rv_add_device((device_t){
-        .name = "ASPEED RTC",
+        .name = "Goldfish virtual platform RTC",
         .start = RTC_BASE,
         .end = RTC_BASE + RTC_SIZE - 1ULL,
         .read = rtc_read,
