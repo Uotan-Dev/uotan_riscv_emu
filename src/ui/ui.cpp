@@ -18,7 +18,10 @@
 #include <assert.h>
 #include <signal.h>
 
+#include <linux/input-event-codes.h>
+
 #include "common.h"
+#include "device/goldfish_events.h"
 #include "device/simple_fb.h"
 #include "ui/ui.h"
 #include "utils/alarm.h"
@@ -90,10 +93,35 @@ void ui_update() {
     if (!initialized)
         return;
 
+#define macro(key)                                                             \
+    case SDL_SCANCODE_##key: return KEY_##key;
+
+    auto sdl_to_linux_keycode = [](SDL_Scancode scancode) -> uint32_t {
+        switch (scancode) {
+            GOLDFISH_KEYS(macro)
+            default: return 0;
+        }
+        __UNREACHABLE;
+    };
+
+#undef macro
+
     SDL_Event event;
-    while (SDL_PollEvent(&event))
-        if (unlikely(event.type == SDL_QUIT))
-            exit(EXIT_SUCCESS);
+    while (SDL_PollEvent(&event)) {
+        switch (event.type) {
+            case SDL_QUIT: log_info("SDL Quit"); exit(EXIT_SUCCESS);
+            case SDL_KEYDOWN: /* fallthrough */
+            case SDL_KEYUP: {
+                uint32_t kc = sdl_to_linux_keycode(event.key.keysym.scancode);
+                int down = (event.type == SDL_KEYDOWN) ? 1 : 0;
+                if (kc) {
+                    enqueue_event(EV_KEY, kc, down);
+                    enqueue_event(EV_SYN, 0, 0);
+                }
+                break;
+            }
+        }
+    }
 
     if (!ui_update_requested)
         return;

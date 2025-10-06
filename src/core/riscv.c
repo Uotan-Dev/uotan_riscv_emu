@@ -27,6 +27,7 @@
 #include "device/bus.h"
 #include "device/clint.h"
 #include "device/dram.h"
+#include "device/goldfish_events.h"
 #include "device/goldfish_rtc.h"
 #include "device/plic.h"
 #include "device/sifive_test.h"
@@ -67,7 +68,7 @@ void rv_init() {
     clint_init();
     // setup PLIC
     plic_init();
-    // setup ASPEED RTC
+    // setup Goldfish RTC
     rtc_init();
     // setup SiFive Test
     sifive_test_init();
@@ -75,6 +76,8 @@ void rv_init() {
     uart_init();
     // setup simple-fb
     simple_fb_init();
+    // setup Goldfish events
+    events_init();
 
     // We always put DRAM as the first device
     if (unlikely(strcmp(rv.bus.devices[0].name, "DRAM"))) {
