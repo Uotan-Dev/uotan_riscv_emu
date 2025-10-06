@@ -57,6 +57,7 @@ typedef struct {
     uint32_t irq_enabled;   // Flag for the interrupt enable register
     uint32_t time_high;     // Latched high 32 bits of the current time
 
+    // protects alarm fields and irq fields
     pthread_mutex_t m;
 } rtc_t;
 
@@ -95,8 +96,6 @@ static uint64_t rtc_read(uint64_t addr, size_t n) {
     uint64_t offset = addr - RTC_BASE;
     uint64_t r = 0;
 
-    pthread_mutex_lock(&rtc.m);
-
     /*
      * From the documentation linked at the top of the file:
      *
@@ -113,14 +112,28 @@ static uint64_t rtc_read(uint64_t addr, size_t n) {
             r &= 0xffffffff;
             break;
         case RTC_TIME_HIGH: r = rtc.time_high; break;
-        case RTC_ALARM_LOW: r = rtc.alarm_next & 0xffffffff; break;
-        case RTC_ALARM_HIGH: r = rtc.alarm_next >> 32; break;
-        case RTC_IRQ_ENABLED: r = rtc.irq_enabled; break;
-        case RTC_ALARM_STATUS: r = rtc.alarm_running; break;
+        case RTC_ALARM_LOW:
+            pthread_mutex_lock(&rtc.m);
+            r = rtc.alarm_next & 0xffffffff;
+            pthread_mutex_unlock(&rtc.m);
+            break;
+        case RTC_ALARM_HIGH:
+            pthread_mutex_lock(&rtc.m);
+            r = rtc.alarm_next >> 32;
+            pthread_mutex_unlock(&rtc.m);
+            break;
+        case RTC_IRQ_ENABLED:
+            pthread_mutex_lock(&rtc.m);
+            r = rtc.irq_enabled;
+            pthread_mutex_unlock(&rtc.m);
+            break;
+        case RTC_ALARM_STATUS:
+            pthread_mutex_lock(&rtc.m);
+            r = rtc.alarm_running;
+            pthread_mutex_unlock(&rtc.m);
+            break;
         default: break;
     }
-
-    pthread_mutex_unlock(&rtc.m);
 
     return r;
 }
@@ -130,8 +143,6 @@ static void rtc_write(uint64_t addr, uint64_t value, size_t n) {
     uint64_t current_tick, new_tick;
 
     value &= 0xFFFFFFFF;
-
-    pthread_mutex_lock(&rtc.m);
 
     switch (offset) {
         case RTC_TIME_LOW:
@@ -145,26 +156,36 @@ static void rtc_write(uint64_t addr, uint64_t value, size_t n) {
             rtc.tick_offset += new_tick - current_tick;
             break;
         case RTC_ALARM_LOW:
+            pthread_mutex_lock(&rtc.m);
             rtc.alarm_next = (rtc.alarm_next & 0xFFFFFFFF00000000) | value;
             rtc_set_alarm();
+            pthread_mutex_unlock(&rtc.m);
             break;
         case RTC_ALARM_HIGH:
+            pthread_mutex_lock(&rtc.m);
             rtc.alarm_next =
                 (rtc.alarm_next & 0x00000000FFFFFFFF) | (value << 32);
+            pthread_mutex_unlock(&rtc.m);
             break;
         case RTC_IRQ_ENABLED:
+            pthread_mutex_lock(&rtc.m);
             rtc.irq_enabled = value & 1;
             rtc_update_irq();
+            pthread_mutex_unlock(&rtc.m);
             break;
-        case RTC_CLEAR_ALARM: rtc_clear_alarm(); break;
+        case RTC_CLEAR_ALARM:
+            pthread_mutex_lock(&rtc.m);
+            rtc_clear_alarm();
+            pthread_mutex_unlock(&rtc.m);
+            break;
         case RTC_CLEAR_INTERRUPT:
+            pthread_mutex_lock(&rtc.m);
             rtc.irq_pending = 0;
             rtc_update_irq();
+            pthread_mutex_unlock(&rtc.m);
             break;
         default: break;
     }
-
-    pthread_mutex_unlock(&rtc.m);
 }
 
 void rtc_tick() {
