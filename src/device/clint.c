@@ -103,12 +103,12 @@ void clint_tick() {
     // A machine timer interrupt becomes pending whenever mtime contains a value
     // greater than or equal to mtimecmp
     if (clint.mtime >= clint.mtimecmp)
-        cpu_write_csr(CSR_MIP, cpu_read_csr(CSR_MIP) | MIP_MTIP);
+        cpu_raise_intr(MIP_MTIP, PRIV_M);
     else
-        cpu_write_csr(CSR_MIP, cpu_read_csr(CSR_MIP) & ~MIP_MTIP);
+        cpu_clear_intr(MIP_MTIP, PRIV_M);
 
     if (clint.msip & 1)
-        cpu_write_csr(CSR_MIP, cpu_read_csr(CSR_MIP) | MIP_MSIP);
+        cpu_raise_intr(MIP_MSIP, PRIV_M);
     else
-        cpu_write_csr(CSR_MIP, cpu_read_csr(CSR_MIP) & ~MIP_MSIP);
+        cpu_clear_intr(MIP_MSIP, PRIV_M);
 }

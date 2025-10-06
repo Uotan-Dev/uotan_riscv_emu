@@ -56,6 +56,65 @@ void cpu_start_archtest();
 void cpu_print_registers();
 
 /**
+ * @brief Raise (set) a machine interrupt pending bit in CSR_MIP.
+ *
+ * This function is used by interrupt controllers (such as CLINT or PLIC)
+ * to notify the CPU that an interrupt source has become pending.
+ *
+ * @details
+ * - Each bit in the MIP CSR corresponds to a different interrupt source:
+ *   - MIP_MSIP  (bit 3): Machine software interrupt
+ *   - MIP_MTIP  (bit 7): Machine timer interrupt
+ *   - MIP_MEIP  (bit 11): Machine external interrupt
+ *   - Other bits may be implementation-defined.
+ *
+ * - Calling this function will atomically set the bits specified by `ip`
+ *   in the MIP CSR, without affecting other bits.
+ *
+ * - This function internally locks the CSR subsystem to ensure thread-safety,
+ *   since PLIC and CLINT may raise interrupts concurrently in multi-threaded
+ *   simulation environments.
+ *
+ * @param ip Bitmask corresponding to one or more interrupt-pending bits
+ *           (e.g. MIP_MSIP, MIP_MTIP, MIP_MEIP).
+ * @param priv Privilege level for the target CSR.
+ *
+ * @note
+ * - Typically invoked by CLINT (for MSIP/MTIP) and PLIC (for MEIP).
+ * - This only marks the interrupt as pending; whether it actually traps
+ *   depends on MIE/MSTATUS enable bits and the current privilege level.
+ * - Should never be called from within the CPU core without proper locking,
+ *   as it directly modifies interrupt state visible to privileged code.
+ */
+void cpu_raise_intr(uint64_t ip, privilege_level_t priv);
+
+/**
+ * @brief Clear (unset) a machine interrupt pending bit in CSR_MIP.
+ *
+ * This function clears specific interrupt-pending bits in the MIP CSR.
+ * It is the logical counterpart of `cpu_raise_intr()`.
+ *
+ * @details
+ * - Each bit in MIP represents whether a corresponding interrupt source
+ *   is pending; clearing it means that interrupt source is no longer active.
+ *
+ * - This function performs a read–modify–write on the MIP CSR under lock,
+ *   ensuring atomicity and thread safety.
+ *
+ * @param ip Bitmask corresponding to one or more interrupt-pending bits
+ *           (e.g. MIP_MSIP, MIP_MTIP, MIP_MEIP).
+ * @param priv Privilege level for the target CSR.
+ *
+ * @note
+ * - Typically used by CLINT (when timer has been reset or MSIP cleared)
+ *   or by PLIC (after an interrupt has been acknowledged and completed).
+ * - Does not modify interrupt enable state (MIE); it only updates the
+ *   pending bits.
+ * - Internal locking ensures consistency across concurrent device updates.
+ */
+void cpu_clear_intr(uint64_t ip, privilege_level_t priv);
+
+/**
  * @brief Raises a CPU exception.
  *
  * This function triggers an exception with the given cause and trap value. It
@@ -92,7 +151,13 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
         // M-mode
         case CSR_MCOUNTEREN:
             return rv.MCOUNTEREN & (MCOUNTEREN_CY | MCOUNTEREN_TM | MCOUNTEREN_IR);
-        macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID) macro(MIP)
+        case CSR_MIP: {
+            pthread_mutex_lock(&rv.csr_lock);
+            uint64_t r = rv.MIP;
+            pthread_mutex_unlock(&rv.csr_lock);
+            return r;
+        }
+        macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID)
         macro(MISA) macro(MTVEC) macro(MSCRATCH) macro(MEPC) macro(MCAUSE)
         macro(MTVAL) macro(MIE) macro(MCYCLE) macro(MINSTRET) macro(MIDELEG)
         macro(MEDELEG) macro(MSTATUS)
@@ -100,7 +165,12 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
         // S-mode
         case CSR_SSTATUS: return rv.MSTATUS & SSTATUS_MASK;
         case CSR_SIE: return rv.MIE & rv.MIDELEG;
-        case CSR_SIP: return rv.MIP & rv.MIDELEG;
+        case CSR_SIP: {
+            pthread_mutex_lock(&rv.csr_lock);
+            uint64_t r = rv.MIP;
+            pthread_mutex_unlock(&rv.csr_lock);
+            return r & rv.MIDELEG;
+        }
         case CSR_SCOUNTEREN:
             return rv.SCOUNTEREN;
         macro(STVEC) macro(SSCRATCH) macro(SEPC) macro(SCAUSE) macro(STVAL)
@@ -192,8 +262,13 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
             rv.MINSTRET = value;
             rv.suppress_minstret_increase = true;
             break;
+        case CSR_MIP:
+            pthread_mutex_lock(&rv.csr_lock);
+            rv.MIP = value;
+            pthread_mutex_unlock(&rv.csr_lock);
+            break;
         macro(MTVEC) macro(MSCRATCH) macro(MCAUSE) macro(MTVAL) macro(MIE)
-        macro(MIP) macro(MSTATUS) macro(MCYCLE) macro(MSECCFG) macro(MIDELEG)
+        macro(MSTATUS) macro(MCYCLE) macro(MSECCFG) macro(MIDELEG)
         macro(MEDELEG)
 
         // S-mode
@@ -221,8 +296,10 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
             break;
         }
         case CSR_SIP: {
+            pthread_mutex_lock(&rv.csr_lock);
             uint64_t v = (rv.MIP & ~rv.MIDELEG) | (value & rv.MIDELEG);
             rv.MIP = v;
+            pthread_mutex_unlock(&rv.csr_lock);
             break;
         }
         case CSR_SCOUNTEREN:

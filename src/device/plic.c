@@ -92,14 +92,14 @@ static void update_intr_output(int ctx) {
 
     if (ctx == PLIC_CONTEXT_M_MODE) {
         if (best)
-            cpu_write_csr(CSR_MIP, cpu_read_csr(CSR_MIP) | MIP_MEIP);
+            cpu_raise_intr(MIP_MEIP, PRIV_M);
         else
-            cpu_write_csr(CSR_MIP, cpu_read_csr(CSR_MIP) & ~MIP_MEIP);
+            cpu_clear_intr(MIP_MEIP, PRIV_M);
     } else if (ctx == PLIC_CONTEXT_S_MODE) {
         if (best)
-            cpu_write_csr(CSR_SIP, cpu_read_csr(CSR_SIP) | SIP_SEIP);
+            cpu_raise_intr(SIP_SEIP, PRIV_S);
         else
-            cpu_write_csr(CSR_SIP, cpu_read_csr(CSR_SIP) & ~SIP_SEIP);
+            cpu_clear_intr(SIP_SEIP, PRIV_S);
     } else {
         // Unknown ctx
         __UNREACHABLE;

@@ -84,6 +84,28 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
     rv.last_exception = cause;
 }
 
+void cpu_raise_intr(uint64_t ip, privilege_level_t priv) {
+    pthread_mutex_lock(&rv.csr_lock);
+    if (priv == PRIV_M)
+        rv.MIP |= ip;
+    else if (PRIV_S)
+        rv.MIP |= ip & rv.MIDELEG;
+    else
+        __UNREACHABLE;
+    pthread_mutex_unlock(&rv.csr_lock);
+}
+
+void cpu_clear_intr(uint64_t ip, privilege_level_t priv) {
+    pthread_mutex_lock(&rv.csr_lock);
+    if (priv == PRIV_M)
+        rv.MIP &= ~ip;
+    else if (priv == PRIV_S)
+        rv.MIP &= ~(rv.MIDELEG & ip);
+    else
+        __UNREACHABLE;
+    pthread_mutex_unlock(&rv.csr_lock);
+}
+
 /**
  * @brief Processes an interruption.
  *
@@ -749,8 +771,6 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
 #define CPU_EXEC_COMMON()                                                      \
     do {                                                                       \
         rv.last_exception = CAUSE_EXCEPTION_NONE;                              \
-        clint_tick();                                                          \
-        uart_tick();                                                           \
         interrupt_t intr = rv_get_pending_interrupt();                         \
         if (unlikely(intr != CAUSE_INTERRUPT_NONE))                            \
             cpu_process_intr(intr);                                            \
@@ -825,7 +845,12 @@ void cpu_start() {
         if (!running)
             break;
 
+        // Update UI and framebuffer
         ui_update();
+        // Update clint
+        clint_tick();
+        // Update UART
+        uart_tick();
     }
 
     alarm_turn(false);
@@ -834,8 +859,11 @@ void cpu_start() {
 
 void cpu_step() {
     alarm_turn(true);
-    if (!unlikely(rv.shutdown))
+    if (!unlikely(rv.shutdown)) {
+        clint_tick();
+        uart_tick();
         CPU_EXEC_COMMON();
+    }
     alarm_turn(false);
 }
 
@@ -846,7 +874,11 @@ void cpu_start_archtest() {
     for (size_t i = 0; i < SIZE_MAX; i++) {
         if (i % 1000 == 1 && slowtimer_get_microseconds() - start > 4000000)
             break;
-        cpu_step();
+        if (rv.shutdown)
+            continue;
+        clint_tick();
+        uart_tick();
+        CPU_EXEC_COMMON();
     }
     alarm_turn(false);
 }

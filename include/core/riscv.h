@@ -310,6 +310,10 @@ typedef struct {
     uint64_t STVAL;      // Supervisor bad address or instruction
     uint64_t SATP;       // Supervisor address translation and protection
 
+    // Lock for CSRs that are accessed in multiple threads.
+    // Currently for MIP and SIP.
+    pthread_mutex_t csr_lock;
+
     // The value written to instret will be the value read by the following
     // instruction (i.e. the increment is suppressed)
     bool suppress_minstret_increase;

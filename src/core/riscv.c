@@ -54,6 +54,9 @@ void rv_init() {
     rv.MSTATUS = 0xa00000000; // Initialize with correct SXL and UXL
     // keep other CSRs zero
 
+    // initialize the CSR lock
+    rv.csr_lock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+
     // set the privilege level
     rv.privilege = PRIV_M; // boot in M mode
 

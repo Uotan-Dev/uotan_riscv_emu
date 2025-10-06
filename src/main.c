@@ -88,9 +88,6 @@ int main(int argc, char *argv[]) {
     // Start the alarm
     alarm_init();
 
-    // Start the UI
-    ui_init();
-
     // Initialize the machine
     rv_init();
 
@@ -144,6 +141,8 @@ int main(int argc, char *argv[]) {
         cpu_start_archtest();
         dump_signature(bin_file, signature_out_file);
     } else {
+        // Start the UI
+        ui_init();
         cpu_start();
     }
 
