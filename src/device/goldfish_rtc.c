@@ -204,6 +204,7 @@ void rtc_tick() {
 
 void rtc_init() {
     memset(&rtc, 0, sizeof(rtc));
+    pthread_mutex_init(&rtc.m, NULL);
 
     rtc.tick_offset = (uint64_t)time(NULL) * 1000000000 - get_host_time_ns();
 

@@ -303,6 +303,7 @@ void uart_tick() {
 
 void uart_init() {
     memset(&uart, 0, sizeof(uart_t));
+    pthread_mutex_init(&uart.m, NULL);
 
     fifo_init(&uart.recv_fifo);
     fifo_init(&uart.xmit_fifo);

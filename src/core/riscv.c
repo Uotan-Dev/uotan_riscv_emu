@@ -55,7 +55,7 @@ void rv_init() {
     // keep other CSRs zero
 
     // initialize the CSR lock
-    rv.csr_lock = (pthread_mutex_t)PTHREAD_MUTEX_INITIALIZER;
+    pthread_mutex_init(&rv.csr_lock, NULL);
 
     // set the privilege level
     rv.privilege = PRIV_M; // boot in M mode
