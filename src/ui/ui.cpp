@@ -21,6 +21,7 @@
 #include <linux/input-event-codes.h>
 
 #include "common.h"
+#include "core/riscv.h"
 #include "device/goldfish_events.h"
 #include "device/simple_fb.h"
 #include "ui/ui.h"
@@ -109,7 +110,10 @@ void ui_update() {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
-            case SDL_QUIT: log_info("SDL Quit"); exit(EXIT_SUCCESS);
+            case SDL_QUIT:
+                log_info("SDL Quit");
+                rv_shutdown(0, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
+                exit(EXIT_SUCCESS);
             case SDL_KEYDOWN: /* fallthrough */
             case SDL_KEYUP: {
                 uint32_t kc = sdl_to_linux_keycode(event.key.keysym.scancode);
