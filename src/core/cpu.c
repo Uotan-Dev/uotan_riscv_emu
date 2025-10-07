@@ -25,6 +25,7 @@
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "device/clint.h"
+#include "device/goldfish_battery.h"
 #include "device/goldfish_rtc.h"
 #include "device/uart16550.h"
 #include "ui/ui.h"
@@ -848,12 +849,15 @@ void cpu_start() {
 
         // Update UI and framebuffer
         ui_update();
+
         // Update clint
         clint_tick();
         // Update UART
         uart_tick();
         // Update RTC
         rtc_tick();
+        // Update battery
+        battery_update();
     }
 
     alarm_turn(false);

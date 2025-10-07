@@ -27,6 +27,7 @@
 #include "device/bus.h"
 #include "device/clint.h"
 #include "device/dram.h"
+#include "device/goldfish_battery.h"
 #include "device/goldfish_events.h"
 #include "device/goldfish_rtc.h"
 #include "device/plic.h"
@@ -78,6 +79,8 @@ void rv_init() {
     simple_fb_init();
     // setup Goldfish events
     events_init();
+    // setup Goldfish battery
+    battery_init();
 
     // We always put DRAM as the first device
     if (unlikely(strcmp(rv.bus.devices[0].name, "DRAM"))) {
