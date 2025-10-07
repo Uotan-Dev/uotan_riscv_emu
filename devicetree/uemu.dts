@@ -124,7 +124,7 @@
 
         simplefb: frame-buffer@50000000 {
             compatible = "simple-framebuffer";
-            reg = <0x0 0x50000000  0x0 0x300000>;
+            reg = <0x0 0x50000000 0x0 0x300000>;
             width = <1024>;
             height = <768>;
             stride = <4096>;
@@ -139,6 +139,14 @@
             interrupts = <2>;
             interrupt-parent = <&plic0>;
             label = "goldfish-events";
+            status = "okay";
+        };
+
+        goldfish_battery@10003000 {
+            compatible = "google,goldfish-battery";
+            reg = <0x0 0x10003000 0x0 0x1000>;
+            interrupts = <3>;
+            interrupt-parent = <&plic0>;
             status = "okay";
         };
     };
