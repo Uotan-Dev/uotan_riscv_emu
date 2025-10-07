@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <assert.h>
 
 #include "core/riscv.h"

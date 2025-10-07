@@ -12,7 +12,7 @@
 ** GNU General Public License for more details.
 */
 
-#include <SDL2/SDL_timer.h>
+#include <SDL3/SDL_timer.h>
 #include <string.h>
 
 #include "local-include/power_supply.h"

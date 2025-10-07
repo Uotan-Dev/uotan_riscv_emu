@@ -15,9 +15,10 @@
  * limitations under the License.
  */
 
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <assert.h>
 #include <signal.h>
+#include <stdlib.h>
 
 #include <linux/input-event-codes.h>
 
@@ -38,25 +39,25 @@ static bool initialized;
 static sig_atomic_t ui_update_requested;
 
 void ui_init() {
-    if (SDL_Init(SDL_INIT_VIDEO) != 0)
-        goto fail;
+    if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS))
+        goto ui_fail;
 
     // Create the window
-    window = SDL_CreateWindow("Uotan RISC-V Emulator", SDL_WINDOWPOS_CENTERED,
-                              SDL_WINDOWPOS_CENTERED, FB_WIDTH, FB_HEIGHT, 0);
+    window = SDL_CreateWindow("Uotan RISC-V Emulator", FB_WIDTH, FB_HEIGHT, 0);
     if (!window)
-        goto fail;
+        goto ui_fail;
 
     // Create the renderer
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    renderer = SDL_CreateRenderer(window, NULL);
     if (!renderer)
-        goto fail;
+        goto ui_fail;
 
     // Create the texture
-    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
-                                SDL_TEXTUREACCESS_STATIC, FB_WIDTH, FB_HEIGHT);
+    texture =
+        SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+                          SDL_TEXTUREACCESS_STREAMING, FB_WIDTH, FB_HEIGHT);
     if (!texture)
-        goto fail;
+        goto ui_fail;
 
     // Make global update periodic
     ui_update_requested = 0;
@@ -66,7 +67,7 @@ void ui_init() {
 
     return;
 
-fail:
+ui_fail:
     log_error("UI initialization failed. Last SDL error: %s", SDL_GetError());
     exit(EXIT_FAILURE);
 }
@@ -110,16 +111,16 @@ void ui_update() {
     SDL_Event event;
     while (SDL_PollEvent(&event)) {
         switch (event.type) {
-            case SDL_QUIT:
+            case SDL_EVENT_QUIT:
                 log_info("SDL Quit");
                 rv_shutdown(0, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
                 rv_destroy();
                 exit(EXIT_SUCCESS);
-            case SDL_KEYDOWN: /* fallthrough */
-            case SDL_KEYUP: {
-                uint32_t kc = sdl_to_linux_keycode(event.key.keysym.scancode);
+            case SDL_EVENT_KEY_DOWN: /* fallthrough */
+            case SDL_EVENT_KEY_UP: {
+                uint32_t kc = sdl_to_linux_keycode(event.key.scancode);
                 if (kc) {
-                    if (event.type == SDL_KEYDOWN)
+                    if (event.type == SDL_EVENT_KEY_DOWN)
                         kc |= 0x200;
                     events_put_keycode(kc);
                 }
@@ -133,7 +134,7 @@ void ui_update() {
 
     if (simple_fb_tick(texture)) {
         SDL_RenderClear(renderer);
-        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        SDL_RenderTexture(renderer, texture, NULL, NULL);
         SDL_RenderPresent(renderer);
     }
 

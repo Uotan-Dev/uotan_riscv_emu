@@ -56,12 +56,11 @@ if (CMAKE_C_COMPILER_ID MATCHES "Clang")
 endif()
 
 # Find SDL2 library
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(SDL2 REQUIRED sdl2)
+find_package(SDL3 CONFIG REQUIRED)
 
 # GDB Stub
 add_custom_target(gdbstub_build
-    COMMAND $(MAKE)
+    COMMAND ${CMAKE_MAKE_PROGRAM}
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/mini-gdbstub
     COMMENT "Building libgdbstub.a via Makefile"
 )
@@ -79,17 +78,16 @@ file(GLOB_RECURSE SOFTFLOAT_SOURCES "softfloat/*.c")
 list(APPEND SOURCES ${SOFTFLOAT_SOURCES})
 
 add_library(riscv_sim_lib ${SOURCES})
-target_include_directories(riscv_sim_lib PUBLIC include ${CMAKE_SOURCE_DIR}/softfloat ${SDL2_INCLUDE_DIRS})
-target_compile_options(riscv_sim_lib PUBLIC ${SDL2_CFLAGS_OTHER})
+target_include_directories(riscv_sim_lib PUBLIC include ${CMAKE_SOURCE_DIR}/softfloat)
+target_link_libraries(riscv_sim_lib PUBLIC SDL3::SDL3)
 set_property(TARGET riscv_sim_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 add_dependencies(riscv_sim_lib gdbstub_build)
 
 # Create the main executable.
 file(GLOB_RECURSE APP_SOURCES "src/main.c" "src/main.cpp")
 add_executable(uemu ${APP_SOURCES})
-target_link_libraries(uemu PRIVATE riscv_sim_lib pthread m ${GDBSTUB_LIB} ${SDL2_LIBRARIES})
-target_include_directories(uemu PRIVATE ${SDL2_INCLUDE_DIRS})
-target_compile_options(uemu PRIVATE ${SDL2_CFLAGS_OTHER})
+target_link_libraries(uemu PRIVATE riscv_sim_lib pthread m ${GDBSTUB_LIB} SDL3::SDL3)
+target_include_directories(uemu PRIVATE include)
 set_property(TARGET uemu PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 
 # --- RISC-V Assembly Build Function ---
@@ -203,9 +201,8 @@ FetchContent_MakeAvailable(googletest)
 # Find all your test source files.
 file(GLOB_RECURSE TEST_SOURCES "tests/*.c" "tests/*.cpp")
 add_executable(run_tests ${TEST_SOURCES})
-target_link_libraries(run_tests PRIVATE riscv_sim_lib GTest::gtest_main ${GDBSTUB_LIB} ${SDL2_LIBRARIES})
-target_include_directories(run_tests PRIVATE ${SDL2_INCLUDE_DIRS})
-target_compile_options(run_tests PRIVATE ${SDL2_CFLAGS_OTHER})
+target_link_libraries(run_tests PRIVATE riscv_sim_lib GTest::gtest_main ${GDBSTUB_LIB} SDL3::SDL3)
+target_include_directories(run_tests PRIVATE include)
 
 # Add the test executable to CTest's list of tests.
 include(GoogleTest)
