@@ -67,15 +67,12 @@ typedef struct {
 
 static events_t events_state;
 
-void enqueue_event(unsigned int type, unsigned int code, int value) {
-    pthread_mutex_lock(&events_state.m);
-
+static void enqueue_event(unsigned int type, unsigned int code, int value) {
     int enqueued = events_state.last - events_state.first;
     if (enqueued < 0)
         enqueued += MAX_EVENTS;
     if (enqueued + 3 > MAX_EVENTS) {
         // fprintf(stderr, "##KBD: Full queue, lose event\n");
-        pthread_mutex_unlock(&events_state.m);
         return;
     }
     if (events_state.first == events_state.last) {
@@ -91,8 +88,6 @@ void enqueue_event(unsigned int type, unsigned int code, int value) {
     events_state.last = (events_state.last + 1) & (MAX_EVENTS - 1);
     events_state.events[events_state.last] = value;
     events_state.last = (events_state.last + 1) & (MAX_EVENTS - 1);
-
-    pthread_mutex_unlock(&events_state.m);
 }
 
 static unsigned dequeue_event() {
@@ -137,13 +132,12 @@ static void events_set_bits(int type, int bitl, int bith) {
     bits[ih] |= maskh;
 }
 
-// Keep for future use
-static void events_set_bit(int type, int bit) __attribute__((unused));
-static void events_clr_bit(int type, int bit) __attribute__((unused));
-
 static void events_set_bit(int type, int bit) {
     events_set_bits(type, bit, bit);
 }
+
+// Keep for future use
+static void events_clr_bit(int type, int bit) __attribute__((unused));
 
 static void events_clr_bit(int type, int bit) {
     int ii = bit / 8;
@@ -215,11 +209,20 @@ static void events_write(uint64_t addr, uint64_t value, size_t n) {
     pthread_mutex_unlock(&events_state.m);
 }
 
+void events_put_keycode(int keycode) {
+    pthread_mutex_lock(&events_state.m);
+    enqueue_event(EV_KEY, keycode & 0x1ff, (keycode & 0x200) ? 1 : 0);
+    pthread_mutex_unlock(&events_state.m);
+}
+
 void events_init() {
     memset(&events_state, 0, sizeof(events_state));
     pthread_mutex_init(&events_state.m, NULL);
 
-    events_state.name = "goldfish_events_keyboard";
+    events_state.name = "qwerty2";
+    events_state.state = STATE_INIT;
+
+    events_set_bit(EV_SYN, EV_KEY);
 
     /* since we want to implement Unicode reverse-mapping
      * allow any kind of key, even those not available on

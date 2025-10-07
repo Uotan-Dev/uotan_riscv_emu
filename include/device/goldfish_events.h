@@ -54,7 +54,7 @@ f(UP) f(DOWN) f(LEFT) f(RIGHT) f(INSERT) f(DELETE) f(HOME) f(END) f(PAGEUP) f(PA
 #define KEY_RALT KEY_RIGHTALT
 
 void events_init();
-void enqueue_event(unsigned int type, unsigned int code, int value);
+void events_put_keycode(int keycode);
 
 #ifdef __cplusplus
 }

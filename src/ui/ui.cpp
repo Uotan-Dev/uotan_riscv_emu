@@ -113,10 +113,10 @@ void ui_update() {
             case SDL_KEYDOWN: /* fallthrough */
             case SDL_KEYUP: {
                 uint32_t kc = sdl_to_linux_keycode(event.key.keysym.scancode);
-                int down = (event.type == SDL_KEYDOWN) ? 1 : 0;
                 if (kc) {
-                    enqueue_event(EV_KEY, kc, down);
-                    enqueue_event(EV_SYN, 0, 0);
+                    if (event.type == SDL_KEYUP)
+                        kc |= 0x200;
+                    events_put_keycode(kc);
                 }
                 break;
             }
