@@ -769,15 +769,6 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     rv.suppress_minstret_increase = false;
 }
 
-#define CPU_EXEC_COMMON()                                                      \
-    do {                                                                       \
-        rv.last_exception = CAUSE_EXCEPTION_NONE;                              \
-        interrupt_t intr = rv_get_pending_interrupt();                         \
-        if (unlikely(intr != CAUSE_INTERRUPT_NONE))                            \
-            cpu_process_intr(intr);                                            \
-        cpu_exec_once(&rv.decode, rv.PC);                                      \
-    } while (0)
-
 static pthread_t cpu_thread;
 static pthread_mutex_t cpu_mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cpu_cond = PTHREAD_COND_INITIALIZER;
@@ -794,10 +785,19 @@ static void *cpu_thread_func(void *arg) {
     uint64_t start = slowtimer_get_microseconds();
     uint64_t inst_cnt = 0;
 
-    while (!unlikely(rv.shutdown)) {
-        CPU_EXEC_COMMON();
+    for (uint64_t i = 0; i < UINT64_MAX; i++) {
+        if (unlikely(rv.shutdown))
+            break;
+        rv.last_exception = CAUSE_EXCEPTION_NONE;
+        if ((i & 255) == 0) {
+            interrupt_t intr = rv_get_pending_interrupt();
+            if (unlikely(intr != CAUSE_INTERRUPT_NONE))
+                cpu_process_intr(intr);
+        }
+        cpu_exec_once(&rv.decode, rv.PC);
         inst_cnt++;
     }
+
     uint64_t end = slowtimer_get_microseconds();
     double delta = (double)(end - start) / 1000000.0;
     log_info("Simulation time: %f seconds (%" PRIu64 " microseconds)", delta,
@@ -859,6 +859,15 @@ void cpu_start() {
     alarm_turn(false);
     pthread_join(cpu_thread, NULL);
 }
+
+#define CPU_EXEC_COMMON()                                                      \
+    do {                                                                       \
+        rv.last_exception = CAUSE_EXCEPTION_NONE;                              \
+        interrupt_t intr = rv_get_pending_interrupt();                         \
+        if (unlikely(intr != CAUSE_INTERRUPT_NONE))                            \
+            cpu_process_intr(intr);                                            \
+        cpu_exec_once(&rv.decode, rv.PC);                                      \
+    } while (0)
 
 void cpu_step() {
     alarm_turn(true);
