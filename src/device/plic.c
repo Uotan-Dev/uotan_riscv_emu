@@ -14,10 +14,8 @@
  * limitations under the License.
  */
 
-#include <algorithm>
-#include <atomic>
-#include <cstdint>
-#include <cstring>
+#include <stdint.h>
+#include <string.h>
 
 #include "core/cpu.h"
 #include "device/plic.h"
@@ -25,11 +23,13 @@
 #define PLIC_BITMAP_WORDS (((PLIC_MAX_SOURCES) + 31) / 32)
 
 typedef struct {
-    std::atomic_uint_fast32_t priority[PLIC_MAX_SOURCES];
-    std::atomic_uint_fast32_t pending[PLIC_BITMAP_WORDS];
-    std::atomic_uint_fast32_t enable[PLIC_MAX_CONTEXTS][PLIC_BITMAP_WORDS];
-    std::atomic_uint_fast32_t threshold[PLIC_MAX_CONTEXTS];
-    std::atomic_uint_fast32_t claimed[PLIC_MAX_CONTEXTS];
+    uint32_t priority[PLIC_MAX_SOURCES];
+    uint32_t pending[PLIC_BITMAP_WORDS];
+    uint32_t enable[PLIC_MAX_CONTEXTS][PLIC_BITMAP_WORDS];
+    uint32_t threshold[PLIC_MAX_CONTEXTS];
+    uint32_t claimed[PLIC_MAX_CONTEXTS];
+
+    pthread_mutex_t lock;
 } plic_t;
 
 static plic_t plic;
@@ -116,19 +116,24 @@ static void update_all_outputs(void) {
 static uint64_t plic_read(uint64_t addr, size_t n) {
     if (n != 4 || addr % 4 != 0)
         return 0;
+
+    uint64_t r = 0;
+
+    pthread_mutex_lock(&plic.lock);
+
     if (addr >= PLIC_PRIORITY_BASE &&
         addr < PLIC_PRIORITY_BASE + PLIC_PRIORITY_SIZE) {
         uint64_t reg_offset = addr - PLIC_PRIORITY_BASE;
         uint32_t source = (uint32_t)(reg_offset / 4);
         if (source < PLIC_MAX_SOURCES) {
-            return (uint64_t)(plic.priority[source] & 0x7U);
+            r = (uint64_t)(plic.priority[source] & 0x7U);
         }
     } else if (addr >= PLIC_PENDING_BASE &&
                addr < PLIC_PENDING_BASE + PLIC_PENDING_SIZE) {
         uint64_t reg_offset = addr - PLIC_PENDING_BASE;
         uint32_t word = (uint32_t)(reg_offset / 4);
         if (word < PLIC_BITMAP_WORDS) {
-            return (uint64_t)plic.pending[word];
+            r = (uint64_t)plic.pending[word];
         }
     } else if (addr >= PLIC_ENABLE_BASE &&
                addr < PLIC_ENABLE_BASE + PLIC_ENABLE_SIZE) {
@@ -137,7 +142,7 @@ static uint64_t plic_read(uint64_t addr, size_t n) {
         uint32_t ctx_off = (uint32_t)(reg_offset % PLIC_ENABLE_CONTEXT_SIZE);
         uint32_t word = ctx_off / 4;
         if (context < PLIC_MAX_CONTEXTS && word < PLIC_BITMAP_WORDS) {
-            return (uint64_t)plic.enable[context][word];
+            r = (uint64_t)plic.enable[context][word];
         }
     } else if (addr >= PLIC_CONTEXT_BASE &&
                addr < PLIC_CONTEXT_BASE + PLIC_CONTEXT_SIZE) {
@@ -156,17 +161,22 @@ static uint64_t plic_read(uint64_t addr, size_t n) {
                 } else {
                     plic.claimed[context] = 0;
                 }
-                return (uint64_t)source;
+                r = (uint64_t)source;
             }
         }
     }
 
-    return 0;
+    pthread_mutex_unlock(&plic.lock);
+
+    return r;
 }
 
 static void plic_write(uint64_t addr, uint64_t value, size_t n) {
     if (n != 4 || addr % 4 != 0)
         return;
+
+    pthread_mutex_lock(&plic.lock);
+
     if (addr >= PLIC_PRIORITY_BASE &&
         addr < PLIC_PRIORITY_BASE + PLIC_PRIORITY_SIZE) {
         uint64_t reg_offset = addr - PLIC_PRIORITY_BASE;
@@ -203,15 +213,14 @@ static void plic_write(uint64_t addr, uint64_t value, size_t n) {
             }
         }
     }
+
+    pthread_mutex_unlock(&plic.lock);
 }
 
 void plic_init(void) {
-    std::fill(plic.priority, plic.priority + PLIC_MAX_SOURCES, 0);
-    std::fill(plic.pending, plic.pending + PLIC_BITMAP_WORDS, 0);
-    for (size_t i = 0; i < PLIC_MAX_CONTEXTS; i++)
-        std::fill(plic.enable[i], plic.enable[i] + PLIC_BITMAP_WORDS, 0);
-    std::fill(plic.threshold, plic.threshold + PLIC_MAX_CONTEXTS, 0);
-    std::fill(plic.claimed, plic.claimed + PLIC_MAX_CONTEXTS, 0);
+    memset(&plic, 0, sizeof(plic));
+
+    pthread_mutex_init(&plic.lock, NULL);
 
     rv_add_device((device_t){
         .name = "PLIC",
@@ -226,6 +235,7 @@ void plic_init(void) {
 void plic_set_irq(uint32_t src, int level) {
     if (src == 0 || src >= PLIC_MAX_SOURCES)
         return;
+    pthread_mutex_lock(&plic.lock);
     bool pending = is_pending(src);
     if (level && !pending) {
         set_pending(src, 1);
@@ -234,4 +244,5 @@ void plic_set_irq(uint32_t src, int level) {
         set_pending(src, 0);
         update_all_outputs();
     }
+    pthread_mutex_unlock(&plic.lock);
 }

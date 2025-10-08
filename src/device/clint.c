@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-#include <atomic>
-#include <cstring>
+#include <string.h>
 
 #include "core/cpu.h"
 #include "core/mem.h"
@@ -25,9 +24,11 @@
 #include "utils/slowtimer.h"
 
 typedef struct {
-    std::atomic_uint_fast32_t msip;
-    std::atomic_uint_fast64_t mtimecmp;
-    std::atomic_uint_fast64_t mtime;
+    uint32_t msip;
+    uint64_t mtimecmp;
+    uint64_t mtime;
+
+    pthread_mutex_t lock;
 } clint_t;
 
 static uint64_t clint_start;
@@ -39,6 +40,8 @@ static uint64_t clint_read(uint64_t addr, size_t n) {
     uint64_t offset = 0;
     uint64_t reg_val = 0;
 
+    pthread_mutex_lock(&clint.lock);
+
     if (addr_in_range(addr, CLINT_MSIP_ADDR, sizeof(clint.msip))) {
         reg_val = clint.msip;
         offset = addr - CLINT_MSIP_ADDR;
@@ -49,9 +52,9 @@ static uint64_t clint_read(uint64_t addr, size_t n) {
     } else if (addr_in_range(addr, CLINT_MTIME_ADDR, sizeof(clint.mtime))) {
         reg_val = clint.mtime;
         offset = addr - CLINT_MTIME_ADDR;
-    } else {
-        return 0;
     }
+
+    pthread_mutex_unlock(&clint.lock);
 
     return (reg_val >> (offset * 8)) & mask;
 }
@@ -60,6 +63,8 @@ static void clint_write(uint64_t addr, uint64_t value, size_t n) {
     const uint64_t mask = make_mask_bytes(n);
 
     uint64_t offset = 0;
+
+    pthread_mutex_lock(&clint.lock);
 
     if (addr_in_range(addr, CLINT_MSIP_ADDR, sizeof(clint.msip))) {
         offset = addr - CLINT_MSIP_ADDR;
@@ -84,9 +89,13 @@ static void clint_write(uint64_t addr, uint64_t value, size_t n) {
         }
     }
     // CLINT_MTIME_ADDR is read-only by convention
+
+    pthread_mutex_unlock(&clint.lock);
 }
 
 void clint_init() {
+    pthread_mutex_init(&clint.lock, NULL);
+
     clint.msip = 0;
     clint.mtime = 0;
     clint.mtimecmp = UINT64_MAX;
@@ -102,6 +111,8 @@ void clint_init() {
 }
 
 void clint_tick() {
+    pthread_mutex_lock(&clint.lock);
+
     rv.MTIME = clint.mtime = slowtimer_get_microseconds() - clint_start;
 
     // A machine timer interrupt becomes pending whenever mtime contains a value
@@ -115,4 +126,6 @@ void clint_tick() {
         cpu_raise_intr(MIP_MSIP, PRIV_M);
     else
         cpu_clear_intr(MIP_MSIP, PRIV_M);
+
+    pthread_mutex_unlock(&clint.lock);
 }

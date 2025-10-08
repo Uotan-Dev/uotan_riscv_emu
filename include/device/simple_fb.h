@@ -33,6 +33,14 @@
 extern "C" {
 #endif
 
+typedef struct {
+    uint8_t vram[FB_SIZE];
+    bool dirty; // Whether vram has been written
+    pthread_mutex_t m;
+} simple_fb_t;
+
+extern simple_fb_t simple_fb;
+
 void simple_fb_init();
 bool simple_fb_tick(struct SDL_Texture *texture);
 

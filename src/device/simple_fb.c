@@ -21,12 +21,6 @@
 #include "device/simple_fb.h"
 #include "ui/ui.h"
 
-typedef struct {
-    uint8_t vram[FB_SIZE];
-    bool dirty; // Whether vram has been written
-    pthread_mutex_t m;
-} simple_fb_t;
-
 simple_fb_t simple_fb;
 
 static uint64_t simple_fb_read(uint64_t addr, size_t n) {
