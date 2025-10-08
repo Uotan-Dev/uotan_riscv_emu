@@ -99,6 +99,8 @@ static void battery_write(uint64_t addr, uint64_t value, size_t n) {
 void battery_init() {
     memset(&battery, 0, sizeof(battery));
 
+    pthread_mutex_init(&battery.m, NULL);
+
     // default values for the battery
     battery.ac_online = 1;
     battery.status = POWER_SUPPLY_STATUS_CHARGING;
