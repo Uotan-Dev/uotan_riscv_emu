@@ -16,8 +16,6 @@
 
 #include <SDL2/SDL.h>
 #include <assert.h>
-#include <atomic>
-#include <mutex>
 
 #include "core/riscv.h"
 #include "device/simple_fb.h"
@@ -25,8 +23,8 @@
 
 typedef struct {
     uint8_t vram[FB_SIZE];
-    std::atomic_bool dirty; // Whether vram has been written
-    std::mutex m;
+    bool dirty; // Whether vram has been written
+    pthread_mutex_t m;
 } simple_fb_t;
 
 simple_fb_t simple_fb;
@@ -37,10 +35,9 @@ static uint64_t simple_fb_read(uint64_t addr, size_t n) {
     if (offset >= SIMPLEFB_BASE)
         return 0;
     uint64_t v = 0;
-    {
-        std::lock_guard<std::mutex> guard(simple_fb.m);
-        memcpy(&v, simple_fb.vram + offset, n);
-    }
+    pthread_mutex_lock(&simple_fb.m);
+    memcpy(&v, simple_fb.vram + offset, n);
+    pthread_mutex_unlock(&simple_fb.m);
     return v;
 }
 
@@ -48,31 +45,27 @@ static void simple_fb_write(uint64_t addr, uint64_t value, size_t n) {
     uint64_t offset = addr - SIMPLEFB_BASE;
     if (offset > SIMPLEFB_BASE)
         return;
-    {
-        std::lock_guard<std::mutex> guard(simple_fb.m);
-        memcpy(simple_fb.vram + offset, &value, n);
-        simple_fb.dirty = true;
-    }
+    pthread_mutex_lock(&simple_fb.m);
+    memcpy(simple_fb.vram + offset, &value, n);
+    simple_fb.dirty = true;
+    pthread_mutex_unlock(&simple_fb.m);
 }
 
 bool simple_fb_tick(struct SDL_Texture *texture) {
-    if (!ui_initialized()) [[unlikely]]
+    if (!ui_initialized())
         return false;
     if (!simple_fb.dirty)
         return false;
-
-    {
-        std::lock_guard<std::mutex> guard(simple_fb.m);
-        SDL_UpdateTexture(texture, NULL, simple_fb.vram, FB_WIDTH * FB_BPP);
-        simple_fb.dirty = false;
-    }
-
+    pthread_mutex_lock(&simple_fb.m);
+    SDL_UpdateTexture(texture, NULL, simple_fb.vram, FB_WIDTH * FB_BPP);
+    simple_fb.dirty = false;
+    pthread_mutex_unlock(&simple_fb.m);
     return true;
 }
 
 void simple_fb_init() {
-    std::fill(simple_fb.vram, simple_fb.vram + FB_SIZE, UINT8_C(0));
-    simple_fb.dirty = false;
+    memset(&simple_fb, 0, sizeof(simple_fb));
+
     rv_add_device((device_t){
         .name = "simple-framebuffer",
         .start = SIMPLEFB_BASE,
