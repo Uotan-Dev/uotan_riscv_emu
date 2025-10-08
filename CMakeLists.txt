@@ -52,7 +52,7 @@ add_dependencies(riscv_sim_lib gdbstub_build)
 # Create the main executable.
 file(GLOB_RECURSE APP_SOURCES "src/main.c" "src/main.cpp")
 add_executable(uemu ${APP_SOURCES})
-target_link_libraries(uemu PRIVATE riscv_sim_lib pthread m readline ncurses ${GDBSTUB_LIB} ${SDL2_LIBRARIES})
+target_link_libraries(uemu PRIVATE riscv_sim_lib pthread m ${GDBSTUB_LIB} ${SDL2_LIBRARIES})
 target_include_directories(uemu PRIVATE ${SDL2_INCLUDE_DIRS})
 target_compile_options(uemu PRIVATE ${SDL2_CFLAGS_OTHER})
 set_property(TARGET uemu PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
@@ -156,7 +156,7 @@ FetchContent_MakeAvailable(googletest)
 # Find all your test source files.
 file(GLOB_RECURSE TEST_SOURCES "tests/*.c" "tests/*.cpp")
 add_executable(run_tests ${TEST_SOURCES})
-target_link_libraries(run_tests PRIVATE riscv_sim_lib GTest::gtest_main readline ncurses ${GDBSTUB_LIB} ${SDL2_LIBRARIES})
+target_link_libraries(run_tests PRIVATE riscv_sim_lib GTest::gtest_main ${GDBSTUB_LIB} ${SDL2_LIBRARIES})
 target_include_directories(run_tests PRIVATE ${SDL2_INCLUDE_DIRS})
 target_compile_options(run_tests PRIVATE ${SDL2_CFLAGS_OTHER})
 
