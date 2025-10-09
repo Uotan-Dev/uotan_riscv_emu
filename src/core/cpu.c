@@ -412,6 +412,9 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("??????? ????? ????? 100 ????? 00100 11", xori   , I, R(rd) = src1 ^ imm);
     INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc   ,I,
         CSR_CHECK_PERM(imm);
+        bool lk = cpu_csr_need_lock(imm);
+        if (lk)
+            pthread_mutex_lock(&rv.csr_lock);
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             uint64_t t = cpu_read_csr(imm);
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
@@ -420,9 +423,14 @@ static inline void decode_exec(Decode *s) {
                     R(rd) = t;
             }
         }
+        if (lk)
+            pthread_mutex_unlock(&rv.csr_lock);
     );
     INSTPAT("??????? ????? ????? 111 ????? 11100 11", csrrci  ,I,
         CSR_CHECK_PERM(imm);
+        bool lk = cpu_csr_need_lock(imm);
+        if (lk)
+            pthread_mutex_lock(&rv.csr_lock);
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             uint64_t zimm = BITS(s->inst, 19, 15);
             uint64_t t = cpu_read_csr(imm);
@@ -432,9 +440,14 @@ static inline void decode_exec(Decode *s) {
                     R(rd) = t;
             }
         }
+        if (lk)
+            pthread_mutex_unlock(&rv.csr_lock);
     );
     INSTPAT("??????? ????? ????? 010 ????? 11100 11", csrrs  , I,
         CSR_CHECK_PERM(imm);
+        bool lk = cpu_csr_need_lock(imm);
+        if (lk)
+            pthread_mutex_lock(&rv.csr_lock);
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             uint64_t t = cpu_read_csr(imm);
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
@@ -443,9 +456,14 @@ static inline void decode_exec(Decode *s) {
                     R(rd) = t;
             }
         }
+        if (lk)
+            pthread_mutex_unlock(&rv.csr_lock);
     );
     INSTPAT("??????? ????? ????? 110 ????? 11100 11", csrrsi , I,
         CSR_CHECK_PERM(imm);
+        bool lk = cpu_csr_need_lock(imm);
+        if (lk)
+            pthread_mutex_lock(&rv.csr_lock);
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             uint64_t zimm = BITS(s->inst, 19, 15);
             uint64_t t = cpu_read_csr(imm);
@@ -455,9 +473,14 @@ static inline void decode_exec(Decode *s) {
                     R(rd) = t;
             }
         }
+        if (lk)
+            pthread_mutex_unlock(&rv.csr_lock);
     );
     INSTPAT("??????? ????? ????? 001 ????? 11100 11", csrrw  , I,
         CSR_CHECK_PERM(imm);
+        bool lk = cpu_csr_need_lock(imm);
+        if (lk)
+            pthread_mutex_lock(&rv.csr_lock);
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             uint64_t t = cpu_read_csr(imm);
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
@@ -466,9 +489,14 @@ static inline void decode_exec(Decode *s) {
                     R(rd) = t;
             }
         }
+        if (lk)
+            pthread_mutex_unlock(&rv.csr_lock);
     );
     INSTPAT("??????? ????? ????? 101 ????? 11100 11", csrrwi , I,
         CSR_CHECK_PERM(imm);
+        bool lk = cpu_csr_need_lock(imm);
+        if (lk)
+            pthread_mutex_lock(&rv.csr_lock);
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             uint64_t zimm = BITS(s->inst, 19, 15);
             uint64_t t = cpu_read_csr(imm);
@@ -477,6 +505,8 @@ static inline void decode_exec(Decode *s) {
                 cpu_write_csr(imm, zimm);
             }
         }
+        if (lk)
+            pthread_mutex_unlock(&rv.csr_lock);
     );
     INSTPAT("0000000 00001 00000 000 00000 11100 11", ebreak     , N, cpu_raise_exception(CAUSE_BREAKPOINT, s->pc));
     INSTPAT("0000000 00000 00000 000 00000 11100 11", ecall      , N, _ecall(s));

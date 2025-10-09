@@ -127,6 +127,18 @@ void cpu_clear_intr(uint64_t ip, privilege_level_t priv);
 void cpu_raise_exception(exception_t cause, uint64_t tval);
 
 /**
+ * @brief Judges whether current CSR must be locked before accessing.
+ *
+ * @param csr  The CSR address.
+ * @return  The result indicating whether current CSR must be locked before
+ * accessing.
+ */
+FORCE_INLINE bool cpu_csr_need_lock(uint64_t csr) {
+    csr &= 0xFFF;
+    return csr == CSR_MIP || csr == CSR_SIP || csr == CSR_TIME;
+}
+
+/**
  * @brief Reads the value of a control and status register (CSR).
  *
  * This function retrieves the current value of the specified CSR from the
@@ -151,12 +163,9 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
         // M-mode
         case CSR_MCOUNTEREN:
             return rv.MCOUNTEREN & (MCOUNTEREN_CY | MCOUNTEREN_TM | MCOUNTEREN_IR);
-        case CSR_MIP: {
-            pthread_mutex_lock(&rv.csr_lock);
-            uint64_t r = rv.MIP;
-            pthread_mutex_unlock(&rv.csr_lock);
-            return r;
-        }
+        case CSR_MIP:
+            // csr_lock must be held here
+            return rv.MIP;
         macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID)
         macro(MISA) macro(MTVEC) macro(MSCRATCH) macro(MEPC) macro(MCAUSE)
         macro(MTVAL) macro(MIE) macro(MCYCLE) macro(MINSTRET) macro(MIDELEG)
@@ -166,9 +175,8 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
         case CSR_SSTATUS: return rv.MSTATUS & SSTATUS_MASK;
         case CSR_SIE: return rv.MIE & rv.MIDELEG;
         case CSR_SIP: {
-            pthread_mutex_lock(&rv.csr_lock);
+            // csr_lock must be held here
             uint64_t r = rv.MIP;
-            pthread_mutex_unlock(&rv.csr_lock);
             return r & rv.MIDELEG;
         }
         case CSR_SCOUNTEREN:
@@ -195,7 +203,7 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
             if (rv.privilege == PRIV_U)
                 counteren = counteren & rv.MCOUNTEREN & rv.SCOUNTEREN;
             if (counteren & MCOUNTEREN_TM)
-                return rv.MTIME;
+                return rv.MTIME; // csr_lock must be held here
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
             return 0;
         }
@@ -263,9 +271,8 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
             rv.suppress_minstret_increase = true;
             break;
         case CSR_MIP:
-            pthread_mutex_lock(&rv.csr_lock);
+            // csr_lock must be held here
             rv.MIP = value;
-            pthread_mutex_unlock(&rv.csr_lock);
             break;
         macro(MTVEC) macro(MSCRATCH) macro(MCAUSE) macro(MTVAL) macro(MIE)
         macro(MSTATUS) macro(MCYCLE) macro(MSECCFG) macro(MIDELEG)
@@ -296,10 +303,9 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
             break;
         }
         case CSR_SIP: {
-            pthread_mutex_lock(&rv.csr_lock);
+            // csr_lock must be held here
             uint64_t v = (rv.MIP & ~rv.MIDELEG) | (value & rv.MIDELEG);
             rv.MIP = v;
-            pthread_mutex_unlock(&rv.csr_lock);
             break;
         }
         case CSR_SCOUNTEREN:
@@ -317,6 +323,7 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
                 cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
             break;
         case CSR_TIME:
+            // csr_lock must be held here
             if (value != rv.MTIME)
                 cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
             break;

@@ -113,7 +113,11 @@ void clint_init() {
 void clint_tick() {
     pthread_mutex_lock(&clint.lock);
 
-    rv.MTIME = clint.mtime = slowtimer_get_microseconds() - clint_start;
+    clint.mtime = slowtimer_get_microseconds() - clint_start;
+
+    pthread_mutex_lock(&rv.csr_lock);
+    rv.MTIME = clint.mtime;
+    pthread_mutex_unlock(&rv.csr_lock);
 
     // A machine timer interrupt becomes pending whenever mtime contains a value
     // greater than or equal to mtimecmp
