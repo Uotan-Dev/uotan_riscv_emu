@@ -17,6 +17,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "core/riscv.h"
 #include "device/plic.h"
@@ -273,26 +274,41 @@ static void uart_write(uint64_t addr, uint64_t value, size_t n) {
 }
 
 void uart_tick() {
-    // Input from host
-    char c;
-    int ret = read(STDIN_FILENO, &c, 1);
+    static char inbuf[512];
+    static char outbuf[512];
+
+    fd_set rfds;
+    struct timeval tv = {0, 0}; // non-blocking select
+    ssize_t n;
 
     pthread_mutex_lock(&uart.m);
 
-    if (ret > 0)
-        uart_receive_char((uint8_t)c);
+    FD_ZERO(&rfds);
+    FD_SET(STDIN_FILENO, &rfds);
+    int sel = select(STDIN_FILENO + 1, &rfds, NULL, NULL, &tv);
+    if (sel > 0 && FD_ISSET(STDIN_FILENO, &rfds)) {
+        n = read(STDIN_FILENO, inbuf,
+                 sizeof(inbuf)); // read as many as available
+        if (n > 0)
+            for (ssize_t i = 0; i < n; ++i)
+                uart_receive_char((uint8_t)inbuf[i]);
+    }
 
-    // Output to host
     if (!(uart.lsr & UART_LSR_THRE)) {
         if (uart.mcr & UART_MCR_LOOP) {
             if (!fifo_is_empty(&uart.xmit_fifo)) {
-                uint8_t ch = fifo_pop(&uart.xmit_fifo);
-                uart_receive_char(ch);
+                uart_receive_char(fifo_pop(&uart.xmit_fifo));
             }
         } else {
-            while (!fifo_is_empty(&uart.xmit_fifo))
-                putchar(fifo_pop(&uart.xmit_fifo));
-            fflush(stdout);
+            size_t out_len = 0;
+            while (!fifo_is_empty(&uart.xmit_fifo) &&
+                   out_len < sizeof(outbuf)) {
+                outbuf[out_len++] = (char)fifo_pop(&uart.xmit_fifo);
+            }
+            if (out_len > 0) {
+                write(STDOUT_FILENO, outbuf, out_len);
+                fsync(STDOUT_FILENO);
+            }
         }
         uart.lsr |= UART_LSR_THRE | UART_LSR_TEMT;
         uart.thr_ipending = 1;
@@ -306,6 +322,9 @@ void uart_init() {
     memset(&uart, 0, sizeof(uart_t));
     pthread_mutex_init(&uart.m, NULL);
 
+    enable_stdin_raw_mode();
+    atexit(disable_stdin_raw_mode);
+
     fifo_init(&uart.recv_fifo);
     fifo_init(&uart.xmit_fifo);
 
@@ -314,14 +333,6 @@ void uart_init() {
     uart.mcr = UART_MCR_OUT2;
     uart.msr = UART_MSR_DCD | UART_MSR_DSR | UART_MSR_CTS;
     uart.divider = 12;
-
-    set_stdin_nonblocking();
-
-    static bool blocking_handler_registered = false;
-    if (!blocking_handler_registered) {
-        blocking_handler_registered = true;
-        atexit(set_stdin_blocking);
-    }
 
     rv_add_device((device_t){
         .name = "UART16550",
@@ -336,4 +347,5 @@ void uart_destory() {
     int rc = pthread_mutex_destroy(&uart.m);
     if (rc)
         log_warn("destroy uart lock failed");
+    disable_stdin_raw_mode();
 }

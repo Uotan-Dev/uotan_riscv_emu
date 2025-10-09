@@ -17,10 +17,17 @@
 #pragma once
 
 #include <fcntl.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <sys/select.h>
+#include <termios.h>
 #include <unistd.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 static inline uint64_t make_mask_bytes(size_t bytes) {
     if (bytes >= 8)
@@ -28,24 +35,9 @@ static inline uint64_t make_mask_bytes(size_t bytes) {
     return (1ULL << (bytes * 8)) - 1ULL;
 }
 
-static inline void set_stdin_nonblocking() {
-    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-    if (flags == -1) {
-        perror("fcntl F_GETFL");
-        return;
-    }
-    if (fcntl(STDIN_FILENO, F_SETFL, flags | O_NONBLOCK) == -1) {
-        perror("fcntl F_SETFL");
-    }
-}
+void enable_stdin_raw_mode();
+void disable_stdin_raw_mode();
 
-static inline void set_stdin_blocking() {
-    int flags = fcntl(STDIN_FILENO, F_GETFL, 0);
-    if (flags == -1) {
-        perror("fcntl F_GETFL");
-        return;
-    }
-    if (fcntl(STDIN_FILENO, F_SETFL, flags & ~O_NONBLOCK) == -1) {
-        perror("fcntl F_SETFL");
-    }
+#ifdef __cplusplus
 }
+#endif

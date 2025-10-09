@@ -88,8 +88,8 @@ int main(int argc, char *argv[]) {
 
     parse_args(argc, argv);
 
-    log_set_output(stdout);
-    log_info("Logger started.");
+    log_set_output(stderr);
+    log_info("Logger started at stderr.");
 
     // Start the alarm
     alarm_init();
