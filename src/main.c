@@ -79,10 +79,17 @@ static void parse_args(int argc, char *argv[]) {
 }
 
 int main(int argc, char *argv[]) {
-    log_set_output(stdout);
+    puts("uemu - tiny RISC-V system emulator");
+    puts("Built on " __DATE__ " " __TIME__ "");
+    puts("Copyright 2025 Nuo Shen, Nanjing University");
+    puts("Licensed under the Apache License 2.0");
+    puts("See https://www.apache.org/licenses/LICENSE-2.0");
+    putchar('\n');
 
     parse_args(argc, argv);
-    log_info("uEmu - A simple RISC-V emulator");
+
+    log_set_output(stdout);
+    log_info("Logger started.");
 
     // Start the alarm
     alarm_init();
