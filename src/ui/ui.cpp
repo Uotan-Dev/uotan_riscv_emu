@@ -52,9 +52,8 @@ void ui_init() {
         goto fail;
 
     // Create the texture
-    texture =
-        SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
-                          SDL_TEXTUREACCESS_STREAMING, FB_WIDTH, FB_HEIGHT);
+    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+                                SDL_TEXTUREACCESS_STATIC, FB_WIDTH, FB_HEIGHT);
     if (!texture)
         goto fail;
 
