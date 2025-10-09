@@ -62,6 +62,12 @@ riscv64-unknown-elf-gdb path/to/image.elf
 (gdb) target remote localhost:1234   # adjust port per your gdbstub config
 ```
 
+For running OpenSBI and Linux, refer to [Booting Linux on uemu](https://github.com/snnbyyds/uemu/blob/dev/software/README.md) or try out the prebuilt binary in [releases](https://github.com/snnbyyds/uemu/releases).
+
+An incomplete [nexus-am](https://github.com/OpenXiangShan/nexus-am) (@OpenXiangShan's fork of The Abstract Machine) port is provided at https://github.com/snnbyyds/nexus-am
+
+For [*Introduction to Computer System*](https://nju-projectn.github.io/ics-pa-gitbook/) students, porting [Abstract Machine](https://github.com/NJU-ProjectN/abstract-machine) and [Nanos-lite](https://github.com/NJU-ProjectN/nanos-lite) is an exercise.
+
 ## Builtin tests
 
 * Unit / integration tests are bundled into `run_tests` (GoogleTest). Execute:
