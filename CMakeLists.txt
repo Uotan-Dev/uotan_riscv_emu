@@ -22,10 +22,38 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -Wall -Werror")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Werror -Wno-sign-compare")
-set(CMAKE_C_FLAGS_RELEASE   "-O3 -Wall -Werror -flto")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Werror -Wno-sign-compare -flto")
+# Compiler flags
+set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -Wall -Werror -Wno-unused-command-line-argument")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Werror -Wno-sign-compare -Wno-unused-command-line-argument")
+set(CMAKE_C_FLAGS_RELEASE   "-O3 -Wall -Werror -flto -Wno-unused-command-line-argument")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Werror -Wno-sign-compare -flto -Wno-unused-command-line-argument")
+
+# Prefer LLVM tools when using Clang (helps with -flto)
+if (CMAKE_C_COMPILER_ID MATCHES "Clang")
+  find_program(LLVM_AR llvm-ar)
+  find_program(LLVM_RANLIB llvm-ranlib)
+  find_program(LLD ld.lld)
+  if(NOT LLD)
+    find_program(LLD lld)
+  endif()
+
+  if(LLVM_AR)
+    message(STATUS "Using llvm-ar: ${LLVM_AR}")
+    set(CMAKE_AR ${LLVM_AR} CACHE FILEPATH "Archiver" FORCE)
+  endif()
+
+  if(LLVM_RANLIB)
+    message(STATUS "Using llvm-ranlib: ${LLVM_RANLIB}")
+    set(CMAKE_RANLIB ${LLVM_RANLIB} CACHE FILEPATH "Ranlib" FORCE)
+  endif()
+
+  if(LLD)
+    message(STATUS "Using lld: ${LLD}")
+    set(CMAKE_LINKER ${LLD} CACHE FILEPATH "Linker" FORCE)
+    add_compile_options(-fuse-ld=lld)
+    add_link_options(-fuse-ld=lld)
+  endif()
+endif()
 
 # Find SDL2 library
 find_package(PkgConfig REQUIRED)
