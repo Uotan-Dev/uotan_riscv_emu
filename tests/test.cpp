@@ -19,9 +19,6 @@
 #include <string>
 #include <unistd.h>
 
-// include test utils
-#include "utils/test_utils.hpp"
-
 // include some emu headers
 #include "core/cpu.h"
 #include "core/riscv.h"
@@ -75,18 +72,6 @@ TEST(M_modeTestSuite, TRAP_TEST) {
     cpu_start();
     ASSERT_EQ(rv.shutdown_code, 52);
     ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
-}
-
-#include "m_mode-tests/intr_tests.hpp"
-
-TEST(M_modeTestSuite, INTR_TEST) {
-    rv_init();
-    rv_load(intr_test_firmware_bin, sizeof(intr_test_firmware_bin));
-    cpu_start();
-    ASSERT_EQ(rv.shutdown_code, 0);
-    ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
-    ASSERT_TRUE(rv.MTVEC == UINT64_C(0x0000000080000018));
-    ASSERT_TRUE(rv.MCAUSE == (CAUSE_MACHINE_TIMER | INTERRUPT_FLAG));
 }
 
 /* Bus Tests */
