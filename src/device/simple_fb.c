@@ -20,6 +20,7 @@
 #include "core/riscv.h"
 #include "device/simple_fb.h"
 #include "ui/ui.h"
+#include "utils/logger.h"
 
 simple_fb_t simple_fb;
 
@@ -60,6 +61,8 @@ bool simple_fb_tick(struct SDL_Texture *texture) {
 void simple_fb_init() {
     memset(&simple_fb, 0, sizeof(simple_fb));
 
+    pthread_mutex_init(&simple_fb.m, NULL);
+
     rv_add_device((device_t){
         .name = "simple-framebuffer",
         .start = SIMPLEFB_BASE,
@@ -67,4 +70,10 @@ void simple_fb_init() {
         .read = simple_fb_read,
         .write = simple_fb_write,
     });
+}
+
+void simple_fb_destory() {
+    int rc = pthread_mutex_destroy(&simple_fb.m);
+    if (rc)
+        log_warn("destroy simple_fb lock failed");
 }

@@ -401,6 +401,11 @@ interrupt_t rv_get_pending_interrupt();
  */
 void rv_shutdown(int code, shutdown_cause_t cause);
 
+/**
+ * @brief Recycle resources before exiting.
+ */
+void rv_destroy();
+
 #ifdef __cplusplus
 }
 #endif

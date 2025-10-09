@@ -143,9 +143,10 @@ int main(int argc, char *argv[]) {
         // Start the UI
         ui_init();
         cpu_start();
+        ui_close();
     }
 
-    ui_close();
+    rv_destroy();
 
     return EXIT_SUCCESS;
 }

@@ -33,6 +33,7 @@ extern "C" {
 // clang-format on
 
 void clint_init();
+void clint_destroy();
 void clint_tick();
 
 #ifdef __cplusplus

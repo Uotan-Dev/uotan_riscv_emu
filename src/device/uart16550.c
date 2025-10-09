@@ -22,6 +22,7 @@
 #include "device/plic.h"
 #include "device/uart16550.h"
 #include "utils/fifo.h"
+#include "utils/logger.h"
 #include "utils/misc.h"
 
 //
@@ -329,4 +330,10 @@ void uart_init() {
         .read = uart_read,
         .write = uart_write,
     });
+}
+
+void uart_destory() {
+    int rc = pthread_mutex_destroy(&uart.m);
+    if (rc)
+        log_warn("destroy uart lock failed");
 }

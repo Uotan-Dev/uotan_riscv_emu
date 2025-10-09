@@ -867,6 +867,10 @@ static inline void cpu_thread_start() {
 
 void cpu_start() {
     alarm_turn(true);
+
+    pthread_cond_init(&cpu_cond, NULL);
+    pthread_mutex_init(&cpu_mutex, NULL);
+
     cpu_thread_start();
 
     while (true) {
@@ -892,6 +896,9 @@ void cpu_start() {
 
     alarm_turn(false);
     pthread_join(cpu_thread, NULL);
+
+    pthread_mutex_destroy(&cpu_mutex);
+    pthread_cond_destroy(&cpu_cond);
 }
 
 #define CPU_EXEC_COMMON()                                                      \

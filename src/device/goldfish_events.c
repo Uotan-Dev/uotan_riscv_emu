@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -22,6 +23,7 @@
 #include "core/riscv.h"
 #include "device/goldfish_events.h"
 #include "device/plic.h"
+#include "utils/logger.h"
 
 #define MAX_EVENTS (256 * 4)
 
@@ -112,13 +114,16 @@ static void events_set_bits(int type, int bitl, int bith) {
         bits = calloc(ih + 1, sizeof(uint8_t));
         if (bits == NULL)
             return;
-        memcpy(bits, events_state.ev_bits[type].bits,
-               events_state.ev_bits[type].len);
-        free(events_state.ev_bits[type].bits);
+        if (events_state.ev_bits[type].bits) {
+            memcpy(bits, events_state.ev_bits[type].bits,
+                   events_state.ev_bits[type].len);
+            free(events_state.ev_bits[type].bits);
+        }
         events_state.ev_bits[type].bits = bits;
         events_state.ev_bits[type].len = ih + 1;
     } else {
         bits = events_state.ev_bits[type].bits;
+        assert(bits);
     }
     maskl = 0xffU << (bitl & 7);
     maskh = 0xffU >> (7 - (bith & 7));
@@ -134,18 +139,6 @@ static void events_set_bits(int type, int bitl, int bith) {
 
 static void events_set_bit(int type, int bit) {
     events_set_bits(type, bit, bit);
-}
-
-// Keep for future use
-static void events_clr_bit(int type, int bit) __attribute__((unused));
-
-static void events_clr_bit(int type, int bit) {
-    int ii = bit / 8;
-    if (ii < events_state.ev_bits[type].len) {
-        uint8_t *bits = events_state.ev_bits[type].bits;
-        uint8_t mask = 0x01U << (bit & 7);
-        bits[ii] &= ~mask;
-    }
 }
 
 static int get_page_len() {
@@ -168,8 +161,11 @@ static int get_page_data(int offset) {
         const char *name = events_state.name;
         return name[offset];
     }
-    if (page >= PAGE_EVBITS && page <= PAGE_EVBITS + EV_MAX)
+    if (page >= PAGE_EVBITS && page <= PAGE_EVBITS + EV_MAX) {
+        if (!events_state.ev_bits[page - PAGE_EVBITS].bits)
+            return 0;
         return events_state.ev_bits[page - PAGE_EVBITS].bits[offset];
+    }
     return 0;
 }
 
@@ -245,4 +241,17 @@ void events_init() {
         .read = events_read,
         .write = events_write,
     });
+}
+
+void events_destory() {
+    int rc = pthread_mutex_destroy(&events_state.m);
+    if (rc)
+        log_warn("destroy events lock failed");
+
+    for (size_t i = 0; i <= EV_MAX; i++) {
+        if (events_state.ev_bits[i].bits) {
+            free(events_state.ev_bits[i].bits);
+            events_state.ev_bits[i].bits = NULL;
+        }
+    }
 }

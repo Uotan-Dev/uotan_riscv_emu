@@ -27,6 +27,7 @@ extern "C" {
 #define BATT_INIT_CAP 32
 
 void battery_init();
+void battery_destroy();
 void battery_update();
 
 #ifdef __cplusplus

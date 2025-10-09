@@ -20,6 +20,7 @@
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "device/clint.h"
+#include "utils/logger.h"
 #include "utils/misc.h"
 #include "utils/slowtimer.h"
 
@@ -108,6 +109,12 @@ void clint_init() {
         .read = clint_read,
         .write = clint_write,
     });
+}
+
+void clint_destroy() {
+    int rc = pthread_mutex_destroy(&clint.lock);
+    if (rc)
+        log_warn("destroy clint lock failed");
 }
 
 void clint_tick() {

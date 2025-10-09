@@ -25,6 +25,7 @@ extern "C" {
 #define RTC_IRQ 11
 
 void rtc_init();
+void rtc_destory();
 void rtc_tick();
 
 #ifdef __cplusplus

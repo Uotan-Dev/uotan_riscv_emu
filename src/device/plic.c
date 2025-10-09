@@ -19,6 +19,7 @@
 
 #include "core/cpu.h"
 #include "device/plic.h"
+#include "utils/logger.h"
 
 #define PLIC_BITMAP_WORDS (((PLIC_MAX_SOURCES) + 31) / 32)
 
@@ -245,4 +246,10 @@ void plic_set_irq(uint32_t src, int level) {
         update_all_outputs();
     }
     pthread_mutex_unlock(&plic.lock);
+}
+
+void plic_destory() {
+    int rc = pthread_mutex_destroy(&plic.lock);
+    if (rc)
+        log_warn("destroy plic lock failed");
 }

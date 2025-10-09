@@ -42,6 +42,7 @@ typedef struct {
 extern simple_fb_t simple_fb;
 
 void simple_fb_init();
+void simple_fb_destory();
 bool simple_fb_tick(struct SDL_Texture *texture);
 
 #ifdef __cplusplus

@@ -153,3 +153,15 @@ void rv_shutdown(int code, shutdown_cause_t cause) {
     rv.shutdown_cause = cause;
     log_info("shutdown with code %d and cause %d", code, (int)cause);
 }
+
+void rv_destroy() {
+    clint_destroy();
+    battery_destroy();
+    events_destory();
+    rtc_destory();
+    plic_destory();
+    simple_fb_destory();
+    uart_destory();
+
+    pthread_mutex_destroy(&rv.csr_lock);
+}

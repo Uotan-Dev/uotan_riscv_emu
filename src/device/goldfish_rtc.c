@@ -21,6 +21,7 @@
 #include "core/riscv.h"
 #include "device/goldfish_rtc.h"
 #include "device/plic.h"
+#include "utils/logger.h"
 
 static uint64_t get_host_time_ns() {
     struct timespec ts;
@@ -215,4 +216,10 @@ void rtc_init() {
         .read = rtc_read,
         .write = rtc_write,
     });
+}
+
+void rtc_destory() {
+    int rc = pthread_mutex_destroy(&rtc.m);
+    if (rc)
+        log_warn("destroy rtc lock failed");
 }

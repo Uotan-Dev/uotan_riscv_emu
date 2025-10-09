@@ -61,8 +61,10 @@ bool test_binary(std::string bin) {
         timeout = get_milliseconds() > 1200;
     }
 
-    if (a0 == 0)
+    if (a0 == 0) {
+        rv_destroy();
         return true;
+    }
 
     if (timeout) {
         std::cerr << "===========================\n";
@@ -83,6 +85,8 @@ bool test_binary(std::string bin) {
 
     puts("More info:");
     cpu_print_registers();
+
+    rv_destroy();
 
     return false;
 }

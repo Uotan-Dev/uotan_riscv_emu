@@ -22,6 +22,7 @@
 #include "core/riscv.h"
 #include "device/goldfish_battery.h"
 #include "device/plic.h"
+#include "utils/logger.h"
 
 enum {
     /* status register */
@@ -115,6 +116,12 @@ void battery_init() {
         .read = battery_read,
         .write = battery_write,
     });
+}
+
+void battery_destroy() {
+    int rc = pthread_mutex_destroy(&battery.m);
+    if (rc)
+        log_warn("destroy battery lock failed");
 }
 
 static void battery_set_prop(int ac, int property, int value) {

@@ -72,6 +72,7 @@ TEST(M_modeTestSuite, TRAP_TEST) {
     cpu_start();
     ASSERT_EQ(rv.shutdown_code, 52);
     ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
+    rv_destroy();
 }
 
 /* Bus Tests */
@@ -98,6 +99,7 @@ TEST(BusTestSuite, BUS_TEST) {
         // Should output "fuck"
         bus_write(SIMPLE_UART_BASE_ADDR, c, 4);
     }
+    rv_destroy();
 }
 
 /* https://github.com/riscv-software-src/riscv-tests */

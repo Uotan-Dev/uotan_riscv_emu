@@ -64,6 +64,7 @@ extern "C" {
 #define PLIC_MAX_CONTEXTS 2
 
 void plic_init();
+void plic_destory();
 void plic_set_irq(uint32_t source, int level);
 
 #ifdef __cplusplus

@@ -28,6 +28,7 @@ extern "C" {
 #define UART_IRQ 10
 
 void uart_init();
+void uart_destory();
 void uart_tick();
 
 #ifdef __cplusplus
