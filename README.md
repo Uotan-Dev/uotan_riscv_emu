@@ -92,6 +92,7 @@ For formal architecture testing / regression harnesses, use RISCOF. See the offi
 cd verif
 ./generate_config.py
 ```
+[A recent test report](https://github.com/snnbyyds/uemu/blob/dev/verif/Test%20Report.pdf)
 
 ## Notes
 
