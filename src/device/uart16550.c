@@ -235,8 +235,8 @@ static void uart_write(uint64_t addr, uint64_t value, size_t n) {
                 } else {
                     uart.lsr |= UART_LSR_THRE | UART_LSR_TEMT;
                     uart.thr_ipending = 1;
-                    putchar((unsigned char)value);
-                    fflush(stdout);
+                    char c = value;
+                    write(STDOUT_FILENO, &c, 1);
                 }
                 uart_update_irq();
             }
