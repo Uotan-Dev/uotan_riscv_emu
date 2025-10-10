@@ -29,6 +29,12 @@ Install these on your host before building:
 * `riscv64-unknown-elf-gcc`, `riscv64-unknown-elf-objcopy`, `riscv64-unknown-elf-objdump`
 * (Optional) `gdb-multiarch` or other riscv gdb for remote debugging
 
+## Fetch the code
+
+```bash
+git clone --depth=1 --recursive https://github.com/snnbyyds/uemu.git
+```
+
 ## Build
 
 ```bash
