@@ -82,16 +82,35 @@ For [*Introduction to Computer System*](https://nju-projectn.github.io/ics-pa-gi
 ctest
 ```
 
-## riscv-arch-test / RISCOF
+## Run riscv-arch-test via RISCOF
 
 For formal architecture testing / regression harnesses, use RISCOF. See the official RISCOF documentation and usage guide:
 [https://riscof.readthedocs.io/en/stable/](https://riscof.readthedocs.io/en/stable/)
 
-* A simple Python script is provided to generate the `config.ini`
+### Install RISCOF
+
+```bash
+pipx install riscof
+```
+
+### Reference model (REF)
+
+This setup uses the **RISC-V Sail Model 0.7**: [https://github.com/riscv/sail-riscv/tree/0.7](https://github.com/riscv/sail-riscv/tree/0.7)
+Build the Sail model per its README and add the resulting binaries to `$PATH`.
+
+### Generate `config.ini`
+
 ```bash
 cd verif
 ./generate_config.py
 ```
+
+### Run tests
+
+```bash
+riscof run --config=config.ini --suite=../riscv-arch-test/riscv-test-suite/ --env=../riscv-arch-test/riscv-test-suite/env
+```
+
 [A recent test report](https://github.com/snnbyyds/uemu/blob/dev/verif/Test%20Report.pdf)
 
 ## Notes
