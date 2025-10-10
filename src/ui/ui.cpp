@@ -117,7 +117,7 @@ void ui_update() {
             case SDL_KEYUP: {
                 uint32_t kc = sdl_to_linux_keycode(event.key.keysym.scancode);
                 if (kc) {
-                    if (event.type == SDL_KEYUP)
+                    if (event.type == SDL_KEYDOWN)
                         kc |= 0x200;
                     events_put_keycode(kc);
                 }
