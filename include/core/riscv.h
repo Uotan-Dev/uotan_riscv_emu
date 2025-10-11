@@ -23,6 +23,7 @@
 
 #include "../device/bus.h"
 #include "decode.h"
+#include "fpu.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -272,6 +273,10 @@ typedef struct {
     // Program counter
     uint64_t PC;
 
+    // FPRs
+#define NR_FPR 32
+    fpr_t F[NR_FPR];
+
     // Control and Status registers
     // Instruction implementations should not write these fields directly, see
     // include/core/cpu.h for a set of valid functions
@@ -309,6 +314,9 @@ typedef struct {
     uint64_t SCAUSE;     // Supervisor trap cause
     uint64_t STVAL;      // Supervisor bad address or instruction
     uint64_t SATP;       // Supervisor address translation and protection
+
+    // Floating-point control and status register
+    fcsr_t FCSR;
 
     // Lock for CSRs that are accessed in multiple threads.
     // Currently for MIP and SIP.

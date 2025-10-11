@@ -191,16 +191,16 @@ FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
 
 #define R(i) rv.X[i]
 
-// clang-format off
 typedef enum {
-    TYPE_I, TYPE_U, TYPE_S,
-    TYPE_J, TYPE_R, TYPE_B,
+    TYPE_I,
+    TYPE_U,
+    TYPE_S,
+    TYPE_J,
+    TYPE_R,
+    TYPE_B,
+    TYPE_R4,
     TYPE_N, // none
 } inst_type_t;
-
-#define src1R() do { *src1 = R(rs1); } while (0)
-#define src2R() do { *src2 = R(rs2); } while (0)
-// clang-format on
 
 #define immI()                                                                 \
     do {                                                                       \
@@ -227,25 +227,24 @@ typedef enum {
                     13);                                                       \
     } while (0)
 
-FORCE_INLINE void decode_operand(Decode *s, int *rd, uint64_t *src1,
-                                 uint64_t *src2, uint64_t *imm,
-                                 inst_type_t type) {
-    // clang-format off
+FORCE_INLINE void decode_operand(Decode *s, int *rd, int *rs1, int *rs2,
+                                 int *rs3, uint64_t *imm, inst_type_t type) {
     uint32_t i = s->inst;
-    int rs1 = BITS(i, 19, 15);
-    int rs2 = BITS(i, 24, 20);
-    *rd     = BITS(i, 11, 7);
+    *rs1 = BITS(i, 19, 15);
+    *rs2 = BITS(i, 24, 20);
+    *rs3 = BITS(i, 31, 27);
+    *rd = BITS(i, 11, 7);
     switch (type) {
-        case TYPE_I: src1R();          immI(); break;
-        case TYPE_U:                   immU(); break;
-        case TYPE_S: src1R(); src2R(); immS(); break;
-        case TYPE_N:                           break;
-        case TYPE_J:                   immJ(); break;
-        case TYPE_R: src1R(); src2R();         break;
-        case TYPE_B: src1R(); src2R(); immB(); break;
+        case TYPE_I: immI(); break;
+        case TYPE_U: immU(); break;
+        case TYPE_S: immS(); break;
+        case TYPE_N: break;
+        case TYPE_J: immJ(); break;
+        case TYPE_R: break;
+        case TYPE_B: immB(); break;
+        case TYPE_R4: break;
         default: __UNREACHABLE;
     }
-    // clang-format on
 }
 
 FORCE_INLINE void _ecall(Decode *s) {
@@ -341,6 +340,39 @@ FORCE_INLINE void _sfence_vma(Decode *s) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);      \
     } while (0)
 
+#define FP_INST_PREP()                                                         \
+    do {                                                                       \
+        assert(softfloat_exceptionFlags == 0);                                 \
+        if ((rv.MSTATUS & MSTATUS_FS) == 0)                                    \
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);      \
+    } while (0)
+
+#define FP_SETUP_RM()                                                          \
+    do {                                                                       \
+        uint64_t rm = BITS(s->inst, 14, 12);                                   \
+        if (rm == FRM_DYN)                                                     \
+            rm = rv.FCSR.fields.frm;                                           \
+        if (unlikely(rm >= FRM_RMM))                                           \
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);      \
+        else                                                                   \
+            softfloat_roundingMode = rm;                                       \
+    } while (0)
+
+#define FP_SET_DIRTY()                                                         \
+    do {                                                                       \
+        rv.MSTATUS |= MSTATUS_SD;                                              \
+        rv.MSTATUS |= MSTATUS_FS;                                              \
+    } while (0)
+
+#define FP_UPDATE_EXCEPTION_FLAGS()                                            \
+    do {                                                                       \
+        if (softfloat_exceptionFlags) {                                        \
+            FP_SET_DIRTY();                                                    \
+            rv.FCSR.fields.fflags |= softfloat_exceptionFlags;                 \
+            softfloat_exceptionFlags = 0;                                      \
+        }                                                                      \
+    } while (0)
+
 static inline void decode_exec(Decode *s) {
     // FIXME: function ‘decode_exec’ can never be inlined because it contains a
     // computed goto
@@ -349,9 +381,9 @@ static inline void decode_exec(Decode *s) {
 
 #define INSTPAT_MATCH(s, name, type, ... /* execute body */)                   \
     {                                                                          \
-        int rd = 0;                                                            \
-        uint64_t src1 = 0, src2 = 0, imm = 0;                                  \
-        decode_operand(s, &rd, &src1, &src2, &imm, concat(TYPE_, type));       \
+        int rd = 0, rs1 = 0, rs2 = 0, rs3 = 0;                                 \
+        uint64_t imm = 0;                                                      \
+        decode_operand(s, &rd, &rs1, &rs2, &rs3, &imm, concat(TYPE_, type));   \
         __VA_ARGS__;                                                           \
     }
 
@@ -359,57 +391,57 @@ static inline void decode_exec(Decode *s) {
     INSTPAT_START();
 
     // RV64I instructions
-    INSTPAT("0000000 ????? ????? 000 ????? 01100 11", add    , R, R(rd) = src1 + src2);
-    INSTPAT("??????? ????? ????? 000 ????? 00100 11", addi   , I, R(rd) = src1 + imm);
-    INSTPAT("??????? ????? ????? 000 ????? 00110 11", addiw  , I, R(rd) = SEXT(BITS(src1 + imm, 31, 0), 32));
-    INSTPAT("0000000 ????? ????? 000 ????? 01110 11", addw   , R, R(rd) = SEXT(BITS(src1 + src2, 31, 0), 32));
-    INSTPAT("0000000 ????? ????? 111 ????? 01100 11", and    , R, R(rd) = src1 & src2);
-    INSTPAT("??????? ????? ????? 111 ????? 00100 11", andi   , I, R(rd) = src1 & imm);
+    INSTPAT("0000000 ????? ????? 000 ????? 01100 11", add    , R, R(rd) = R(rs1) + R(rs2));
+    INSTPAT("??????? ????? ????? 000 ????? 00100 11", addi   , I, R(rd) = R(rs1) + imm);
+    INSTPAT("??????? ????? ????? 000 ????? 00110 11", addiw  , I, R(rd) = SEXT(BITS(R(rs1) + imm, 31, 0), 32));
+    INSTPAT("0000000 ????? ????? 000 ????? 01110 11", addw   , R, R(rd) = SEXT(BITS(R(rs1) + R(rs2), 31, 0), 32));
+    INSTPAT("0000000 ????? ????? 111 ????? 01100 11", and    , R, R(rd) = R(rs1) & R(rs2));
+    INSTPAT("??????? ????? ????? 111 ????? 00100 11", andi   , I, R(rd) = R(rs1) & imm);
     INSTPAT("??????? ????? ????? ??? ????? 00101 11", auipc  , U, R(rd) = s->pc + imm);
-    INSTPAT("??????? ????? ????? 000 ????? 11000 11", beq    , B, if (src1 == src2) s->npc = s->pc + imm;);
-    INSTPAT("??????? ????? ????? 101 ????? 11000 11", bge    , B, if ((int64_t)src1 >= (int64_t)src2) s->npc = s->pc + imm;);
-    INSTPAT("??????? ????? ????? 111 ????? 11000 11", bgeu   , B, if (src1 >= src2) s->npc = s->pc + imm;);
-    INSTPAT("??????? ????? ????? 100 ????? 11000 11", blt    , B, if ((int64_t)src1 < (int64_t)src2) s->npc = s->pc + imm;);
-    INSTPAT("??????? ????? ????? 110 ????? 11000 11", bltu   , B, if (src1 < src2) s->npc = s->pc + imm;);
-    INSTPAT("??????? ????? ????? 001 ????? 11000 11", bne    , B, if (src1 != src2) s->npc = s->pc + imm;);
+    INSTPAT("??????? ????? ????? 000 ????? 11000 11", beq    , B, if (R(rs1) == R(rs2)) s->npc = s->pc + imm;);
+    INSTPAT("??????? ????? ????? 101 ????? 11000 11", bge    , B, if ((int64_t)R(rs1) >= (int64_t)R(rs2)) s->npc = s->pc + imm;);
+    INSTPAT("??????? ????? ????? 111 ????? 11000 11", bgeu   , B, if (R(rs1) >= R(rs2)) s->npc = s->pc + imm;);
+    INSTPAT("??????? ????? ????? 100 ????? 11000 11", blt    , B, if ((int64_t)R(rs1) < (int64_t)R(rs2)) s->npc = s->pc + imm;);
+    INSTPAT("??????? ????? ????? 110 ????? 11000 11", bltu   , B, if (R(rs1) < R(rs2)) s->npc = s->pc + imm;);
+    INSTPAT("??????? ????? ????? 001 ????? 11000 11", bne    , B, if (R(rs1) != R(rs2)) s->npc = s->pc + imm;);
     INSTPAT("0000??? ????? 00000 000 00000 00011 11", fence  , I, /* nop */);
     INSTPAT("0000000 00000 00000 001 00000 00011 11", fence.i, I, /* nop */);
     INSTPAT("??????? ????? ????? ??? ????? 11011 11", jal    , J, R(rd) = s->pc + 4; s->npc = s->pc + imm;);
-    INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr   , I, uint64_t t = s->pc + 4; s->npc = (src1 + imm) & ~1ULL; R(rd) = t;);
-    INSTPAT("??????? ????? ????? 000 ????? 00000 11", lb     , I, LOAD_SEXT(rd, src1 + imm, uint8_t, b, 8));
-    INSTPAT("??????? ????? ????? 100 ????? 00000 11", lbu    , I, LOAD(rd, src1 + imm, uint8_t, b, 8));
-    INSTPAT("??????? ????? ????? 011 ????? 00000 11", ld     , I, LOAD(rd, src1 + imm, uint64_t, d, 64));
-    INSTPAT("??????? ????? ????? 001 ????? 00000 11", lh     , I, LOAD_SEXT(rd, src1 + imm, uint16_t, s, 16));
-    INSTPAT("??????? ????? ????? 101 ????? 00000 11", lhu    , I, LOAD(rd, src1 + imm, uint16_t, s, 16));
+    INSTPAT("??????? ????? ????? 000 ????? 11001 11", jalr   , I, uint64_t t = s->pc + 4; s->npc = (R(rs1) + imm) & ~1ULL; R(rd) = t;);
+    INSTPAT("??????? ????? ????? 000 ????? 00000 11", lb     , I, LOAD_SEXT(rd, R(rs1) + imm, uint8_t, b, 8));
+    INSTPAT("??????? ????? ????? 100 ????? 00000 11", lbu    , I, LOAD(rd, R(rs1) + imm, uint8_t, b, 8));
+    INSTPAT("??????? ????? ????? 011 ????? 00000 11", ld     , I, LOAD(rd, R(rs1) + imm, uint64_t, d, 64));
+    INSTPAT("??????? ????? ????? 001 ????? 00000 11", lh     , I, LOAD_SEXT(rd, R(rs1) + imm, uint16_t, s, 16));
+    INSTPAT("??????? ????? ????? 101 ????? 00000 11", lhu    , I, LOAD(rd, R(rs1) + imm, uint16_t, s, 16));
     INSTPAT("??????? ????? ????? ??? ????? 01101 11", lui    , U, R(rd) = SEXT(BITS(imm, 31, 12) << 12, 32));
-    INSTPAT("??????? ????? ????? 010 ????? 00000 11", lw     , I, LOAD_SEXT(rd, src1 + imm, uint32_t, w, 32));
-    INSTPAT("??????? ????? ????? 110 ????? 00000 11", lwu    , I, LOAD(rd, src1 + imm, uint32_t, w, 32));
-    INSTPAT("0000000 ????? ????? 110 ????? 01100 11", or     , R, R(rd) = src1 | src2);
-    INSTPAT("??????? ????? ????? 110 ????? 00100 11", ori    , I, R(rd) = src1 | imm);
-    INSTPAT("??????? ????? ????? 000 ????? 01000 11", sb     , S, vaddr_write_b(src1 + imm, src2));
-    INSTPAT("??????? ????? ????? 011 ????? 01000 11", sd     , S, vaddr_write_d(src1 + imm, src2));
-    INSTPAT("??????? ????? ????? 001 ????? 01000 11", sh     , S, vaddr_write_s(src1 + imm, src2));
-    INSTPAT("0000000 ????? ????? 001 ????? 01100 11", sll    , R, R(rd) = src1 << BITS(src2, 5, 0));
-    INSTPAT("000000? ????? ????? 001 ????? 00100 11", slli   , I, R(rd) = src1 << BITS(imm, 5, 0));
-    INSTPAT("0000000 ????? ????? 001 ????? 00110 11", slliw  , I, R(rd) = SEXT(BITS(src1, 31, 0) << BITS(imm, 4, 0), 32));
-    INSTPAT("0000000 ????? ????? 001 ????? 01110 11", sllw   , R, R(rd) = SEXT((uint32_t)BITS(src1, 31, 0) << (BITS(src2, 4, 0)), 32));
-    INSTPAT("0000000 ????? ????? 010 ????? 01100 11", slt    , R, R(rd) = (int64_t)src1 < (int64_t)src2);
-    INSTPAT("??????? ????? ????? 010 ????? 00100 11", slti   , I, R(rd) = (int64_t)src1 < (int64_t)imm);
-    INSTPAT("??????? ????? ????? 011 ????? 00100 11", sltiu  , I, R(rd) = src1 < imm);
-    INSTPAT("0000000 ????? ????? 011 ????? 01100 11", sltu   , R, R(rd) = src1 < src2);
-    INSTPAT("0100000 ????? ????? 101 ????? 01100 11", sra    , R, R(rd) = (int64_t)src1 >> BITS(src2, 5, 0));
-    INSTPAT("010000? ????? ????? 101 ????? 00100 11", srai   , I, R(rd) = (int64_t)src1 >> BITS(imm, 5, 0));
-    INSTPAT("0100000 ????? ????? 101 ????? 00110 11", sraiw  , I, R(rd) = SEXT((int32_t)(BITS(src1, 31, 0)) >> BITS(imm, 4, 0), 32));
-    INSTPAT("0100000 ????? ????? 101 ????? 01110 11", sraw   , R, R(rd) = SEXT((int32_t)(BITS(src1, 31, 0)) >> BITS(src2, 4, 0), 32));
-    INSTPAT("0000000 ????? ????? 101 ????? 01100 11", srl    , R, R(rd) = src1 >> BITS(src2, 5, 0));
-    INSTPAT("000000? ????? ????? 101 ????? 00100 11", srli   , I, R(rd) = src1 >> BITS(imm, 5, 0));
-    INSTPAT("0000000 ????? ????? 101 ????? 00110 11", srliw  , I, R(rd) = SEXT(BITS(src1, 31, 0) >> BITS(imm, 4, 0), 32));
-    INSTPAT("0000000 ????? ????? 101 ????? 01110 11", srlw   , R, R(rd) = SEXT(BITS(src1, 31, 0) >> BITS(src2, 4, 0), 32));
-    INSTPAT("0100000 ????? ????? 000 ????? 01100 11", sub    , R, R(rd) = src1 - src2);
-    INSTPAT("0100000 ????? ????? 000 ????? 01110 11", subw   , R, R(rd) = SEXT(BITS(src1 - src2, 31, 0), 32));
-    INSTPAT("??????? ????? ????? 010 ????? 01000 11", sw     , S, vaddr_write_w(src1 + imm, BITS(src2, 31, 0)));
-    INSTPAT("0000000 ????? ????? 100 ????? 01100 11", xor    , R, R(rd) = src1 ^ src2);
-    INSTPAT("??????? ????? ????? 100 ????? 00100 11", xori   , I, R(rd) = src1 ^ imm);
+    INSTPAT("??????? ????? ????? 010 ????? 00000 11", lw     , I, LOAD_SEXT(rd, R(rs1) + imm, uint32_t, w, 32));
+    INSTPAT("??????? ????? ????? 110 ????? 00000 11", lwu    , I, LOAD(rd, R(rs1) + imm, uint32_t, w, 32));
+    INSTPAT("0000000 ????? ????? 110 ????? 01100 11", or     , R, R(rd) = R(rs1) | R(rs2));
+    INSTPAT("??????? ????? ????? 110 ????? 00100 11", ori    , I, R(rd) = R(rs1) | imm);
+    INSTPAT("??????? ????? ????? 000 ????? 01000 11", sb     , S, vaddr_write_b(R(rs1) + imm, R(rs2)));
+    INSTPAT("??????? ????? ????? 011 ????? 01000 11", sd     , S, vaddr_write_d(R(rs1) + imm, R(rs2)));
+    INSTPAT("??????? ????? ????? 001 ????? 01000 11", sh     , S, vaddr_write_s(R(rs1) + imm, R(rs2)));
+    INSTPAT("0000000 ????? ????? 001 ????? 01100 11", sll    , R, R(rd) = R(rs1) << BITS(R(rs2), 5, 0));
+    INSTPAT("000000? ????? ????? 001 ????? 00100 11", slli   , I, R(rd) = R(rs1) << BITS(imm, 5, 0));
+    INSTPAT("0000000 ????? ????? 001 ????? 00110 11", slliw  , I, R(rd) = SEXT(BITS(R(rs1), 31, 0) << BITS(imm, 4, 0), 32));
+    INSTPAT("0000000 ????? ????? 001 ????? 01110 11", sllw   , R, R(rd) = SEXT((uint32_t)BITS(R(rs1), 31, 0) << (BITS(R(rs2), 4, 0)), 32));
+    INSTPAT("0000000 ????? ????? 010 ????? 01100 11", slt    , R, R(rd) = (int64_t)R(rs1) < (int64_t)R(rs2));
+    INSTPAT("??????? ????? ????? 010 ????? 00100 11", slti   , I, R(rd) = (int64_t)R(rs1) < (int64_t)imm);
+    INSTPAT("??????? ????? ????? 011 ????? 00100 11", sltiu  , I, R(rd) = R(rs1) < imm);
+    INSTPAT("0000000 ????? ????? 011 ????? 01100 11", sltu   , R, R(rd) = R(rs1) < R(rs2));
+    INSTPAT("0100000 ????? ????? 101 ????? 01100 11", sra    , R, R(rd) = (int64_t)R(rs1) >> BITS(R(rs2), 5, 0));
+    INSTPAT("010000? ????? ????? 101 ????? 00100 11", srai   , I, R(rd) = (int64_t)R(rs1) >> BITS(imm, 5, 0));
+    INSTPAT("0100000 ????? ????? 101 ????? 00110 11", sraiw  , I, R(rd) = SEXT((int32_t)(BITS(R(rs1), 31, 0)) >> BITS(imm, 4, 0), 32));
+    INSTPAT("0100000 ????? ????? 101 ????? 01110 11", sraw   , R, R(rd) = SEXT((int32_t)(BITS(R(rs1), 31, 0)) >> BITS(R(rs2), 4, 0), 32));
+    INSTPAT("0000000 ????? ????? 101 ????? 01100 11", srl    , R, R(rd) = R(rs1) >> BITS(R(rs2), 5, 0));
+    INSTPAT("000000? ????? ????? 101 ????? 00100 11", srli   , I, R(rd) = R(rs1) >> BITS(imm, 5, 0));
+    INSTPAT("0000000 ????? ????? 101 ????? 00110 11", srliw  , I, R(rd) = SEXT(BITS(R(rs1), 31, 0) >> BITS(imm, 4, 0), 32));
+    INSTPAT("0000000 ????? ????? 101 ????? 01110 11", srlw   , R, R(rd) = SEXT(BITS(R(rs1), 31, 0) >> BITS(R(rs2), 4, 0), 32));
+    INSTPAT("0100000 ????? ????? 000 ????? 01100 11", sub    , R, R(rd) = R(rs1) - R(rs2));
+    INSTPAT("0100000 ????? ????? 000 ????? 01110 11", subw   , R, R(rd) = SEXT(BITS(R(rs1) - R(rs2), 31, 0), 32));
+    INSTPAT("??????? ????? ????? 010 ????? 01000 11", sw     , S, vaddr_write_w(R(rs1) + imm, BITS(R(rs2), 31, 0)));
+    INSTPAT("0000000 ????? ????? 100 ????? 01100 11", xor    , R, R(rd) = R(rs1) ^ R(rs2));
+    INSTPAT("??????? ????? ????? 100 ????? 00100 11", xori   , I, R(rd) = R(rs1) ^ imm);
     INSTPAT("??????? ????? ????? 011 ????? 11100 11", csrrc   ,I,
         CSR_CHECK_PERM(imm);
         bool lk = cpu_csr_need_lock(imm);
@@ -418,7 +450,7 @@ static inline void decode_exec(Decode *s) {
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             uint64_t t = cpu_read_csr(imm);
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-                cpu_write_csr(imm, t & ~src1);
+                cpu_write_csr(imm, t & ~R(rs1));
                 if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                     R(rd) = t;
             }
@@ -451,7 +483,7 @@ static inline void decode_exec(Decode *s) {
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             uint64_t t = cpu_read_csr(imm);
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-                cpu_write_csr(imm, t | src1);
+                cpu_write_csr(imm, t | R(rs1));
                 if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                     R(rd) = t;
             }
@@ -484,7 +516,7 @@ static inline void decode_exec(Decode *s) {
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             uint64_t t = cpu_read_csr(imm);
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-                cpu_write_csr(imm, src1);
+                cpu_write_csr(imm, R(rs1));
                 if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                     R(rd) = t;
             }
@@ -517,30 +549,30 @@ static inline void decode_exec(Decode *s) {
 
     // RV64M instructions
     INSTPAT("0000001 ????? ????? 100 ????? 01100 11", div    , R,
-        if (unlikely((int64_t)src2 == 0))
+        if (unlikely((int64_t)R(rs2) == 0))
             R(rd) = ~0ULL;
-        else if (unlikely((int64_t)src1 == INT64_MIN && (int64_t)src2 == -1))
-            R(rd) = (int64_t)src1;
+        else if (unlikely((int64_t)R(rs1) == INT64_MIN && (int64_t)R(rs2) == -1))
+            R(rd) = (int64_t)R(rs1);
         else
-            R(rd) = (int64_t)src1 / (int64_t)src2;
+            R(rd) = (int64_t)R(rs1) / (int64_t)R(rs2);
     );
     INSTPAT("0000001 ????? ????? 101 ????? 01100 11", divu   , R,
-        if (unlikely(src2 == 0))
+        if (unlikely(R(rs2) == 0))
             R(rd) = ~0ULL;
         else
-            R(rd) = src1 / src2;
+            R(rd) = R(rs1) / R(rs2);
     );
     INSTPAT("0000001 ????? ????? 101 ????? 01110 11", divuw  , R,
-        uint32_t v1 = BITS(src1, 31, 0);
-        uint32_t v2 = BITS(src2, 31, 0);
+        uint32_t v1 = BITS(R(rs1), 31, 0);
+        uint32_t v2 = BITS(R(rs2), 31, 0);
         if (unlikely(v2 == 0))
             R(rd) = ~0ULL;
         else
             R(rd) = SEXT(v1 / v2, 32);
     );
     INSTPAT("0000001 ????? ????? 100 ????? 01110 11", divw   , R,
-        int32_t v1 = (int32_t)BITS(src1, 31, 0);
-        int32_t v2 = (int32_t)BITS(src2, 31, 0);
+        int32_t v1 = (int32_t)BITS(R(rs1), 31, 0);
+        int32_t v2 = (int32_t)BITS(R(rs2), 31, 0);
         if (unlikely(v2 == 0))
             R(rd) = ~0ULL;
         else if (unlikely(v1 == INT32_MIN && v2 == -1))
@@ -548,42 +580,42 @@ static inline void decode_exec(Decode *s) {
         else
             R(rd) = SEXT(v1 / v2, 32);
     );
-    INSTPAT("0000001 ????? ????? 000 ????? 01100 11", mul    , R, R(rd) = src1 * src2);
+    INSTPAT("0000001 ????? ????? 000 ????? 01100 11", mul    , R, R(rd) = R(rs1) * R(rs2));
     INSTPAT("0000001 ????? ????? 001 ????? 01100 11", mulh   , R, 
-        R(rd) = (int64_t)(((__int128_t)(int64_t)src1 * (__int128_t)(int64_t)src2) >> 64)
+        R(rd) = (int64_t)(((__int128_t)(int64_t)R(rs1) * (__int128_t)(int64_t)R(rs2)) >> 64)
     );
     INSTPAT("0000001 ????? ????? 010 ????? 01100 11", mulhsu , R, 
-        R(rd) = (int64_t)(((__int128_t)(int64_t)src1 * (__uint128_t)src2) >> 64)
+        R(rd) = (int64_t)(((__int128_t)(int64_t)R(rs1) * (__uint128_t)R(rs2)) >> 64)
     );
     INSTPAT("0000001 ????? ????? 011 ????? 01100 11", mulhu  , R,
-        R(rd) = (uint64_t)((__uint128_t)src1 * (__uint128_t)src2 >> 64)
+        R(rd) = (uint64_t)((__uint128_t)R(rs1) * (__uint128_t)R(rs2) >> 64)
     );
-    INSTPAT("0000001 ????? ????? 000 ????? 01110 11", mulw   , R, R(rd) = SEXT(BITS(src1 * src2, 31, 0), 32));
+    INSTPAT("0000001 ????? ????? 000 ????? 01110 11", mulw   , R, R(rd) = SEXT(BITS(R(rs1) * R(rs2), 31, 0), 32));
     INSTPAT("0000001 ????? ????? 110 ????? 01100 11", rem    , R,
-        if (unlikely((int64_t)src2 == 0))
-            R(rd) = (int64_t)src1;
-        else if (unlikely((int64_t)src1 == INT64_MIN && (int64_t)src2 == -1))
+        if (unlikely((int64_t)R(rs2) == 0))
+            R(rd) = (int64_t)R(rs1);
+        else if (unlikely((int64_t)R(rs1) == INT64_MIN && (int64_t)R(rs2) == -1))
             R(rd) = 0;  // overflow case: remainder is 0
         else
-            R(rd) = (int64_t)src1 % (int64_t)src2;
+            R(rd) = (int64_t)R(rs1) % (int64_t)R(rs2);
     );
     INSTPAT("0000001 ????? ????? 111 ????? 01100 11", remu   , R,
-        if (unlikely(src2 == 0))
-            R(rd) = src1;
+        if (unlikely(R(rs2) == 0))
+            R(rd) = R(rs1);
         else
-            R(rd) = src1 % src2;
+            R(rd) = R(rs1) % R(rs2);
     );
     INSTPAT("0000001 ????? ????? 111 ????? 01110 11", remuw  , R, 
-        uint32_t v1 = BITS(src1, 31, 0);
-        uint32_t v2 = BITS(src2, 31, 0);
+        uint32_t v1 = BITS(R(rs1), 31, 0);
+        uint32_t v2 = BITS(R(rs2), 31, 0);
         if (unlikely(v2 == 0))
             R(rd) = SEXT(v1, 32);
         else
             R(rd) = SEXT(v1 % v2, 32);
     );
     INSTPAT("0000001 ????? ????? 110 ????? 01110 11", remw   , R, 
-        int32_t v1 = (int32_t)BITS(src1, 31, 0);
-        int32_t v2 = (int32_t)BITS(src2, 31, 0);
+        int32_t v1 = (int32_t)BITS(R(rs1), 31, 0);
+        int32_t v2 = (int32_t)BITS(R(rs2), 31, 0);
         if (unlikely(v2 == 0))
             R(rd) = SEXT(v1, 32);
         else if (unlikely(v1 == INT32_MIN && v2 == -1))
@@ -594,24 +626,24 @@ static inline void decode_exec(Decode *s) {
 
     // RV64A instructions
     INSTPAT("00010?? 00000 ????? 011 ????? 01011 11", lr.d   , R,
-        uint64_t v = vaddr_read_d(src1);
+        uint64_t v = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             R(rd) = v;
-            rv.reservation_address = src1;
+            rv.reservation_address = R(rs1);
             rv.reservation_valid = true;
         }
     );
     INSTPAT("00010?? 00000 ????? 010 ????? 01011 11", lr.w   , R,
-        uint32_t v = vaddr_read_w(src1);
+        uint32_t v = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
             R(rd) = SEXT(v, 32);
-            rv.reservation_address = src1;
+            rv.reservation_address = R(rs1);
             rv.reservation_valid = true;
         }
     );
     INSTPAT("00011?? ????? ????? 011 ????? 01011 11", sc.d   , R,
-        if (rv.reservation_valid && rv.reservation_address == src1) {
-            vaddr_write_d(src1, src2);
+        if (rv.reservation_valid && rv.reservation_address == R(rs1)) {
+            vaddr_write_d(R(rs1), R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = 0;
             else
@@ -622,8 +654,8 @@ static inline void decode_exec(Decode *s) {
         rv.reservation_valid = false;
     );
     INSTPAT("00011?? ????? ????? 010 ????? 01011 11", sc.w   , R,
-        if (rv.reservation_valid && rv.reservation_address == src1) {
-            vaddr_write_w(src1, src2);
+        if (rv.reservation_valid && rv.reservation_address == R(rs1)) {
+            vaddr_write_w(R(rs1), R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = 0;
             else
@@ -634,145 +666,145 @@ static inline void decode_exec(Decode *s) {
         rv.reservation_valid = false;
     );
     INSTPAT("00000?? ????? ????? 011 ????? 01011 11", amoadd.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, (int64_t)t + (int64_t)src2);
+            vaddr_write_d(R(rs1), (int64_t)t + (int64_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("00000?? ????? ????? 010 ????? 01011 11", amoadd.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, (int32_t)t + (int32_t)src2);
+            vaddr_write_w(R(rs1), (int32_t)t + (int32_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("01100?? ????? ????? 011 ????? 01011 11", amoand.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, (int64_t)t & (int64_t)src2);
+            vaddr_write_d(R(rs1), (int64_t)t & (int64_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("01100?? ????? ????? 010 ????? 01011 11", amoand.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, (int32_t)t & (int32_t)src2);
+            vaddr_write_w(R(rs1), (int32_t)t & (int32_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("01000?? ????? ????? 011 ????? 01011 11", amoor.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, (int64_t)t | (int64_t)src2);
+            vaddr_write_d(R(rs1), (int64_t)t | (int64_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("01000?? ????? ????? 010 ????? 01011 11", amoor.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, (int32_t)t | (int32_t)src2);
+            vaddr_write_w(R(rs1), (int32_t)t | (int32_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("00100?? ????? ????? 011 ????? 01011 11", amoxor.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, (int64_t)t ^ (int64_t)src2);
+            vaddr_write_d(R(rs1), (int64_t)t ^ (int64_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("00100?? ????? ????? 010 ????? 01011 11", amoxor.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, (int32_t)t ^ (int32_t)src2);
+            vaddr_write_w(R(rs1), (int32_t)t ^ (int32_t)R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("10100?? ????? ????? 011 ????? 01011 11", amomax.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, MAX((int64_t)t, (int64_t)src2));
+            vaddr_write_d(R(rs1), MAX((int64_t)t, (int64_t)R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("10100?? ????? ????? 010 ????? 01011 11", amomax.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, MAX((int32_t)t, (int32_t)src2));
+            vaddr_write_w(R(rs1), MAX((int32_t)t, (int32_t)R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("11100?? ????? ????? 011 ????? 01011 11", amomaxu.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, MAX(t, src2));
+            vaddr_write_d(R(rs1), MAX(t, R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("11100?? ????? ????? 010 ????? 01011 11", amomaxu.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, MAX((uint32_t)t, (uint32_t)src2));
+            vaddr_write_w(R(rs1), MAX((uint32_t)t, (uint32_t)R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("10000?? ????? ????? 011 ????? 01011 11", amomin.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, MIN((int64_t)t, (int64_t)src2));
+            vaddr_write_d(R(rs1), MIN((int64_t)t, (int64_t)R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("10000?? ????? ????? 010 ????? 01011 11", amomin.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, MIN((int32_t)t, (int32_t)src2));
+            vaddr_write_w(R(rs1), MIN((int32_t)t, (int32_t)R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("11000?? ????? ????? 011 ????? 01011 11", amominu.d , R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, MIN(t, src2));
+            vaddr_write_d(R(rs1), MIN(t, R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("11000?? ????? ????? 010 ????? 01011 11", amominu.w , R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, MIN((uint32_t)t, (uint32_t)src2));
+            vaddr_write_w(R(rs1), MIN((uint32_t)t, (uint32_t)R(rs2)));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
     );
     INSTPAT("00001?? ????? ????? 011 ????? 01011 11", amoswap.d, R,
-        uint64_t t = vaddr_read_d(src1);
+        uint64_t t = vaddr_read_d(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_d(src1, src2);
+            vaddr_write_d(R(rs1), R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = t;
         }
     );
     INSTPAT("00001?? ????? ????? 010 ????? 01011 11", amoswap.w, R,
-        uint32_t t = vaddr_read_w(src1);
+        uint32_t t = vaddr_read_w(R(rs1));
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-            vaddr_write_w(src1, src2);
+            vaddr_write_w(R(rs1), R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
         }
