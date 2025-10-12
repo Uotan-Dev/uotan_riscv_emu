@@ -1,17 +1,23 @@
 /*
- * Copyright 2025 Nuo Shen, Nanjing University
+ * Goldfish virtual platform RTC
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Copyright (C) 2019 Western Digital Corporation or its affiliates.
+ * Copyright (C) 2025 Nuo Shen, Nanjing University
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ * For more details on Google Goldfish virtual platform refer:
+ * https://android.googlesource.com/platform/external/qemu/+/refs/heads/emu-2.0-release/docs/GOLDFISH-VIRTUAL-HARDWARE.TXT
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * This program is free software; you can redistribute it and/or modify it
+ * under the terms and conditions of the GNU General Public License,
+ * version 2 or later, as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
+ * more details.
+ *
+ * You should have received a copy of the GNU General Public License along with
+ * this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
 #include <stdlib.h>
@@ -22,24 +28,6 @@
 #include "device/goldfish_rtc.h"
 #include "device/plic.h"
 #include "utils/logger.h"
-
-static uint64_t get_host_time_ns() {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return (uint64_t)ts.tv_sec * 1000000000 + (uint64_t)ts.tv_nsec;
-}
-
-//
-// Goldfish virtual platform RTC
-//
-// Implementation inspired by QEMU's goldfish_rtc emulation
-// (hw/rtc/goldfish_rtc.c) QEMU is licensed under GPL v2 or later.
-//
-// https://github.com/qemu/qemu/blob/master/hw/rtc/goldfish_rtc.c
-//
-// For more details on Google Goldfish virtual platform refer:
-// https://android.googlesource.com/platform/external/qemu/+/refs/heads/emu-2.0-release/docs/GOLDFISH-VIRTUAL-HARDWARE.TXT
-//
 
 #define RTC_TIME_LOW 0x00
 #define RTC_TIME_HIGH 0x04
@@ -63,6 +51,12 @@ typedef struct {
 } rtc_t;
 
 static rtc_t rtc;
+
+static uint64_t get_host_time_ns() {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (uint64_t)ts.tv_sec * 1000000000 + (uint64_t)ts.tv_nsec;
+}
 
 // Helper to get the current emulated time in nanoseconds
 static uint64_t rtc_get_count() { return get_host_time_ns() + rtc.tick_offset; }

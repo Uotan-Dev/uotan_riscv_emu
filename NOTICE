@@ -1,0 +1,70 @@
+uemu — A RISC-V Virtual Platform Emulator
+Copyright (C) 2025 Nuo Shen
+
+===============================================================================
+THIRD-PARTY ATTRIBUTIONS AND COPYRIGHTS
+===============================================================================
+
+The following provides explicit attribution to third-party projects, their
+authors, and the components derived from them.
+
+1. QEMU PROJECT
+   ─────────────────────────────────────────────────────────────────────────
+   Website: https://www.qemu.org/
+   License: GNU General Public License, Version 2 or later
+   
+   The following components are derived from QEMU:
+   - src/device/goldfish_rtc.c      (Goldfish RTC device model)
+   - src/device/goldfish_events.c   (Goldfish events device model)
+   - src/device/goldfish_battery.c  (Goldfish battery device model)
+   
+   Original Copyright:
+   - Copyright (C) QEMU Project contributors
+   - Copyright (C) Western Digital Corporation
+   
+   Modifications made for uemu are indicated in the source files.
+
+2. ANDROID GOLDFISH PLATFORM
+   ─────────────────────────────────────────────────────────────────────────
+   Website: https://android.googlesource.com/platform/external/qemu/
+   License: GNU General Public License, Version 2 or later
+   
+   The following components are derived from or inspired by the Android
+   Goldfish platform:
+   - src/device/goldfish_*.c
+   - src/device/local-include/power_supply.h
+   
+   Original Copyright:
+   - Copyright (C) The Android Open Source Project
+   
+   Modifications made for uemu are indicated in the source files.
+
+3. NEMU PROJECT (Nanjing University)
+   ─────────────────────────────────────────────────────────────────────────
+   Website: https://github.com/NJU-ProjectN/nemu
+   License: Mulan Permissive Software License, Version 2
+   
+   The following components contain portions derived from NEMU:
+   - src/core/execute.c (CPU execution engine)
+   - src/core/decode.c  (Instruction decoding)
+   - Architecture and design patterns for instruction handling
+   
+   Original Copyright:
+   - Copyright (C) Zihao Yu, Nanjing University
+   
+   Modifications made for uemu are indicated in the source files.
+
+4. SOFTFLOAT LIBRARY
+   ─────────────────────────────────────────────────────────────────────────
+   Website: http://www.jhauser.us/arithmetic/SoftFloat.html
+   Release: SoftFloat 3d
+   License: BSD 3-Clause License
+   
+   The following components are based on SoftFloat:
+   - src/softfloat/ (floating-point arithmetic)
+   
+   Original Copyright:
+   - Copyright (C) 2011, 2012, 2013, 2014, 2015, 2016
+     The Regents of the University of California
+   
+   See the header comments in source files for specific attribution.
