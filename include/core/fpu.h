@@ -26,6 +26,9 @@
 #define F32_DEFAULT_NAN 0x7FC00000
 #define F64_DEFAULT_NAN 0x7FF8000000000000
 
+#define F32_SIGN (1U << 31)
+#define F64_SIGN (1ULL << 63)
+
 // Floating-point rounding modes (frm)
 #define FRM_RNE 0 // Round to nearest, ties to even
 #define FRM_RTZ 1 // Round towards zero
@@ -33,6 +36,8 @@
 #define FRM_RUP 3 // Round up (towards +∞)
 #define FRM_RMM 4 // Round to nearest, ties to max magnitude
 #define FRM_DYN 7 // Dynamic rounding mode (use frm field of fcsr)
+
+#define FCSR_MASK 0xFF
 
 typedef struct {
     union {
@@ -68,8 +73,32 @@ FORCE_INLINE float64_t box_f32(float32_t x) {
     return (float64_t){(uint64_t)x.v | 0xFFFFFFFF00000000};
 }
 
+FORCE_INLINE bool f32_isNegative(float32_t x) { return x.v & F32_SIGN; }
+
+FORCE_INLINE bool f64_isNegative(float64_t x) { return x.v & F64_SIGN; }
+
+FORCE_INLINE float32_t f32_neg(float32_t x) {
+    return (float32_t){x.v ^ F32_SIGN};
+}
+
+FORCE_INLINE float64_t f64_neg(float64_t x) {
+    return (float64_t){x.v ^ F64_SIGN};
+}
+
+FORCE_INLINE bool f32_isNaN(float32_t x) {
+    return ((~x.v & 0x7F800000) == 0) && (x.v & 0x007FFFFF);
+}
+
+FORCE_INLINE bool f64_isNaN(float64_t x) {
+    return ((~x.v & 0x7FF0000000000000) == 0) && (x.v & 0x000FFFFFFFFFFFFF);
+}
+
 FORCE_INLINE float32_t fpr_get_f32(fpr_t reg) {
     if (is_boxed_f32(reg))
         return unbox_f32(reg);
     return (float32_t){F32_DEFAULT_NAN};
 }
+
+FORCE_INLINE void fpr_write32(fpr_t *fpr, float32_t x) { *fpr = box_f32(x); }
+
+FORCE_INLINE void fpr_write64(fpr_t *fpr, float64_t x) { *fpr = x; }

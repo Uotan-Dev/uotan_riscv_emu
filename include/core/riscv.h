@@ -44,6 +44,7 @@ extern "C" {
 #define MISA_M (1ULL << ('M' - 'A'))
 #define MISA_A (1ULL << ('A' - 'A'))
 #define MISA_F (1ULL << ('F' - 'A'))
+#define MISA_D (1ULL << ('D' - 'A'))
 #define MISA_C (1ULL << ('C' - 'A'))
 #define MISA_XLEN_64 (2ULL << 62)
 
@@ -258,6 +259,12 @@ enum {
 
     // Unprivileged Entropy Source Extension CSR
     CSR_SEED = 0x015, // Seed for cryptographic random bit generators
+
+    // Unprivileged Floating-Point CSRs
+    CSR_FFLAGS = 0x001, // Floating-Point Accrued Exceptions
+    CSR_FRM = 0x002,    // Floating-Point Dynamic Rounding Mode
+    CSR_FCSR =
+        0x003, // Floating-Point Control and Status Register (frm +fflags)
 };
 
 typedef enum : int {

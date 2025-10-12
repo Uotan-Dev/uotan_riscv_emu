@@ -190,6 +190,7 @@ FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
  ***************************************************************************************/
 
 #define R(i) rv.X[i]
+#define F(i) rv.F[i]
 
 typedef enum {
     TYPE_I,
@@ -371,6 +372,12 @@ FORCE_INLINE void _sfence_vma(Decode *s) {
             rv.FCSR.fields.fflags |= softfloat_exceptionFlags;                 \
             softfloat_exceptionFlags = 0;                                      \
         }                                                                      \
+    } while (0)
+
+#define FP_INST_END()                                                          \
+    do {                                                                       \
+        FP_SET_DIRTY();                                                        \
+        FP_UPDATE_EXCEPTION_FLAGS();                                           \
     } while (0)
 
 static inline void decode_exec(Decode *s) {
@@ -807,6 +814,580 @@ static inline void decode_exec(Decode *s) {
             vaddr_write_w(R(rs1), R(rs2));
             if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
                 R(rd) = SEXT(t, 32);
+        }
+    );
+
+    // RV64F instructions
+    INSTPAT("??????? ????? ????? 010 ????? 00001 11", flw, I,
+        uint32_t val = vaddr_read_w(R(rs1) + imm);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+            fpr_write32(&F(rd), (float32_t){val});
+    );
+    INSTPAT("??????? ????? ????? 010 ????? 01001 11", fsw, S,
+        vaddr_write_w(R(rs1) + imm, (uint32_t)F(rs2).v);
+    );
+    INSTPAT("0000000 ????? ????? ??? ????? 10100 11", fadd.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), f32_add(fpr_get_f32(F(rs1)), fpr_get_f32(F(rs2))));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("0000100 ????? ????? ??? ????? 10100 11", fsub.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), f32_sub(fpr_get_f32(F(rs1)), fpr_get_f32(F(rs2))));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("0001000 ????? ????? ??? ????? 10100 11", fmul.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), f32_mul(fpr_get_f32(F(rs1)), fpr_get_f32(F(rs2))));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("0001100 ????? ????? ??? ????? 10100 11", fdiv.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), f32_div(fpr_get_f32(F(rs1)), fpr_get_f32(F(rs2))));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("0101100 00000 ????? ??? ????? 10100 11", fsqrt.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), f32_sqrt(fpr_get_f32(F(rs1))));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("0010000 ????? ????? 000 ????? 10100 11", fsgnj.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            float32_t f1 = fpr_get_f32(F(rs1));
+            float32_t f2 = fpr_get_f32(F(rs2));
+            fpr_write32(&F(rd), (float32_t){(f1.v & ~F32_SIGN) | (f2.v & F32_SIGN)});
+            FP_SET_DIRTY();
+        }
+    );
+    INSTPAT("0010000 ????? ????? 001 ????? 10100 11", fsgnjn.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            float32_t f1 = fpr_get_f32(F(rs1));
+            float32_t f2 = fpr_get_f32(F(rs2));
+            fpr_write32(&F(rd), (float32_t){(f1.v & ~F32_SIGN) | (~f2.v & F32_SIGN)});
+            FP_SET_DIRTY();
+        }
+    );
+    INSTPAT("0010000 ????? ????? 010 ????? 10100 11", fsgnjx.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            float32_t f1 = fpr_get_f32(F(rs1));
+            float32_t f2 = fpr_get_f32(F(rs2));
+            fpr_write32(&F(rd), (float32_t){f1.v ^ (f2.v & F32_SIGN)});
+            FP_SET_DIRTY();
+        }
+    );
+    INSTPAT("0010100 ????? ????? 000 ????? 10100 11", fmin.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            bool smaller = f32_lt_quiet(fpr_get_f32(F(rs1)), fpr_get_f32(F(rs2))) ||
+                        (f32_eq(fpr_get_f32(F(rs1)), fpr_get_f32(F(rs2))) &&
+                            f32_isNegative(fpr_get_f32(F(rs1))));
+            if (f32_isNaN(fpr_get_f32(F(rs1))) && f32_isNaN(fpr_get_f32(F(rs2)))) {
+                fpr_write32(&F(rd), (float32_t){F32_DEFAULT_NAN});
+            } else {
+                if (smaller)
+                    fpr_write32(&F(rd), fpr_get_f32(F(rs1)));
+                else
+                    fpr_write32(&F(rd), fpr_get_f32(F(rs2)));
+            }
+            FP_INST_END();
+        }
+    );
+    INSTPAT("0010100 ????? ????? 001 ????? 10100 11", fmax.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            bool greater = f32_lt_quiet(fpr_get_f32(F(rs2)), fpr_get_f32(F(rs1))) ||
+                                (f32_eq(fpr_get_f32(F(rs2)), fpr_get_f32(F(rs1))) &&
+                                    f32_isNegative(fpr_get_f32(F(rs2))));
+            if (f32_isNaN(fpr_get_f32(F(rs1))) && f32_isNaN(fpr_get_f32(F(rs2)))) {
+                fpr_write32(&F(rd), (float32_t){F32_DEFAULT_NAN});
+            } else {
+                if (greater)
+                    fpr_write32(&F(rd), fpr_get_f32(F(rs1)));
+                else
+                    fpr_write32(&F(rd), fpr_get_f32(F(rs2)));
+            }
+            FP_INST_END();
+        }
+    );
+    INSTPAT("1100000 00000 ????? ??? ????? 10100 11", fcvt.w.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                R(rd) = (int64_t)f32_to_i32(fpr_get_f32(F(rs1)), softfloat_roundingMode, true);
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1100000 00001 ????? ??? ????? 10100 11", fcvt.wu.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                R(rd) = (int64_t)(int32_t)f32_to_ui32(fpr_get_f32(F(rs1)), softfloat_roundingMode, true);
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1100000 00010 ????? ??? ????? 10100 11", fcvt.l.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                R(rd) = f32_to_i64(fpr_get_f32(F(rs1)), softfloat_roundingMode, true);
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1100000 00011 ????? ??? ????? 10100 11", fcvt.lu.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                R(rd) = f32_to_ui64(fpr_get_f32(F(rs1)), softfloat_roundingMode, true);
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1101000 00000 ????? ??? ????? 10100 11", fcvt.s.w, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), i32_to_f32((int32_t)R(rs1)));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1101000 00001 ????? ??? ????? 10100 11", fcvt.s.wu, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), ui32_to_f32((int32_t)R(rs1)));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1101000 00010 ????? ??? ????? 10100 11", fcvt.s.l, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), i64_to_f32(R(rs1)));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1101000 00011 ????? ??? ????? 10100 11", fcvt.s.lu, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), ui64_to_f32(R(rs1)));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1110000 00000 ????? 000 ????? 10100 11", fmv.x.w, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception== CAUSE_EXCEPTION_NONE))
+            R(rd) = (int64_t)(int32_t)(uint32_t)F(rs1).v;
+    );
+    INSTPAT("1111000 00000 ????? 000 ????? 10100 11", fmv.w.x, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception== CAUSE_EXCEPTION_NONE)) {
+            fpr_write32(&F(rd), (float32_t){(uint32_t)((int32_t)R(rs1))});
+            FP_SET_DIRTY();
+        }
+    );
+    INSTPAT("1110000 00000 ????? 001 ????? 10100 11", fclass.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception== CAUSE_EXCEPTION_NONE))
+            R(rd) = (int64_t)(int32_t)f32_classify(fpr_get_f32(F(rs1)));
+    );
+    INSTPAT("1010000 ????? ????? 010 ????? 10100 11", feq.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception== CAUSE_EXCEPTION_NONE)) {
+            R(rd) = f32_eq(fpr_get_f32(F(rs1)), fpr_get_f32(F(rs2)));
+            FP_UPDATE_EXCEPTION_FLAGS();
+        }
+    );
+    INSTPAT("1010000 ????? ????? 001 ????? 10100 11", flt.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception== CAUSE_EXCEPTION_NONE)) {
+            R(rd) = f32_lt(fpr_get_f32(F(rs1)), fpr_get_f32(F(rs2)));
+            FP_UPDATE_EXCEPTION_FLAGS();
+        }
+    );
+    INSTPAT("1010000 ????? ????? 000 ????? 10100 11", fle.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception== CAUSE_EXCEPTION_NONE)) {
+            R(rd) = f32_le(fpr_get_f32(F(rs1)), fpr_get_f32(F(rs2)));
+            FP_UPDATE_EXCEPTION_FLAGS();
+        }
+    );
+    INSTPAT("?????00 ????? ????? ??? ????? 10000 11", fmadd.s, R4,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), f32_mulAdd(fpr_get_f32(F(rs1)), fpr_get_f32(F(rs2)), fpr_get_f32(F(rs3))));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("?????00 ????? ????? ??? ????? 10001 11", fmsub.s, R4,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), f32_mulAdd(fpr_get_f32(F(rs1)), fpr_get_f32(F(rs2)), f32_neg(fpr_get_f32(F(rs3)))));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("?????00 ????? ????? ??? ????? 10010 11", fnmsub.s, R4,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), f32_mulAdd(f32_neg(fpr_get_f32(F(rs1))), fpr_get_f32(F(rs2)), fpr_get_f32(F(rs3))));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("?????00 ????? ????? ??? ????? 10011 11", fnmadd.s, R4,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), f32_mulAdd(f32_neg(fpr_get_f32(F(rs1))), fpr_get_f32(F(rs2)), f32_neg(fpr_get_f32(F(rs3)))));
+                FP_INST_END();
+            }
+        }
+    );
+
+    // RV64D instructions
+    INSTPAT("??????? ????? ????? 011 ????? 00001 11", fld, I,
+        uint64_t val = vaddr_read_d(R(rs1) + imm);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+            F(rd) = (float64_t){val};
+    );
+    INSTPAT("??????? ????? ????? 011 ????? 01001 11", fsd, S,
+        vaddr_write_d(R(rs1) + imm, F(rs2).v);
+    );
+    INSTPAT("0000001 ????? ????? ??? ????? 10100 11", fadd.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                F(rd) = f64_add(F(rs1), F(rs2));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("0000101 ????? ????? ??? ????? 10100 11", fsub.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                F(rd) = f64_sub(F(rs1), F(rs2));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("0001001 ????? ????? ??? ????? 10100 11", fmul.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                F(rd) = f64_mul(F(rs1), F(rs2));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("0001101 ????? ????? ??? ????? 10100 11", fdiv.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                F(rd) = f64_div(F(rs1), F(rs2));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("0101101 00000 ????? ??? ????? 10100 11", fsqrt.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                F(rd) = f64_sqrt(F(rs1));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("0010001 ????? ????? 000 ????? 10100 11", fsgnj.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            float64_t f1 = F(rs1), f2 = F(rs2);
+            F(rd) = (float64_t){(f1.v & ~F64_SIGN) | (f2.v & F64_SIGN)};
+            FP_SET_DIRTY();
+        }
+    );
+    INSTPAT("0010001 ????? ????? 001 ????? 10100 11", fsgnjn.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            float64_t f1 = F(rs1), f2 = F(rs2);
+            F(rd) = (float64_t){(f1.v & ~F64_SIGN) | (~f2.v & F64_SIGN)};
+            FP_SET_DIRTY();
+        }
+    );
+    INSTPAT("0010001 ????? ????? 010 ????? 10100 11", fsgnjx.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            float64_t f1 = F(rs1), f2 = F(rs2);
+            F(rd) = (float64_t){f1.v ^ (f2.v & F64_SIGN)};
+            FP_SET_DIRTY();
+        }
+    );
+    INSTPAT("0010101 ????? ????? 000 ????? 10100 11", fmin.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            bool smaller = f64_lt_quiet(F(rs1), F(rs2)) ||
+			                   (f64_eq(F(rs1), F(rs2)) &&
+                               f64_isNegative(F(rs1)));
+            if (f64_isNaN(F(rs1)) && f64_isNaN(F(rs2))) {
+                F(rd) = (float64_t){F64_DEFAULT_NAN};
+            } else {
+                if (smaller)
+                    F(rd) = F(rs1);
+                else
+                    F(rd) = F(rs2);
+            }
+            FP_INST_END();
+        }
+    );
+    INSTPAT("0010101 ????? ????? 001 ????? 10100 11", fmax.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            bool greater = f64_lt_quiet(F(rs2), F(rs1)) ||
+			                   (f64_eq(F(rs2), F(rs1)) && f64_isNegative(F(rs2)));
+            if (f64_isNaN(F(rs1)) && f64_isNaN(F(rs2))) {
+                F(rd) = (float64_t){F64_DEFAULT_NAN};
+            } else {
+                if (greater)
+                    F(rd) = F(rs1);
+                else
+                    F(rd) = F(rs2);;
+            }
+            FP_INST_END();
+        }
+    );
+    INSTPAT("1100001 00000 ????? ??? ????? 10100 11", fcvt.w.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                R(rd) = (int64_t)f64_to_i32(F(rs1), softfloat_roundingMode, true);
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1100001 00001 ????? ??? ????? 10100 11", fcvt.wu.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                R(rd) = (int64_t)(int32_t)f64_to_ui32(F(rs1), softfloat_roundingMode, true);
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1100001 00010 ????? ??? ????? 10100 11", fcvt.l.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                R(rd) = f64_to_i64(F(rs1), softfloat_roundingMode, true);
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1100001 00011 ????? ??? ????? 10100 11", fcvt.lu.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                R(rd) = f64_to_ui64(F(rs1), softfloat_roundingMode, true);
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1101001 00000 ????? ??? ????? 10100 11", fcvt.d.w, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                F(rd) = i32_to_f64((int32_t)R(rs1));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1101001 00001 ????? ??? ????? 10100 11", fcvt.d.wu, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                F(rd) = ui32_to_f64((int32_t)R(rs1));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1101001 00010 ????? ??? ????? 10100 11", fcvt.d.l, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                F(rd) = i64_to_f64(R(rs1));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1101001 00011 ????? ??? ????? 10100 11", fcvt.d.lu, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                F(rd) = ui64_to_f64(R(rs1));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("0100000 00001 ????? ??? ????? 10100 11", fcvt.s.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                fpr_write32(&F(rd), f64_to_f32(F(rs1)));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("0100001 00000 ????? ??? ????? 10100 11", fcvt.d.s, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                F(rd) = f32_to_f64(fpr_get_f32(F(rs1)));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("1110001 00000 ????? 000 ????? 10100 11", fmv.x.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+            R(rd) = F(rs1).v;
+    );
+    INSTPAT("1111001 00000 ????? 000 ????? 10100 11", fmv.d.x, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            F(rd) = (float64_t){R(rs1)};
+            FP_SET_DIRTY();
+        }
+    );
+    INSTPAT("1110001 00000 ????? 001 ????? 10100 11", fclass.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+            R(rd) = (int64_t)f64_classify(F(rs1));
+    );
+    INSTPAT("1010001 ????? ????? 010 ????? 10100 11", feq.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            R(rd) = f64_eq(F(rs1), F(rs2));
+            FP_UPDATE_EXCEPTION_FLAGS();
+        }
+    );
+    INSTPAT("1010001 ????? ????? 001 ????? 10100 11", flt.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            R(rd) = f64_lt(F(rs1), F(rs2));
+            FP_UPDATE_EXCEPTION_FLAGS();
+        }
+    );
+    INSTPAT("1010001 ????? ????? 000 ????? 10100 11", fle.d, R,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            R(rd) = f64_le(F(rs1), F(rs2));
+            FP_UPDATE_EXCEPTION_FLAGS();
+        }
+    );
+    INSTPAT("?????01 ????? ????? ??? ????? 10000 11", fmadd.d, R4,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                F(rd) = f64_mulAdd(F(rs1), F(rs2), F(rs3));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("?????01 ????? ????? ??? ????? 10001 11", fmsub.d, R4,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+                F(rd) = f64_mulAdd(F(rs1), F(rs2), f64_neg(F(rs3)));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("?????01 ????? ????? ??? ????? 10010 11", fnmsub.d, R4,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (rv.last_exception == CAUSE_EXCEPTION_NONE) {
+                F(rd) = f64_mulAdd((f64_neg(F(rs1))), F(rs2), F(rs3));
+                FP_INST_END();
+            }
+        }
+    );
+    INSTPAT("?????01 ????? ????? ??? ????? 10011 11", fnmadd.d, R4,
+        FP_INST_PREP();
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            FP_SETUP_RM();
+            if (rv.last_exception == CAUSE_EXCEPTION_NONE) {
+                F(rd) = f64_mulAdd((f64_neg(F(rs1))), F(rs2), f64_neg(F(rs3)));
+                FP_INST_END();
+            }
         }
     );
 

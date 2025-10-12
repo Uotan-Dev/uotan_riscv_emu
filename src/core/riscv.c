@@ -47,7 +47,7 @@ void rv_init() {
 
     // set the control and status registers
     rv.MISA |= MISA_XLEN_64;             // XLEN is 64
-    rv.MISA |= MISA_I | MISA_M | MISA_A; // I_EXT, M_EXT, A_EXT
+    rv.MISA |= MISA_I | MISA_M | MISA_A | MISA_F | MISA_D; // I_EXT, M_EXT, A_EXT
     rv.MISA |= MISA_SUPER | MISA_USER;   // Support S-Mode and U-Mode
     rv.MVENDORID = MVENDORID_DEFAULT;
     rv.MARCHID = MARCHID_DEFAULT;

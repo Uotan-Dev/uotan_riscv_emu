@@ -20,6 +20,7 @@
 #include <stdint.h>
 
 #include "entropy.h"
+#include "fpu.h"
 #include "mem.h"
 #include "riscv.h"
 
@@ -234,6 +235,12 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
             }
             rv.seed_written = false;
             return (SEED_OPST_ES16 << 30) | generate_entropy();
+        case CSR_FCSR:
+            return rv.FCSR.value & FCSR_MASK;
+        case CSR_FFLAGS:
+            return rv.FCSR.fields.fflags;
+        case CSR_FRM:
+            return rv.FCSR.fields.frm;
 
         // CSR not implemented
         default: return 0;
@@ -336,6 +343,15 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
                 break;
             }
             rv.seed_written = true;
+            break;
+        case CSR_FCSR:
+            rv.FCSR.value = (rv.FCSR.value & ~FCSR_MASK) | (value & FCSR_MASK);
+            break;
+        case CSR_FFLAGS:
+            rv.FCSR.fields.fflags = value;
+            break;
+        case CSR_FRM:
+            rv.FCSR.fields.frm = value;
             break;
 
         // CSR not implemented
