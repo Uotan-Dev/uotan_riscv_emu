@@ -52,7 +52,7 @@ class sail_cSim(pluginTemplate):
         ispec = utils.load_yaml(isa_yaml)['hart0']
         self.xlen = ('64' if 64 in ispec['supported_xlen'] else '32')
         self.isa = 'rv' + self.xlen
-        self.compile_cmd = self.compile_cmd+' -mabi='+('lp64 ' if 64 in ispec['supported_xlen'] else 'ilp32 ')
+        self.compile_cmd = self.compile_cmd+' -mabi=lp64d'
         if "I" in ispec["ISA"]:
             self.isa += 'i'
         if "M" in ispec["ISA"]:
@@ -63,7 +63,7 @@ class sail_cSim(pluginTemplate):
             self.isa += 'f'
         if "D" in ispec["ISA"]:
             self.isa += 'd'
-        self.compile_cmd = self.compile_cmd+' -march=rv64ima_zicsr_zifencei ' # HACK
+        self.compile_cmd = self.compile_cmd+' -march=rv64imafd_zicsr_zifencei ' # HACK
         objdump = "riscv{0}-unknown-elf-objdump".format(self.xlen)
         if shutil.which(objdump) is None:
             logger.error(objdump+": executable not found. Please check environment setup.")
@@ -84,7 +84,7 @@ class sail_cSim(pluginTemplate):
         if os.path.exists(self.work_dir+ "/Makefile." + self.name[:-1]):
             os.remove(self.work_dir+ "/Makefile." + self.name[:-1])
         make = utils.makeUtil(makefilePath=os.path.join(self.work_dir, "Makefile." + self.name[:-1]))
-        make.makeCommand = self.make + ' -j' + self.num_jobs
+        make.makeCommand = self.make + ' -j10'
         for file in testList:
             testentry = testList[file]
             test = testentry['test_path']
