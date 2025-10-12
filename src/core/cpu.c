@@ -353,7 +353,7 @@ FORCE_INLINE void _sfence_vma(Decode *s) {
         uint64_t rm = BITS(s->inst, 14, 12);                                   \
         if (rm == FRM_DYN)                                                     \
             rm = rv.FCSR.fields.frm;                                           \
-        if (unlikely(rm >= FRM_RMM))                                           \
+        if (unlikely(rm > FRM_RMM))                                            \
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);      \
         else                                                                   \
             softfloat_roundingMode = rm;                                       \
