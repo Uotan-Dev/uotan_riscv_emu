@@ -23,10 +23,10 @@ set(CMAKE_C_STANDARD 17)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Compiler flags
-set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -Wall -Werror -Wno-unused-command-line-argument")
-set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Werror -Wno-sign-compare -Wno-unused-command-line-argument")
-set(CMAKE_C_FLAGS_RELEASE   "-O3 -Wall -Werror -flto -Wno-unused-command-line-argument")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Werror -Wno-sign-compare -flto -Wno-unused-command-line-argument")
+set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -Wall -Werror -Wno-unused-command-line-argument -Wno-implicit-fallthrough")
+set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Werror -Wno-sign-compare -Wno-unused-command-line-argument -Wno-implicit-fallthrough")
+set(CMAKE_C_FLAGS_RELEASE   "-O3 -Wall -Werror -flto -Wno-unused-command-line-argument -Wno-implicit-fallthrough")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Werror -Wno-sign-compare -flto -Wno-unused-command-line-argument -Wno-implicit-fallthrough")
 
 # Prefer LLVM tools when using Clang (helps with -flto)
 if (CMAKE_C_COMPILER_ID MATCHES "Clang")
@@ -71,8 +71,15 @@ set(GDBSTUB_LIB ${CMAKE_SOURCE_DIR}/mini-gdbstub/build/libgdbstub.a)
 # Find all .c and .cpp files in the src directory.
 file(GLOB_RECURSE SOURCES "src/*.c" "src/*.cpp")
 list(FILTER SOURCES EXCLUDE REGEX ".*/main\\.c$")
+
+# Find all .c files in the softfloat directory.
+file(GLOB_RECURSE SOFTFLOAT_SOURCES "softfloat/*.c")
+
+# Combine all sources
+list(APPEND SOURCES ${SOFTFLOAT_SOURCES})
+
 add_library(riscv_sim_lib ${SOURCES})
-target_include_directories(riscv_sim_lib PUBLIC include ${SDL2_INCLUDE_DIRS})
+target_include_directories(riscv_sim_lib PUBLIC include ${CMAKE_SOURCE_DIR}/softfloat ${SDL2_INCLUDE_DIRS})
 target_compile_options(riscv_sim_lib PUBLIC ${SDL2_CFLAGS_OTHER})
 set_property(TARGET riscv_sim_lib PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
 add_dependencies(riscv_sim_lib gdbstub_build)
@@ -193,4 +200,10 @@ include(GoogleTest)
 gtest_discover_tests(run_tests)
 
 # Make tests depend on RISC-V test binaries
-add_dependencies(run_tests riscv_tests_rv64mi)
+add_dependencies(run_tests
+  riscv_tests_rv64mi
+  riscv_tests_rv64si
+  riscv_tests_rv64ui
+  riscv_tests_rv64ua
+  riscv_tests_rv64um
+)
