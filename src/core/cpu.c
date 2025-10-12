@@ -906,13 +906,15 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("0010100 ????? ????? 000 ????? 10100 11", fmin.s, R,
         FP_INST_PREP();
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            if (f32_isSignalingNaN(fpr_get_f32(F(rs1))) || f32_isSignalingNaN(fpr_get_f32(F(rs2))))
+                rv.FCSR.fflags.NV = 1;
             bool smaller = f32_lt_quiet(fpr_get_f32(F(rs1)), fpr_get_f32(F(rs2))) ||
                         (f32_eq(fpr_get_f32(F(rs1)), fpr_get_f32(F(rs2))) &&
                             f32_isNegative(fpr_get_f32(F(rs1))));
             if (f32_isNaN(fpr_get_f32(F(rs1))) && f32_isNaN(fpr_get_f32(F(rs2)))) {
                 fpr_write32(&F(rd), (float32_t){F32_DEFAULT_NAN});
             } else {
-                if (smaller)
+                if (smaller || f32_isNaN(fpr_get_f32(F(rs2))))
                     fpr_write32(&F(rd), fpr_get_f32(F(rs1)));
                 else
                     fpr_write32(&F(rd), fpr_get_f32(F(rs2)));
@@ -923,13 +925,15 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("0010100 ????? ????? 001 ????? 10100 11", fmax.s, R,
         FP_INST_PREP();
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            if (f32_isSignalingNaN(fpr_get_f32(F(rs1))) || f32_isSignalingNaN(fpr_get_f32(F(rs2))))
+                rv.FCSR.fflags.NV = 1;
             bool greater = f32_lt_quiet(fpr_get_f32(F(rs2)), fpr_get_f32(F(rs1))) ||
                                 (f32_eq(fpr_get_f32(F(rs2)), fpr_get_f32(F(rs1))) &&
                                     f32_isNegative(fpr_get_f32(F(rs2))));
             if (f32_isNaN(fpr_get_f32(F(rs1))) && f32_isNaN(fpr_get_f32(F(rs2)))) {
                 fpr_write32(&F(rd), (float32_t){F32_DEFAULT_NAN});
             } else {
-                if (greater)
+                if (greater || f32_isNaN(fpr_get_f32(F(rs2))))
                     fpr_write32(&F(rd), fpr_get_f32(F(rs1)));
                 else
                     fpr_write32(&F(rd), fpr_get_f32(F(rs2)));
@@ -1182,13 +1186,15 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("0010101 ????? ????? 000 ????? 10100 11", fmin.d, R,
         FP_INST_PREP();
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            if (f64_isSignalingNaN(F(rs1)) || f64_isSignalingNaN(F(rs2)))
+                rv.FCSR.fflags.NV = 1;
             bool smaller = f64_lt_quiet(F(rs1), F(rs2)) ||
 			                   (f64_eq(F(rs1), F(rs2)) &&
                                f64_isNegative(F(rs1)));
             if (f64_isNaN(F(rs1)) && f64_isNaN(F(rs2))) {
                 F(rd) = (float64_t){F64_DEFAULT_NAN};
             } else {
-                if (smaller)
+                if (smaller || f64_isNaN(F(rs2)))
                     F(rd) = F(rs1);
                 else
                     F(rd) = F(rs2);
@@ -1199,15 +1205,17 @@ static inline void decode_exec(Decode *s) {
     INSTPAT("0010101 ????? ????? 001 ????? 10100 11", fmax.d, R,
         FP_INST_PREP();
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+            if (f64_isSignalingNaN(F(rs1)) || f64_isSignalingNaN(F(rs2)))
+                rv.FCSR.fflags.NV = 1;
             bool greater = f64_lt_quiet(F(rs2), F(rs1)) ||
 			                   (f64_eq(F(rs2), F(rs1)) && f64_isNegative(F(rs2)));
             if (f64_isNaN(F(rs1)) && f64_isNaN(F(rs2))) {
                 F(rd) = (float64_t){F64_DEFAULT_NAN};
             } else {
-                if (greater)
+                if (greater || f64_isNaN(F(rs2)))
                     F(rd) = F(rs1);
                 else
-                    F(rd) = F(rs2);;
+                    F(rd) = F(rs2);
             }
             FP_INST_END();
         }
