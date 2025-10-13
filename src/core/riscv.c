@@ -34,6 +34,7 @@
 #include "device/sifive_test.h"
 #include "device/simple_fb.h"
 #include "device/uart16550.h"
+#include "device/virtio.h"
 #include "utils/logger.h"
 
 riscv_t rv;
@@ -46,9 +47,10 @@ void rv_init() {
     rv.PC = RESET_PC;
 
     // set the control and status registers
-    rv.MISA |= MISA_XLEN_64;             // XLEN is 64
-    rv.MISA |= MISA_I | MISA_M | MISA_A | MISA_F | MISA_D; // I_EXT, M_EXT, A_EXT
-    rv.MISA |= MISA_SUPER | MISA_USER;   // Support S-Mode and U-Mode
+    rv.MISA |= MISA_XLEN_64; // XLEN is 64
+    rv.MISA |=
+        MISA_I | MISA_M | MISA_A | MISA_F | MISA_D; // I_EXT, M_EXT, A_EXT
+    rv.MISA |= MISA_SUPER | MISA_USER;              // Support S-Mode and U-Mode
     log_info("MISA: 0x%016" PRIx64 "", rv.MISA);
     rv.MVENDORID = MVENDORID_DEFAULT;
     rv.MARCHID = MARCHID_DEFAULT;
@@ -70,6 +72,8 @@ void rv_init() {
     clint_init();
     // setup PLIC
     plic_init();
+    // setup Virtio Block
+    vblk_init();
     // setup Goldfish RTC
     rtc_init();
     // setup SiFive Test
@@ -163,6 +167,7 @@ void rv_destroy() {
     plic_destory();
     simple_fb_destory();
     uart_destory();
+    vblk_destory();
 
     pthread_mutex_destroy(&rv.csr_lock);
 }

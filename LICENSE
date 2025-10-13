@@ -82,6 +82,16 @@ license for each component is indicated below and in individual source files.
    
    Full text: See LICENSE-SoftFloat or see header comments in source files
 
+5. MIT LICENSE
+   ─────────────────────────────────────────────────────────────────────────
+   Applies to: Files copied/derived from rv32emu (virtio blk implementation)
+
+   Components:
+   - src/device/virtio_block.c
+   - include/device/virtio.h
+
+   Full text: See LICENSE-MIT or visit https://opensource.org/licenses/MIT
+
 ===============================================================================
 IMPORTANT NOTES ON DISTRIBUTION
 ===============================================================================

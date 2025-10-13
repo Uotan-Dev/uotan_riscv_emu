@@ -63,6 +63,15 @@
 /* clang-format on */
 #endif
 
+/* Packed macro */
+#if defined(__GNUC__) || defined(__clang__)
+#define PACKED(name) name __attribute__((packed))
+#elif defined(_MSC_VER)
+#define PACKED(name) __pragma(pack(push, 1)) name __pragma(pack(pop))
+#else /* unsupported compilers */
+#define PACKED(name)
+#endif
+
 #define BITMASK(bits) ((1ull << (bits)) - 1)
 #define BITS(x, hi, lo)                                                        \
     (((x) >> (lo)) & BITMASK((hi) - (lo) + 1)) // similar to x[hi:lo] in verilog

@@ -30,6 +30,8 @@
 #include "utils/gdbstub.h"
 #include "utils/logger.h"
 
+extern char *disk_file;
+
 static const char *bin_file = NULL;
 static const char *signature_out_file = NULL;
 static bool opt_gdb = false;
@@ -61,6 +63,8 @@ static void parse_args(int argc, char *argv[]) {
                        strcmp(argv[i], "--help") == 0) {
                 print_usage(argv[0]);
                 exit(EXIT_SUCCESS);
+            } else if (strcmp(argv[i], "--disk") == 0) {
+                disk_file = argv[i] + 6;
             }
             // We ignore arguments like --isa
             i++;
