@@ -380,6 +380,7 @@ void vblk_init() {
     if (!disk_file || *disk_file == '\0') {
         /* By setting the block capacity to zero, the kernel will
          * then not to touch the device after booting */
+        log_warn("No disk file has been provided!");
         VBLK_PRIV(vblk)->capacity = 0;
         goto register_device;
     }
@@ -404,7 +405,7 @@ void vblk_init() {
     }
 
     /* Get the disk size */
-    uint64_t disk_size;
+    uint64_t disk_size = 0;
     if (!strcmp(disk_file_dirname, "/dev")) { /* from /dev/, leverage ioctl */
         if ((st.st_mode & S_IFMT) != S_IFBLK) {
             log_error("%s is not block device", disk_file);
