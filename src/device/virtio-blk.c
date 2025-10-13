@@ -24,6 +24,7 @@
 
 #include <linux/fs.h>
 
+#include "core/mem.h"
 #include "core/riscv.h"
 #include "device/plic.h"
 #include "device/virtio.h"
@@ -88,12 +89,25 @@ static inline void vblk_set_fail() {
         vblk.interrupt_status |= VIRTIO_INT_CONF_CHANGE;
 }
 
+static inline bool guest_addr_valid(uint64_t gpa, uint32_t len) {
+    if (gpa < MBASE) {
+        vblk_set_fail();
+        return false;
+    }
+    uint64_t off = gpa - MBASE;
+    if (off + (uint64_t)len > (uint64_t)MSIZE) {
+        vblk_set_fail();
+        return false;
+    }
+    return true;
+}
+
 static inline uint32_t vblk_preprocess(uint32_t addr) {
-    if (addr >= MSIZE || (addr & 0b11)) {
+    if (addr < MBASE || addr >= MBASE + MSIZE || (addr & 0b11)) {
         vblk_set_fail();
         return 0;
     }
-    return addr >> 2;
+    return (addr - MBASE) >> 2;
 }
 
 static inline void vblk_update_status(uint32_t status) {
@@ -121,14 +135,18 @@ static inline void vblk_update_status(uint32_t status) {
 
 static inline void vblk_write_handler(uint64_t sector, uint64_t desc_addr,
                                       uint32_t len) {
+    if (!guest_addr_valid(desc_addr, len))
+        return;
     void *dest = (void *)((uintptr_t)vblk.disk + sector * DISK_BLK_SIZE);
-    const void *src = (void *)((uintptr_t)vblk.ram + desc_addr);
+    const void *src = (const void *)((uint8_t *)GUEST_TO_HOST(desc_addr));
     memcpy(dest, src, len);
 }
 
 static inline void vblk_read_handler(uint64_t sector, uint64_t desc_addr,
                                      uint32_t len) {
-    void *dest = (void *)((uintptr_t)vblk.ram + desc_addr);
+    if (!guest_addr_valid(desc_addr, len))
+        return;
+    void *dest = (void *)((uint8_t *)GUEST_TO_HOST(desc_addr));
     const void *src = (void *)((uintptr_t)vblk.disk + sector * DISK_BLK_SIZE);
     memcpy(dest, src, len);
 }
@@ -173,11 +191,16 @@ static inline int vblk_desc_handler(const virtio_blk_queue_t *queue,
     }
 
     /* Process the header */
+    if (!guest_addr_valid(vq_desc[0].addr, sizeof(struct vblk_req_header)))
+        return -1;
+    if (!guest_addr_valid(vq_desc[2].addr, 1))
+        return -1;
+
     const struct vblk_req_header *header =
-        (struct vblk_req_header *)((uintptr_t)vblk.ram + vq_desc[0].addr);
+        (const struct vblk_req_header *)GUEST_TO_HOST(vq_desc[0].addr);
     uint32_t type = header->type;
     uint64_t sector = header->sector;
-    uint8_t *status = (uint8_t *)((uintptr_t)vblk.ram + vq_desc[2].addr);
+    uint8_t *status = (uint8_t *)GUEST_TO_HOST(vq_desc[2].addr);
 
     /* Check sector index is valid */
     if (sector > (VBLK_PRIV(vblk)->capacity - 1)) {
@@ -188,11 +211,19 @@ static inline int vblk_desc_handler(const virtio_blk_queue_t *queue,
     /* Process the data */
     switch (type) {
         case VIRTIO_BLK_T_IN:
+            if (!guest_addr_valid(vq_desc[1].addr, vq_desc[1].len)) {
+                *status = VIRTIO_BLK_S_IOERR;
+                return -1;
+            }
             vblk_read_handler(sector, vq_desc[1].addr, vq_desc[1].len);
             break;
         case VIRTIO_BLK_T_OUT:
             if (vblk.device_features & VIRTIO_BLK_F_RO) { /* readonly */
                 // log_error("Fail to write on a read only block device");
+                *status = VIRTIO_BLK_S_IOERR;
+                return -1;
+            }
+            if (!guest_addr_valid(vq_desc[1].addr, vq_desc[1].len)) {
                 *status = VIRTIO_BLK_S_IOERR;
                 return -1;
             }
