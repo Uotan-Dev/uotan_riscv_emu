@@ -20,7 +20,6 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
 
 #include "core/cpu.h"
 #include "core/riscv.h"
@@ -39,44 +38,58 @@ static bool opt_gdb = false;
 static void print_usage(const char *progname) {
     printf("Usage: %s [OPTIONS] IMAGE\n\n", progname);
     printf("Options:\n");
-    printf("  -h, --help        Show this help message and exit\n");
-    printf("      --gdb         Enable gdbstub support\n");
+    printf("  -h, --help                Show this help message and exit\n");
+    printf("      --gdb                 Enable gdbstub support\n");
+    printf("      --disk FILE           Specify disk file\n");
+    printf("      --signature FILE      Write signature output to FILE\n");
     printf("\nExamples:\n");
     printf("  %s hello.bin\n", progname);
     printf("  %s --gdb hello.bin\n", progname);
+    printf("  %s --disk disk.img hello.bin\n", progname);
     printf("  %s --help\n", progname);
 }
 
 static void parse_args(int argc, char *argv[]) {
-    int i = 1;
-    while (i < argc) {
-        if (argv[i][0] == '+') {
-            if (strncmp(argv[i], "+signature=", 11) == 0)
-                signature_out_file = argv[i] + 11;
-            i++;
-            continue;
-        }
-        if (argv[i][0] == '-') {
-            if (strcmp(argv[i], "--gdb") == 0) {
-                opt_gdb = true;
-            } else if (strcmp(argv[i], "-h") == 0 ||
-                       strcmp(argv[i], "--help") == 0) {
+    static struct option long_options[] = {
+        {"help", no_argument, NULL, 'h'},
+        {"gdb", no_argument, NULL, 'g'},
+        {"disk", required_argument, NULL, 'd'},
+        {"signature", required_argument, NULL, 's'},
+        {NULL, 0, NULL, 0}};
+
+    int opt;
+    int option_index = 0;
+
+    while ((opt = getopt_long(argc, argv, "hg", long_options, &option_index)) !=
+           -1) {
+        switch (opt) {
+            case 'h':
                 print_usage(argv[0]);
                 exit(EXIT_SUCCESS);
-            } else if (strcmp(argv[i], "--disk") == 0) {
-                disk_file = argv[i] + 6;
-            }
-            // We ignore arguments like --isa
-            i++;
-            continue;
+                break;
+            case 'g': opt_gdb = true; break;
+            case 'd': disk_file = optarg; break;
+            case 's': signature_out_file = optarg; break;
+            case '?':
+                /* getopt_long already printed error message */
+                print_usage(argv[0]);
+                exit(EXIT_FAILURE);
+                break;
+            default:
+                fprintf(stderr, "Unexpected option\n");
+                print_usage(argv[0]);
+                exit(EXIT_FAILURE);
+                break;
         }
-        if (bin_file == NULL)
-            bin_file = argv[i];
-        i++;
+    }
+
+    /* Get positional argument (IMAGE) */
+    if (optind < argc) {
+        bin_file = argv[optind];
     }
 
     if (bin_file == NULL) {
-        log_error("No image file specified.");
+        fprintf(stderr, "No image file specified.");
         print_usage(argv[0]);
         exit(EXIT_FAILURE);
     }
