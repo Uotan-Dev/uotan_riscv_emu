@@ -117,7 +117,7 @@ cd verif
 riscof run --config=config.ini --suite=../riscv-arch-test/riscv-test-suite/ --env=../riscv-arch-test/riscv-test-suite/env
 ```
 
-[A recent test report](https://github.com/snnbyyds/uemu/blob/dev/verif/Test%20Report.pdf)
+[A recent test report](https://github.com/snnbyyds/uemu/blob/main/verif/Test%20Report.pdf)
 
 ## Notes
 
