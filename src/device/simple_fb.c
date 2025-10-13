@@ -72,7 +72,7 @@ void simple_fb_init() {
     });
 }
 
-void simple_fb_destory() {
+void simple_fb_destroy() {
     int rc = pthread_mutex_destroy(&simple_fb.m);
     if (rc)
         log_warn("destroy simple_fb lock failed");

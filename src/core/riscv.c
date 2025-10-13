@@ -162,12 +162,12 @@ void rv_shutdown(int code, shutdown_cause_t cause) {
 void rv_destroy() {
     clint_destroy();
     battery_destroy();
-    events_destory();
-    rtc_destory();
-    plic_destory();
-    simple_fb_destory();
-    uart_destory();
-    vblk_destory();
+    events_destroy();
+    rtc_destroy();
+    plic_destroy();
+    simple_fb_destroy();
+    uart_destroy();
+    vblk_destroy();
 
     pthread_mutex_destroy(&rv.csr_lock);
 }

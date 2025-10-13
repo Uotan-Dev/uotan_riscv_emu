@@ -212,7 +212,7 @@ void rtc_init() {
     });
 }
 
-void rtc_destory() {
+void rtc_destroy() {
     int rc = pthread_mutex_destroy(&rtc.m);
     if (rc)
         log_warn("destroy rtc lock failed");

@@ -453,7 +453,7 @@ fail:
     exit(EXIT_FAILURE);
 }
 
-void vblk_destory() {
+void vblk_destroy() {
     disk_file = NULL;
     munmap(vblk.disk, VBLK_PRIV(vblk)->disk_size);
     free(vblk.priv);

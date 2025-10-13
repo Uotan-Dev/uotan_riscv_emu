@@ -54,7 +54,7 @@ f(UP) f(DOWN) f(LEFT) f(RIGHT) f(INSERT) f(DELETE) f(HOME) f(END) f(PAGEUP) f(PA
 #define KEY_RALT KEY_RIGHTALT
 
 void events_init();
-void events_destory();
+void events_destroy();
 void events_put_keycode(int keycode);
 
 #ifdef __cplusplus

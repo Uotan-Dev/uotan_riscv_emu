@@ -343,7 +343,7 @@ void uart_init() {
     });
 }
 
-void uart_destory() {
+void uart_destroy() {
     int rc = pthread_mutex_destroy(&uart.m);
     if (rc)
         log_warn("destroy uart lock failed");

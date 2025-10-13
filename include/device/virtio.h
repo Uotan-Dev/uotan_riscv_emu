@@ -125,4 +125,4 @@ typedef struct {
 extern char *disk_file;
 
 void vblk_init();
-void vblk_destory();
+void vblk_destroy();

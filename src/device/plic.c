@@ -248,7 +248,7 @@ void plic_set_irq(uint32_t src, int level) {
     pthread_mutex_unlock(&plic.lock);
 }
 
-void plic_destory() {
+void plic_destroy() {
     int rc = pthread_mutex_destroy(&plic.lock);
     if (rc)
         log_warn("destroy plic lock failed");

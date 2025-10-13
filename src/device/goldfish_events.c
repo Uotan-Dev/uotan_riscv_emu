@@ -241,7 +241,7 @@ void events_init() {
     });
 }
 
-void events_destory() {
+void events_destroy() {
     int rc = pthread_mutex_destroy(&events_state.m);
     if (rc)
         log_warn("destroy events lock failed");
