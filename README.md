@@ -1,6 +1,6 @@
 # uemu — tiny RISC-V system emulator
 
-***uemu*** is a small system emulator that boots real firmware and OS images (OpenSBI, U-Boot, Linux) and runs raw/ELF test binaries. Implemented ISA: **rv64ima_zicsr_zifencei**.
+***uemu*** is a small system emulator that boots real firmware and OS images (OpenSBI, U-Boot, Linux) and runs raw/ELF test binaries. Implemented ISA: **rv64imafd_zicsr_zifencei**.
 
 ## Boot Demo
 ![Booting Linux on uemu](./software/linux.png)
@@ -121,7 +121,7 @@ riscof run --config=config.ini --suite=../riscv-arch-test/riscv-test-suite/ --en
 
 ## Notes
 
-* **uemu** implements **rv64ima_zicsr_zifencei** only. Images built for other extensions may fail or trap.
+* **uemu** implements **rv64imafd_zicsr_zifencei** only. Images built for other extensions may fail or trap.
 
 * **riscv-arch-test** submodule has been set to our own fork due to GitHub issue [LA macro generates compressed instructions for platform that does not support C extension #659](https://github.com/riscv-non-isa/riscv-arch-test/issues/659)
 
@@ -130,7 +130,7 @@ riscof run --config=config.ini --suite=../riscv-arch-test/riscv-test-suite/ --en
 Due to the limitation of the author's ability, 
 planned and ongoing work for future versions of **uemu** includes:
 
-* **Full RV64GC support** — implement compressed (`C`), atomic (`A`), floating-point (`F/D`), and other missing extensions.
+* **Full RV64GC support**
 * **JIT compilation** — introduce a lightweight dynamic translation layer for improved performance.
 * **Full keyboard and mouse support**
 * **Comprehensive disk and storage support** — implement block devices (e.g., virtio-blk or simple IDE) for persistent storage.
