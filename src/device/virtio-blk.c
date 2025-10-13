@@ -367,6 +367,20 @@ static void vblk_write(uint64_t addr, uint64_t value, size_t n) {
     vblk_update_irq();
 }
 
+static void vblk_fsync_device() {
+    if (!vblk.disk)
+        return;
+    if (msync(vblk.disk, VBLK_PRIV(vblk)->disk_size, MS_SYNC) == -1) {
+        log_error("msync block device failed: %s", strerror(errno));
+        return;
+    }
+    if (fsync(vblk.disk_fd) == -1) {
+        log_error("fsync block device failed: %s", strerror(errno));
+        return;
+    }
+    log_info("Sync block device OK");
+}
+
 void vblk_init() {
     memset(&vblk, 0, sizeof(vblk));
     vblk.disk_fd = -1;
@@ -425,7 +439,9 @@ void vblk_init() {
                               PROT_READ | PROT_WRITE, MAP_SHARED, disk_fd, 0);
     if (disk_mem == MAP_FAILED)
         goto disk_mem_err;
-    close(disk_fd);
+
+    vblk.disk_fd = disk_fd;
+    // close(disk_fd);
 
     assert(!(((uintptr_t)disk_mem) & 0b11));
 
@@ -434,6 +450,8 @@ void vblk_init() {
         (VBLK_PRIV(vblk)->disk_size - 1) / DISK_BLK_SIZE + 1;
 
 register_device:
+    atexit(vblk_fsync_device);
+
     rv_add_device((device_t){
         .name = "virtio-blk",
         .start = VIRTIO_BLK_BASE,
@@ -455,7 +473,9 @@ fail:
 }
 
 void vblk_destroy() {
+    vblk_fsync_device();
     disk_file = NULL;
     munmap(vblk.disk, VBLK_PRIV(vblk)->disk_size);
     free(vblk.priv);
+    memset(&vblk, 0, sizeof(vblk));
 }
