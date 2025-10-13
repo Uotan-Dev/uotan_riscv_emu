@@ -149,5 +149,12 @@
             interrupt-parent = <&plic0>;
             status = "okay";
         };
+
+        virtio_blk@10001000 {
+            compatible = "virtio,mmio";
+            reg = <0x0 0x10001000 0x0 0x1000>;
+            interrupts = <12>;
+            interrupt-parent = <&plic0>;
+        };
     };
 };
