@@ -241,14 +241,6 @@ typedef enum {
         *imm = BITS(i, 10, 7) << 6 | BITS(i, 12, 11) << 4 |                    \
                BITS(i, 5, 5) << 3 | BITS(i, 6, 6) << 2;                        \
     } while (0)
-#define immCL()                                                                \
-    do {                                                                       \
-        *imm = BITS(i, 5, 5) << 6 | BITS(i, 12, 10) << 3 | BITS(i, 6, 6) << 2; \
-    } while (0)
-#define immCS()                                                                \
-    do {                                                                       \
-        *imm = BITS(i, 5, 5) << 6 | BITS(i, 12, 10) << 3 | BITS(i, 6, 6) << 2; \
-    } while (0)
 #define immCB()                                                                \
     do {                                                                       \
         *imm = SEXT(BITS(i, 12, 12) << 8 | BITS(i, 6, 5) << 6 |                \
@@ -294,6 +286,24 @@ typedef enum {
                         BITS(i, 5, 5) << 6 | BITS(i, 2, 2) << 5 |              \
                         BITS(i, 6, 6) << 4,                                    \
                     10);                                                       \
+    } while (0)
+#define immCLW() /* c.lw */                                                    \
+    do {                                                                       \
+        *imm = (BITS(i, 5, 5) << 6) | (BITS(i, 12, 10) << 3) |                 \
+               (BITS(i, 6, 6) << 2);                                           \
+    } while (0)
+#define immCLD() /* c.fld, c.ld */                                             \
+    do {                                                                       \
+        *imm = (BITS(i, 6, 5) << 6) | (BITS(i, 12, 10) << 3);                  \
+    } while (0)
+#define immCSW() /* c.sw */                                                    \
+    do {                                                                       \
+        *imm = (BITS(i, 5, 5) << 6) | (BITS(i, 12, 10) << 3) |                 \
+               (BITS(i, 6, 6) << 2);                                           \
+    } while (0)
+#define immCSD() /* c.sd, c.fsd */                                             \
+    do {                                                                       \
+        *imm = (BITS(i, 6, 5) << 6) | (BITS(i, 12, 10) << 3);                  \
     } while (0)
 
 FORCE_INLINE void decode_operand_32(Decode *s, int *rd, int *rs1, int *rs2,
@@ -384,12 +394,26 @@ FORCE_INLINE void decode_operand_16(Decode *s, int *rd, int *rs1, int *rs2,
         case TYPE_CL:
             *rd = REG_C(BITS(i, 4, 2));
             *rs1 = REG_C(BITS(i, 9, 7));
-            immCL();
+            funct3 = BITS(i, 15, 13);
+            if (funct3 == 0b010) {
+                immCLW();
+            } else if (funct3 == 0b001 || funct3 == 0b011) {
+                immCLD();
+            } else {
+                __UNREACHABLE;
+            }
             break;
         case TYPE_CS:
             *rs1 = REG_C(BITS(i, 9, 7));
             *rs2 = REG_C(BITS(i, 4, 2));
-            immCS();
+            funct3 = BITS(i, 15, 13);
+            if (funct3 == 0b110) {
+                immCSW();
+            } else if (funct3 == 0b101 || funct3 == 0b111) {
+                immCSD();
+            } else {
+                __UNREACHABLE;
+            }
             break;
         case TYPE_CA:
             *rd = REG_C(BITS(i, 9, 7));
