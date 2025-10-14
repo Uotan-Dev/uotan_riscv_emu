@@ -175,30 +175,11 @@ FORCE_INLINE void cpu_process_intr(interrupt_t intr) {
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
 #define MIN(a, b) ((a) < (b) ? (a) : (b))
 
-/**
- * The decoding algorithm is taken from NJU emulator
- * Keeping the original license here
- */
-
-/***************************************************************************************
- * Copyright (c) 2014-2024 Zihao Yu, Nanjing University
- *
- * NEMU is licensed under Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan
- *PSL v2. You may obtain a copy of Mulan PSL v2 at:
- *          http://license.coscl.org.cn/MulanPSL2
- *
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
- *KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- *NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
- *
- * See the Mulan PSL v2 for more details.
- ***************************************************************************************/
-
 #define R(i) rv.X[i]
 #define F(i) rv.F[i]
 
 typedef enum {
+    // 32 bit
     TYPE_I,
     TYPE_U,
     TYPE_S,
@@ -206,8 +187,22 @@ typedef enum {
     TYPE_R,
     TYPE_B,
     TYPE_R4,
+
+    // 16 bit
+    TYPE_CR,
+    TYPE_CI,
+    TYPE_CSS,
+    TYPE_CIW,
+    TYPE_CL,
+    TYPE_CS,
+    TYPE_CA,
+    TYPE_CB,
+    TYPE_CJ,
+
     TYPE_N, // none
 } inst_type_t;
+
+#define REG_C(x) ((x) + 8)
 
 #define immI()                                                                 \
     do {                                                                       \
@@ -233,9 +228,76 @@ typedef enum {
                         BITS(i, 30, 25) << 5 | BITS(i, 11, 8) << 1,            \
                     13);                                                       \
     } while (0)
+#define immCI()                                                                \
+    do {                                                                       \
+        *imm = SEXT(BITS(i, 12, 12) << 5 | BITS(i, 6, 2), 6);                  \
+    } while (0)
+#define immCSS()                                                               \
+    do {                                                                       \
+        *imm = BITS(i, 12, 7) << 0;                                            \
+    } while (0)
+#define immCIW()                                                               \
+    do {                                                                       \
+        *imm = BITS(i, 10, 7) << 6 | BITS(i, 12, 11) << 4 |                    \
+               BITS(i, 5, 5) << 3 | BITS(i, 6, 6) << 2;                        \
+    } while (0)
+#define immCL()                                                                \
+    do {                                                                       \
+        *imm = BITS(i, 5, 5) << 6 | BITS(i, 12, 10) << 3 | BITS(i, 6, 6) << 2; \
+    } while (0)
+#define immCS()                                                                \
+    do {                                                                       \
+        *imm = BITS(i, 5, 5) << 6 | BITS(i, 12, 10) << 3 | BITS(i, 6, 6) << 2; \
+    } while (0)
+#define immCB()                                                                \
+    do {                                                                       \
+        *imm = SEXT(BITS(i, 12, 12) << 8 | BITS(i, 6, 5) << 6 |                \
+                        BITS(i, 2, 2) << 5 | BITS(i, 11, 10) << 3 |            \
+                        BITS(i, 4, 3) << 1,                                    \
+                    9);                                                        \
+    } while (0)
+#define immCJ()                                                                \
+    do {                                                                       \
+        *imm = SEXT(BITS(i, 12, 12) << 11 | BITS(i, 11, 11) << 4 |             \
+                        BITS(i, 10, 9) << 8 | BITS(i, 8, 8) << 10 |            \
+                        BITS(i, 7, 7) << 6 | BITS(i, 6, 6) << 7 |              \
+                        BITS(i, 5, 3) << 1 | BITS(i, 2, 2) << 5,               \
+                    12);                                                       \
+    } while (0)
+#define immCIU()                                                               \
+    do {                                                                       \
+        *imm = (BITS(i, 12, 12) << 5) | BITS(i, 6, 2);                         \
+    } while (0)
+#define immCLWSP()                                                             \
+    do {                                                                       \
+        *imm = BITS(i, 3, 2) << 6 | BITS(i, 12, 12) << 5 | BITS(i, 6, 4) << 2; \
+    } while (0)
+#define immCLDSP()                                                             \
+    do {                                                                       \
+        *imm = BITS(i, 4, 2) << 6 | BITS(i, 12, 12) << 5 | BITS(i, 6, 5) << 3; \
+    } while (0)
+#define immCSWSP()                                                             \
+    do {                                                                       \
+        *imm = BITS(i, 8, 7) << 6 | BITS(i, 12, 9) << 2;                       \
+    } while (0)
+#define immCSDSP()                                                             \
+    do {                                                                       \
+        *imm = BITS(i, 9, 7) << 6 | BITS(i, 12, 10) << 3;                      \
+    } while (0)
+#define immCLUI()                                                              \
+    do {                                                                       \
+        *imm = SEXT(BITS(i, 12, 12) << 17 | BITS(i, 6, 2) << 12, 18);          \
+    } while (0)
+#define immCADDI16SP()                                                         \
+    do {                                                                       \
+        *imm = SEXT(BITS(i, 12, 12) << 9 | BITS(i, 4, 3) << 7 |                \
+                        BITS(i, 5, 5) << 6 | BITS(i, 2, 2) << 5 |              \
+                        BITS(i, 6, 6) << 4,                                    \
+                    10);                                                       \
+    } while (0)
 
-FORCE_INLINE void decode_operand(Decode *s, int *rd, int *rs1, int *rs2,
-                                 int *rs3, uint64_t *imm, inst_type_t type) {
+FORCE_INLINE void decode_operand_32(Decode *s, int *rd, int *rs1, int *rs2,
+                                    int *rs3, uint64_t *imm, inst_type_t type) {
     uint32_t i = s->inst;
     *rs1 = BITS(i, 19, 15);
     *rs2 = BITS(i, 24, 20);
@@ -250,6 +312,96 @@ FORCE_INLINE void decode_operand(Decode *s, int *rd, int *rs1, int *rs2,
         case TYPE_R: break;
         case TYPE_B: immB(); break;
         case TYPE_R4: break;
+        default: __UNREACHABLE;
+    }
+}
+
+FORCE_INLINE void decode_operand_16(Decode *s, int *rd, int *rs1, int *rs2,
+                                    uint64_t *imm, inst_type_t type) {
+    uint16_t i = s->inst & 0xffff;
+    uint8_t funct3;
+    uint8_t opcode;
+    switch (type) {
+        case TYPE_CR:
+            *rd = BITS(i, 11, 7);
+            *rs1 = BITS(i, 11, 7);
+            *rs2 = BITS(i, 6, 2);
+            break;
+        case TYPE_CI:
+            *rs1 = *rd = BITS(i, 11, 7);
+            funct3 = BITS(i, 15, 13);
+            opcode = BITS(i, 1, 0);
+            if (opcode == 0b01) {
+                if (funct3 ==
+                    0b000) { /* C.ADDI (or C.NOP if rd==0 && imm==0) */
+                    immCI();
+                } else if (funct3 == 0b001) { /* C.ADDIW */
+                    immCI();
+                } else if (funct3 == 0b010) { /* C.LI */
+                    immCI();
+                } else if (funct3 == 0b011) {
+                    if (*rd == 2) {
+                        immCADDI16SP(); /* C.ADDI16SP */
+                    } else if (*rd != 0) {
+                        immCLUI(); /* C.LUI for rd != 0,2 */
+                    } else {
+                        immCI();
+                    }
+                } else {
+                    immCI();
+                }
+            } else if (opcode == 0b10) {
+                if (funct3 == 0b000) { /* C.SLLI */
+                    immCIU();
+                } else if (funct3 == 0b010) { /* C.LWSP */
+                    immCLWSP();
+                } else if (funct3 == 0b011) { /* C.LDSP */
+                    immCLDSP();
+                } else {
+                    immCI();
+                }
+            } else {
+                immCI();
+            }
+            break;
+        case TYPE_CSS:
+            *rs1 = 2; // sp
+            *rs2 = BITS(i, 6, 2);
+            funct3 = BITS(i, 15, 13);
+            if (funct3 == 0b110) { // C.SWSP
+                immCSWSP();
+            } else if (funct3 == 0b111) { // C.SDSP
+                immCSDSP();
+            } else {
+                immCSS();
+            }
+            break;
+        case TYPE_CIW:
+            *rd = REG_C(BITS(i, 4, 2));
+            *rs1 = 2; // sp
+            immCIW();
+            break;
+        case TYPE_CL:
+            *rd = REG_C(BITS(i, 4, 2));
+            *rs1 = REG_C(BITS(i, 9, 7));
+            immCL();
+            break;
+        case TYPE_CS:
+            *rs1 = REG_C(BITS(i, 9, 7));
+            *rs2 = REG_C(BITS(i, 4, 2));
+            immCS();
+            break;
+        case TYPE_CA:
+            *rd = REG_C(BITS(i, 9, 7));
+            *rs1 = REG_C(BITS(i, 9, 7));
+            *rs2 = REG_C(BITS(i, 4, 2));
+            break;
+        case TYPE_CB:
+            *rs1 = REG_C(BITS(i, 9, 7));
+            immCB();
+            break;
+        case TYPE_CJ: immCJ(); break;
+        case TYPE_N: break;
         default: __UNREACHABLE;
     }
 }
@@ -386,19 +538,20 @@ FORCE_INLINE void _sfence_vma(Decode *s) {
         FP_UPDATE_EXCEPTION_FLAGS();                                           \
     } while (0)
 
-static inline void decode_exec(Decode *s) {
-    // FIXME: function ‘decode_exec’ can never be inlined because it contains a
-    // computed goto
-
 #define INSTPAT_INST(s) ((s)->inst)
 
 #define INSTPAT_MATCH(s, name, type, ... /* execute body */)                   \
     {                                                                          \
         int rd = 0, rs1 = 0, rs2 = 0, rs3 = 0;                                 \
         uint64_t imm = 0;                                                      \
-        decode_operand(s, &rd, &rs1, &rs2, &rs3, &imm, concat(TYPE_, type));   \
+        decode_operand_32(s, &rd, &rs1, &rs2, &rs3, &imm,                      \
+                          concat(TYPE_, type));                                \
         __VA_ARGS__;                                                           \
     }
+
+static inline void decode_exec_32(Decode *s) {
+    // FIXME: function ‘decode_exec’ can never be inlined because it contains a
+    // computed goto
 
     // clang-format off
     INSTPAT_START();
@@ -1112,9 +1265,7 @@ static inline void decode_exec(Decode *s) {
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
             F(rd) = (float64_t){val};
     );
-    INSTPAT("??????? ????? ????? 011 ????? 01001 11", fsd, S,
-        vaddr_write_d(R(rs1) + imm, F(rs2).v);
-    );
+    INSTPAT("??????? ????? ????? 011 ????? 01001 11", fsd, S, vaddr_write_d(R(rs1) + imm, F(rs2).v));
     INSTPAT("0000001 ????? ????? ??? ????? 10100 11", fadd.d, R,
         FP_INST_PREP();
         if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
@@ -1405,8 +1556,123 @@ static inline void decode_exec(Decode *s) {
         }
     );
 
-    // Invalid insturctions
-    INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv    , N, cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst));
+    // Invalid instructions
+    INSTPAT("??????? ????? ????? ??? ????? ????? ??", inv, N, cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst));
+
+    INSTPAT_END();
+    // clang-format on
+
+    R(0) = 0; // reset $zero to 0
+}
+
+#undef INSTPAT_MATCH
+
+#define INSTPAT_MATCH(s, name, type, ... /* execute body */)                   \
+    {                                                                          \
+        int rd = 0, rs1 = 0, rs2 = 0;                                          \
+        uint64_t imm = 0;                                                      \
+        decode_operand_16(s, &rd, &rs1, &rs2, &imm, concat(TYPE_, type));      \
+        __VA_ARGS__;                                                           \
+    }
+
+static inline void decode_exec_16(Decode *s) {
+    // clang-format off
+    INSTPAT_START();
+
+    // RV64C instructions
+    INSTPAT("000 ?00000????? 01", c.nop, CI, /* nop */);
+    INSTPAT("000 ??????????? 01", c.addi, CI, R(rd) += imm);
+    INSTPAT("001 ??????????? 01", c.addiw, CI, R(rd) = SEXT(BITS(R(rd) + imm, 31, 0), 32));
+    INSTPAT("010 ??????????? 01", c.li, CI, R(rd) = imm);
+    INSTPAT("011 ?00010????? 01", c.addi16sp, CI,
+        if (unlikely(imm == 0))
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
+        else
+            R(2) += imm;
+    );
+    INSTPAT("011 ??????????? 01", c.lui, CI,
+        if (unlikely(rd == 2 || imm == 0))
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
+        else
+            R(rd) = imm;
+    );
+    INSTPAT("100 ?00???????? 01", c.srli, CB, R(rd) >>= imm);
+    INSTPAT("100 ?01???????? 01", c.srai, CB, R(rd) = (int64_t)R(rd) >> imm);
+    INSTPAT("100 ?10???????? 01", c.andi, CB, R(rd) &= imm);
+    INSTPAT("100 011???00??? 01", c.sub, CA, R(rd) -= R(rs2));
+    INSTPAT("100 011???01??? 01", c.xor, CA, R(rd) ^= R(rs2));
+    INSTPAT("100 011???10??? 01", c.or, CA, R(rd) |= R(rs2));
+    INSTPAT("100 011???11??? 01", c.and, CA, R(rd) &= R(rs2));
+    INSTPAT("100 111???00??? 01", c.subw, CA, R(rd) = SEXT(BITS(R(rd) - R(rs2), 31, 0), 32));
+    INSTPAT("100 111???01??? 01", c.addw, CA, R(rd) = SEXT(BITS(R(rd) + R(rs2), 31, 0), 32));
+    INSTPAT("101 ??????????? 01", c.j, CJ, s->npc = s->pc + imm);
+    INSTPAT("110 ??????????? 01", c.beqz, CB, if (R(rs1) == 0) s->npc = s->pc + imm;);
+    INSTPAT("111 ??????????? 01", c.bnez, CB, if (R(rs1) != 0) s->npc = s->pc + imm;);
+    INSTPAT("000 00000000000 00", c.inv, N, cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst));
+    INSTPAT("000 ??????????? 00", c.addi4spn, CIW,
+        if (unlikely(imm == 0))
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
+        else
+            R(rd) = R(2) + imm;
+    );
+    INSTPAT("001 ??????????? 00", c.fld, CL,
+        uint64_t val = vaddr_read_d(R(rs1) + imm);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+            F(rd) = (float64_t){val};
+    );
+    INSTPAT("010 ??????????? 00", c.lw, CL, LOAD_SEXT(rd, R(rs1) + imm, uint32_t, w, 32));
+    INSTPAT("011 ??????????? 00", c.ld, CL, LOAD(rd, R(rs1) + imm, uint64_t, d, 64));
+    INSTPAT("101 ??????????? 00", c.fsd, CS, vaddr_write_d(R(rs1) + imm, F(rs2).v));
+    INSTPAT("110 ??????????? 00", c.sw, CS, vaddr_write_w(R(rs1) + imm, BITS(R(rs2), 31, 0)));
+    INSTPAT("111 ??????????? 00", c.sd, CS, vaddr_write_d(R(rs1) + imm, R(rs2)));
+    INSTPAT("000 ??????????? 10", c.slli, CI, R(rd) <<= imm);
+    INSTPAT("001 ??????????? 10", c.fldsp, CI,
+        uint64_t val = vaddr_read_d(R(2) + imm);
+        if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+            F(rd) = (float64_t){val};
+    );
+    INSTPAT("010 ??????????? 10", c.lwsp, CI,
+        if (unlikely(rd == 0))
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
+        else
+            LOAD_SEXT(rd, R(2) + imm, uint32_t, w, 32);
+    );
+    INSTPAT("011 ??????????? 10", c.ldsp, CI,
+        if (unlikely(rd == 0))
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
+        else
+            LOAD(rd, R(2) + imm, uint64_t, d, 64);
+    );
+    INSTPAT("100 0?????00000 10", c.jr, CR,
+        if (unlikely(rs1 == 0))
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
+        else
+            s->npc = R(rs1);
+    );
+    INSTPAT("100 0?????????? 10", c.mv, CR,
+        if (unlikely(rs2 == 0))
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
+        else
+            R(rd) = R(rs2);
+    );
+    INSTPAT("100 10000000000 10", c.ebreak, CR, cpu_raise_exception(CAUSE_BREAKPOINT, s->pc));
+    INSTPAT("100 1?????00000 10", c.jalr, CR,
+        if (unlikely(rs1 == 0)) {
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
+        } else {
+            uint64_t t = s->pc + 2;
+            s->npc = R(rs1);
+            R(1) = t;
+        }
+    );
+    INSTPAT("100 1?????????? 10", c.add, CR, R(rd) += R(rs2));
+    INSTPAT("101 ??????????? 10", c.fsdsp, CSS, vaddr_write_d(R(2) + imm, F(rs2).v));
+    INSTPAT("110 ??????????? 10", c.swsp, CSS, vaddr_write_w(R(2) + imm, BITS(R(rs2), 31, 0)));
+    INSTPAT("111 ??????????? 10", c.sdsp, CSS, vaddr_write_d(R(2) + imm, R(rs2)));
+
+    // Invalid instructions
+    INSTPAT("??? ??????????? ??", inv, N, cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst));
+
     INSTPAT_END();
     // clang-format on
 
@@ -1415,10 +1681,11 @@ static inline void decode_exec(Decode *s) {
 
 FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     s->pc = pc;
-    s->npc = pc + 4;
-    s->inst = vaddr_ifetch(pc);
+    size_t len;
+    s->inst = vaddr_ifetch(pc, &len);
+    s->npc = pc + len;
     if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
-        decode_exec(s);
+        len == 4 ? decode_exec_32(s) : decode_exec_16(s);
     rv.PC = s->npc;
     rv.MCYCLE++;
     if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE &&

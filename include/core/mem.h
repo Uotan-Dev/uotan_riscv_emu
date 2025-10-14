@@ -121,15 +121,16 @@ void vaddr_write_s(uint64_t addr, uint16_t data);
 void vaddr_write_b(uint64_t addr, uint8_t data);
 
 /**
- * @brief Fetches a 32-bit instruction from the specified virtual address.
+ * @brief Fetches a instruction from the specified virtual address.
  *
  * Performs instruction fetch translation under SV39 and returns the
  * instruction word from the corresponding physical memory.
  *
  * @param addr  The virtual address of the instruction to fetch.
+ * @param len  The pointer where it outputs real instruction size.
  * @return The 32-bit instruction word.
  */
-uint32_t vaddr_ifetch(uint64_t addr);
+uint32_t vaddr_ifetch(uint64_t addr, size_t *len);
 
 // SATP Mode
 #define SATP_MODE_BARE 0ULL

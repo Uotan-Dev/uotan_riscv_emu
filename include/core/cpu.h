@@ -268,8 +268,8 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
     switch (csr & 0xFFF) {
         // M-mode
         case CSR_MEPC:
-            rv.MEPC = value & ~3ULL;
-            break; // support only IALIGN=32
+            rv.MEPC = value & ~1ULL;
+            break;
         case CSR_MCOUNTEREN:
             rv.MCOUNTEREN = (uint32_t)(value & 0xFFFFFFFFU);
             break;
@@ -287,8 +287,8 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
 
         // S-mode
         case CSR_SEPC:
-            rv.SEPC = value & ~3ULL;
-            break; // support only IALIGN=32
+            rv.SEPC = value & ~1ULL;
+            break;
         case CSR_SATP: {
             // Implementations are not required to support all MODE settings,
             // and if satp is written with an unsupported MODE,

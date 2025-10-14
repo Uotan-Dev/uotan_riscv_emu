@@ -236,7 +236,7 @@ VADDR_WRITE_IMPL(w, uint32_t, 4)
 VADDR_WRITE_IMPL(s, uint16_t, 2)
 VADDR_WRITE_IMPL(b, uint8_t, 1)
 
-uint32_t vaddr_ifetch(uint64_t addr) {
+uint32_t vaddr_ifetch(uint64_t addr, size_t *len) {
     if (unlikely((addr & 0x1) != 0)) {
         cpu_raise_exception(CAUSE_MISALIGNED_FETCH, addr);
         return 0;
@@ -247,5 +247,12 @@ uint32_t vaddr_ifetch(uint64_t addr) {
         vaddr_raise_exception(r, addr);
         return 0;
     }
-    return bus_ifetch(paddr);
+    uint32_t inst = bus_ifetch(paddr);
+    if ((inst & 0x3) < 3) {
+        *len = 2;
+        return inst & 0xffff;
+    }
+    // TODO: Check ifetch across pages
+    *len = 4;
+    return inst;
 }
