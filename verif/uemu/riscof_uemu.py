@@ -106,7 +106,7 @@ class uemu(pluginTemplate):
       #TODO: The following assumes you are using the riscv-gcc toolchain. If
       #      not please change appropriately
       self.compile_cmd = self.compile_cmd+' -mabi=lp64d'
-      self.compile_cmd = self.compile_cmd+' -march=rv64imafd_zicsr_zifencei ' # HACK
+      self.compile_cmd = self.compile_cmd+' -march=rv64gc_zicsr_zifencei ' # HACK
 
     def runTests(self, testList):
 
