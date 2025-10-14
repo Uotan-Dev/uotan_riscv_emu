@@ -305,6 +305,14 @@ typedef enum {
     do {                                                                       \
         *imm = (BITS(i, 6, 5) << 6) | (BITS(i, 12, 10) << 3);                  \
     } while (0)
+#define immCBS() /* c.srli, c.srai, c.andi */                                  \
+    do {                                                                       \
+        uint32_t raw = (BITS(i, 12, 12) << 5) | BITS(i, 6, 2);                 \
+        if (BITS(i, 11, 10) == 0b10)                                           \
+            *imm = SEXT(raw, 6);                                               \
+        else                                                                   \
+            *imm = raw;                                                        \
+    } while (0)
 
 FORCE_INLINE void decode_operand_32(Decode *s, int *rd, int *rs1, int *rs2,
                                     int *rs3, uint64_t *imm, inst_type_t type) {
@@ -422,7 +430,11 @@ FORCE_INLINE void decode_operand_16(Decode *s, int *rd, int *rs1, int *rs2,
             break;
         case TYPE_CB:
             *rs1 = REG_C(BITS(i, 9, 7));
-            immCB();
+            funct3 = BITS(i, 15, 13);
+            if (funct3 == 0b100)
+                immCBS();
+            else
+                immCB();
             break;
         case TYPE_CJ: immCJ(); break;
         case TYPE_N: break;
