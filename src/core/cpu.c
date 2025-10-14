@@ -429,7 +429,7 @@ FORCE_INLINE void decode_operand_16(Decode *s, int *rd, int *rs1, int *rs2,
             *rs2 = REG_C(BITS(i, 4, 2));
             break;
         case TYPE_CB:
-            *rs1 = REG_C(BITS(i, 9, 7));
+            *rd = *rs1 = REG_C(BITS(i, 9, 7));
             funct3 = BITS(i, 15, 13);
             if (funct3 == 0b100)
                 immCBS();
