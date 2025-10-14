@@ -1719,9 +1719,10 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     s->pc = pc;
     size_t len;
     s->inst = vaddr_ifetch(pc, &len);
-    s->npc = pc + len;
-    if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE))
+    if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
+        s->npc = pc + len;
         len == 4 ? decode_exec_32(s) : decode_exec_16(s);
+    }
     rv.PC = s->npc;
     rv.MCYCLE++;
     if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE &&
