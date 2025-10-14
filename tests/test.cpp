@@ -319,3 +319,13 @@ TEST(RISVTestSuite, RV64UD_TEST) {
 
     test_files(files);
 }
+
+TEST(RISVTestSuite, RV64UC_TEST) {
+    // clang-format off
+    std::vector<std::string> files = {
+    "testbins/rv64uc/bin/rvc.bin",
+    };
+    // clang-format on
+
+    test_files(files);
+}

@@ -119,7 +119,7 @@ function(build_asm asm_path out_path target_name)
                 -T${CMAKE_SOURCE_DIR}/riscv-tests/env/v/link.ld
                 -I${CMAKE_SOURCE_DIR}/riscv-tests/env/v
                 -I${CMAKE_SOURCE_DIR}/riscv-tests/isa/macros/scalar
-                -nostdlib -ffreestanding -march=rv64g_zicsr_zifencei -g -mabi=lp64 -nostartfiles -O0
+                -nostdlib -ffreestanding -march=rv64gc_zicsr_zifencei -g -mabi=lp64 -nostartfiles -O0
                 -o ${temp_elf}
                 ${file}
             DEPENDS ${file}
@@ -186,6 +186,10 @@ build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64ud/*.S"
           "${CMAKE_BINARY_DIR}/testbins/rv64ud"
           "riscv_tests_rv64ud")
 
+build_asm("${CMAKE_SOURCE_DIR}/riscv-tests/isa/rv64uc/*.S"
+          "${CMAKE_BINARY_DIR}/testbins/rv64uc"
+          "riscv_tests_rv64uc")
+
 # --- Google Test Integration ---
 enable_testing()
 include(FetchContent)
@@ -216,4 +220,5 @@ add_dependencies(run_tests
   riscv_tests_rv64um
   riscv_tests_rv64uf
   riscv_tests_rv64ud
+  riscv_tests_rv64uc
 )
