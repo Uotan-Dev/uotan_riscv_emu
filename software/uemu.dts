@@ -23,7 +23,7 @@
     model = "uemu-virt";
 
     chosen {
-        bootargs = "root=/dev/mem rw console=tty0 earlycon=sbi";
+        bootargs = "root=/dev/vda rw console=tty0 earlycon=sbi";
         stdout-path = "/soc/uart@10000000";
     };
 
@@ -60,8 +60,7 @@
 
     memory@80000000 {
         device_type = "memory";
-        /* 0x10000000 = 256MB to match [0x80000000,0x8fffffff] */
-        reg = <0x0 0x80000000 0x0 0x10000000>;
+        reg = <0x0 0x80000000 0x0 0x20000000>;
     };
 
     sifive_test: sifive_test@100000 {

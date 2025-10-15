@@ -348,7 +348,7 @@ typedef struct {
     uint32_t seed_state;
 
     // Memory
-#define MSIZE 0x10000000
+#define MSIZE 0x20000000
 #define MBASE 0x80000000
     uint8_t memory[MSIZE] __attribute((aligned(4096)));
 
