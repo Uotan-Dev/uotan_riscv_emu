@@ -1683,7 +1683,7 @@ static inline void decode_exec_16(Decode *s) {
         if (unlikely(rs1 == 0))
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
         else
-            s->npc = R(rs1);
+            s->npc = R(rs1) & ~1ULL;
     );
     INSTPAT("100 0?????????? 10", c.mv, CR,
         if (unlikely(rs2 == 0))
@@ -1697,7 +1697,7 @@ static inline void decode_exec_16(Decode *s) {
             cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
         } else {
             uint64_t t = s->pc + 2;
-            s->npc = R(rs1);
+            s->npc = R(rs1) & ~1ULL;
             R(1) = t;
         }
     );
