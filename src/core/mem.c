@@ -241,18 +241,33 @@ uint32_t vaddr_ifetch(uint64_t addr, size_t *len) {
         cpu_raise_exception(CAUSE_MISALIGNED_FETCH, addr);
         return 0;
     }
+
     uint64_t paddr;
     mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_INSN);
-    if (r != TRANSLATE_OK) {
+
+    if (unlikely(r != TRANSLATE_OK)) {
         vaddr_raise_exception(r, addr);
         return 0;
     }
+
     uint32_t inst = bus_ifetch(paddr);
     if ((inst & 0x3) < 3) {
         *len = 2;
         return inst & 0xffff;
     }
-    // TODO: Check ifetch across pages
+
     *len = 4;
-    return inst;
+    if (likely((paddr & (PAGE_SIZE - 1)) <= PAGE_SIZE - 4))
+        return inst;
+
+    uint32_t inst_lo = inst & 0xffff;
+
+    r = vaddr_translate(addr + 2, &paddr, ACCESS_INSN);
+    if (unlikely(r != TRANSLATE_OK)) {
+        vaddr_raise_exception(r, addr + 2);
+        return 0;
+    }
+    uint32_t inst_hi = bus_ifetch(paddr) & 0xffff;
+
+    return inst_lo | (inst_hi << 16);
 }
