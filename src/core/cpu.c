@@ -232,10 +232,6 @@ typedef enum {
     do {                                                                       \
         *imm = SEXT(BITS(i, 12, 12) << 5 | BITS(i, 6, 2), 6);                  \
     } while (0)
-#define immCSS()                                                               \
-    do {                                                                       \
-        *imm = BITS(i, 12, 7) << 0;                                            \
-    } while (0)
 #define immCIW()                                                               \
     do {                                                                       \
         *imm = BITS(i, 10, 7) << 6 | BITS(i, 12, 11) << 4 |                    \
@@ -373,7 +369,8 @@ FORCE_INLINE void decode_operand_16(Decode *s, int *rd, int *rs1, int *rs2,
                     immCIU();
                 } else if (funct3 == 0b010) { /* C.LWSP */
                     immCLWSP();
-                } else if (funct3 == 0b011) { /* C.LDSP */
+                } else if (funct3 == 0b011 ||
+                           funct3 == 0b001) { /* C.LDSP C.FLDSP */
                     immCLDSP();
                 } else {
                     immCI();
@@ -388,10 +385,8 @@ FORCE_INLINE void decode_operand_16(Decode *s, int *rd, int *rs1, int *rs2,
             funct3 = BITS(i, 15, 13);
             if (funct3 == 0b110) { // C.SWSP
                 immCSWSP();
-            } else if (funct3 == 0b111) { // C.SDSP
+            } else if (funct3 == 0b111 || funct3 == 0b101) { // C.SDSP C.FSDSP
                 immCSDSP();
-            } else {
-                immCSS();
             }
             break;
         case TYPE_CIW:
