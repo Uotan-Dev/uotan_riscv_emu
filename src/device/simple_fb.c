@@ -27,7 +27,7 @@ simple_fb_t simple_fb;
 static uint64_t simple_fb_read(uint64_t addr, size_t n) {
     assert(n <= 8);
     uint64_t offset = addr - SIMPLEFB_BASE;
-    if (offset >= SIMPLEFB_BASE)
+    if (offset >= SIMPLEFB_SIZE)
         return 0;
     uint64_t v = 0;
     pthread_mutex_lock(&simple_fb.m);
@@ -38,7 +38,7 @@ static uint64_t simple_fb_read(uint64_t addr, size_t n) {
 
 static void simple_fb_write(uint64_t addr, uint64_t value, size_t n) {
     uint64_t offset = addr - SIMPLEFB_BASE;
-    if (offset > SIMPLEFB_BASE)
+    if (offset > SIMPLEFB_SIZE)
         return;
     pthread_mutex_lock(&simple_fb.m);
     memcpy(simple_fb.vram + offset, &value, n);
