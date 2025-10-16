@@ -3,6 +3,7 @@
 ***uemu*** is a small system emulator that boots real firmware and OS images (OpenSBI, U-Boot, Linux) and runs raw/ELF test binaries. Implemented ISA: **rv64imafd_zicsr_zifencei**.
 
 ## Boot Demo
+### Debian Trixie without systemd  :( 
 ![Booting Linux on uemu](./software/linux.png)
 
 ## Quick facts
