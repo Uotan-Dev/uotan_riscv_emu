@@ -1,6 +1,6 @@
 # uemu — tiny RISC-V system emulator
 
-***uemu*** is a small system emulator that boots real firmware and OS images (OpenSBI, U-Boot, Linux) and runs raw/ELF test binaries. Implemented ISA: **rv64imafd_zicsr_zifencei**.
+***uemu*** is a small system emulator that boots real firmware and OS images (OpenSBI, U-Boot, Linux) and runs raw/ELF test binaries. Implemented ISA: **rv64imafdc_zicsr_zifencei**.
 
 ## Boot Demo
 ### Debian Trixie without systemd  :( 
@@ -122,7 +122,7 @@ riscof run --config=config.ini --suite=../riscv-arch-test/riscv-test-suite/ --en
 
 ## Notes
 
-* **uemu** implements **rv64imafd_zicsr_zifencei** only. Images built for other extensions may fail or trap.
+* **uemu** implements **rv64imafdc_zicsr_zifencei** only. Images built for other extensions may fail or trap.
 
 * **riscv-arch-test** submodule has been set to our own fork due to GitHub issue [LA macro generates compressed instructions for platform that does not support C extension #659](https://github.com/riscv-non-isa/riscv-arch-test/issues/659)
 
