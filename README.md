@@ -3,7 +3,7 @@
 ***uemu*** is a small system emulator that boots real firmware and OS images (OpenSBI, U-Boot, Linux) and runs raw/ELF test binaries. Implemented ISA: **rv64imafdc_zicsr_zifencei**.
 
 ## Boot Demo
-### Debian Trixie without systemd  :( 
+### Debian Trixie without systemd :(
 ![Booting Linux on uemu](./software/linux.png)
 
 ## Quick facts
@@ -13,10 +13,10 @@
 * **GDB**: supported (`--gdb`).
 * **Built devices**:
 
-  * DRAM: `0x80000000` — `0x8FFFFFFF` (256MB)
+  * DRAM: `0x80000000` — `0x9fffffff` (512MB)
   * CLINT: `0x02000000` — `0x0200FFFF`
   * PLIC: `0x0C000000` — `0x0FFFFFFF`
-  * UART16550 (console), Goldfish RTC, goldfish-events, goldfish-battery, SIFIVE TEST, simple-framebuffer.
+  * UART16550 (console), Goldfish RTC, goldfish-events, goldfish-battery, SIFIVE TEST, simple-framebuffer, virtio-blk.
 
 ## Host dependencies
 
@@ -25,7 +25,6 @@ Install these on your host before building:
 * `cmake` (≥3.14), `make`, `gcc`/`g++` (build tools)
 * `pkg-config`
 * `libsdl2-dev` (SDL2 development package)
-* `libreadline-dev`, `libncurses-dev`
 * `git`
 * `riscv64-unknown-elf-gcc`, `riscv64-unknown-elf-objcopy`, `riscv64-unknown-elf-objdump`
 * (Optional) `gdb-multiarch` or other riscv gdb for remote debugging
@@ -78,7 +77,7 @@ An incomplete [nexus-am](https://github.com/OpenXiangShan/nexus-am) (@OpenXiangS
 
 For [*Introduction to Computer System*](https://nju-projectn.github.io/ics-pa-gitbook/) students, porting [Abstract Machine](https://github.com/NJU-ProjectN/abstract-machine) and [Nanos-lite](https://github.com/NJU-ProjectN/nanos-lite) is an exercise.
 
-## Builtin tests
+## Unit / integration tests
 
 * Unit / integration tests are bundled into `run_tests` (GoogleTest). Execute:
 
@@ -124,17 +123,19 @@ riscof run --config=config.ini --suite=../riscv-arch-test/riscv-test-suite/ --en
 
 * **uemu** implements **rv64imafdc_zicsr_zifencei** only. Images built for other extensions may fail or trap.
 
-* **riscv-arch-test** submodule has been set to our own fork due to GitHub issue [LA macro generates compressed instructions for platform that does not support C extension #659](https://github.com/riscv-non-isa/riscv-arch-test/issues/659)
+* ~~**riscv-arch-test** submodule has been set to our own fork due to GitHub issue [LA macro generates compressed instructions for platform that does not support C extension #659](https://github.com/riscv-non-isa/riscv-arch-test/issues/659)~~
+
 
 ## TODO
 
 Due to the limitation of the author's ability, 
 planned and ongoing work for future versions of **uemu** includes:
 
-* **Full RV64GC support**
+* ~~**Full RV64GC support**~~
 * **JIT compilation** — introduce a lightweight dynamic translation layer for improved performance.
 * **Full keyboard and mouse support**
-* **Comprehensive disk and storage support** — implement block devices (e.g., virtio-blk or simple IDE) for persistent storage.
+* **Support for modern Linux distros** - Debian, archlinux or any other excellent Linux distributions.
+* **Emulation for more devices** - mouse, GPU etc.
 
 Contributions, testing, and feedback are welcome to help bring these features to completion.
 
