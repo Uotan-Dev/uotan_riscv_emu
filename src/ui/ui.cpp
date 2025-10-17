@@ -112,6 +112,7 @@ void ui_update() {
             case SDL_QUIT:
                 log_info("SDL Quit");
                 rv_shutdown(0, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
+                rv_destroy();
                 exit(EXIT_SUCCESS);
             case SDL_KEYDOWN: /* fallthrough */
             case SDL_KEYUP: {
