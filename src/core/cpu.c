@@ -96,7 +96,7 @@ void cpu_raise_intr(uint64_t ip, privilege_level_t priv) {
     pthread_mutex_lock(&rv.csr_lock);
     if (priv == PRIV_M)
         rv.MIP |= ip;
-    else if (PRIV_S)
+    else if (priv == PRIV_S)
         rv.MIP |= ip & rv.MIDELEG;
     else
         __UNREACHABLE;
