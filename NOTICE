@@ -1,5 +1,6 @@
 uemu — A RISC-V Virtual Platform Emulator
 Copyright (C) 2025 Nuo Shen
+Copyright (C) 2025 UOTAN
 
 ===============================================================================
 THIRD-PARTY ATTRIBUTIONS AND COPYRIGHTS
@@ -73,6 +74,10 @@ authors, and the components derived from them.
    ─────────────────────────────────────────────────────────────────────────
    Website: https://github.com/sysprog21/rv32emu
    License: MIT License
+
+   The following components are derived from or inspired by rv32emu:
+   - src/device/virtio_block.c (VirtIO block device implementation)
+   - include/device/virtio.h   (VirtIO definitions)
 
    Original Copyright:
    - Copyright (c) 2020–2025 National Cheng Kung University, Taiwan

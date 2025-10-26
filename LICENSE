@@ -1,5 +1,6 @@
 uemu — A RISC-V Virtual Platform Emulator
 Copyright (C) 2025 Nuo Shen
+Copyright (C) 2025 UOTAN
 
 ===============================================================================
 MULTI-LICENSE SUMMARY
@@ -10,12 +11,16 @@ license for each component is indicated below and in individual source files.
 
 1. APACHE LICENSE 2.0
    ─────────────────────────────────────────────────────────────────────────
-   Applies to: Most source code, including all original code written by Nuo Shen
-   
+   Applies to: Most source code, including original code
+
    Components:
    - All code in src/ (except as noted below)
    - All code in include/
    - Documentation and build files
+   
+   Copyright holders:
+   - Nuo Shen (original author)
+   - UOTAN (current maintainer)
    
    Full text: See LICENSE-Apache-2.0 or visit
    https://www.apache.org/licenses/LICENSE-2.0
@@ -129,4 +134,5 @@ The following files contain the full text of each license:
 - LICENSE-GPLv2        : GPL v2 full text
 - LICENSE-Mulan-PSL-v2 : Mulan PSL v2 full text
 - LICENSE-SoftFloat    : SoftFloat license (BSD 3-Clause) full text
+- LICENSE-MIT          : MIT License full text
 - NOTICE               : Additional copyright notices and attributions
