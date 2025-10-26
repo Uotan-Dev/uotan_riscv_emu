@@ -1,5 +1,6 @@
 /*
  * Copyright 2025 Nuo Shen, Nanjing University
+ * Copyright 2025 UOTAN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -41,7 +42,7 @@ void ui_init() {
         goto fail;
 
     // Create the window
-    window = SDL_CreateWindow("uEmu RISC-V Emulator", SDL_WINDOWPOS_CENTERED,
+    window = SDL_CreateWindow("Uotan RISC-V Emulator", SDL_WINDOWPOS_CENTERED,
                               SDL_WINDOWPOS_CENTERED, FB_WIDTH, FB_HEIGHT, 0);
     if (!window)
         goto fail;

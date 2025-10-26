@@ -1,5 +1,6 @@
 /*
  * Copyright 2025 Nuo Shen, Nanjing University
+ * Copyright 2025 UOTAN
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -209,6 +210,7 @@ int main(int argc, char *argv[]) {
     puts("uemu - tiny RISC-V system emulator");
     puts("Built on " __DATE__ " " __TIME__ "");
     puts("Copyright 2025 Nuo Shen, Nanjing University");
+    puts("Copyright 2025 UOTAN");
     puts("Licensed under the Apache License 2.0");
     puts("See https://www.apache.org/licenses/LICENSE-2.0");
     putchar('\n');
