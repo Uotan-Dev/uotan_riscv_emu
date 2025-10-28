@@ -1818,6 +1818,15 @@ void cpu_start() {
         rtc_tick();
         // Update battery
         battery_update();
+
+        // Update stip
+        pthread_mutex_lock(&rv.csr_lock);
+        bool trigger = rv.MTIME >= rv.STIMECMP;
+        pthread_mutex_unlock(&rv.csr_lock);
+        if (trigger)
+            cpu_raise_intr(SIP_STIP, PRIV_S);
+        else
+            cpu_clear_intr(SIP_STIP, PRIV_S);
     }
 
     alarm_turn(false);

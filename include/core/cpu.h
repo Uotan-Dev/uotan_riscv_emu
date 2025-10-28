@@ -183,7 +183,7 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
         case CSR_SCOUNTEREN:
             return rv.SCOUNTEREN;
         macro(STVEC) macro(SSCRATCH) macro(SEPC) macro(SCAUSE) macro(STVAL)
-        macro(SATP)
+        macro(SATP)  macro(STIMECMP)
 
         // Unprivileged
         case CSR_CYCLE: {
@@ -319,6 +319,7 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
             rv.SCOUNTEREN = (uint32_t)(value & 0xFFFFFFFFU);
             break;
         macro(STVEC) macro(SSCRATCH) macro(SCAUSE) macro(STVAL)
+        macro(STIMECMP)
 
         // Unprivileged
         case CSR_CYCLE:

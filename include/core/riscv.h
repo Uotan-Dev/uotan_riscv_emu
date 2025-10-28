@@ -248,6 +248,9 @@ enum {
     CSR_STVAL = 0x143,    // Supervisor bad address or instruction
     CSR_SIP = 0x144,      // Supervisor interrupt pending
 
+    // Supervisor Timer Compare
+    CSR_STIMECMP = 0x14D, // Supervisor timer compare.
+
     // Supervisor protection and translation
     CSR_SATP = 0x180, // Supervisor address translation and protection
 
@@ -321,6 +324,7 @@ typedef struct {
     uint64_t SCAUSE;     // Supervisor trap cause
     uint64_t STVAL;      // Supervisor bad address or instruction
     uint64_t SATP;       // Supervisor address translation and protection
+    uint64_t STIMECMP;   // Supervisor timer compare.
 
     // Floating-point control and status register
     fcsr_t FCSR;
