@@ -1746,7 +1746,7 @@ static void *cpu_thread_func(void *arg) {
         if (unlikely(rv.shutdown))
             break;
         rv.last_exception = CAUSE_EXCEPTION_NONE;
-        if ((i & 255) == 0) {
+        if ((i & 32767) == 0) {
             interrupt_t intr = rv_get_pending_interrupt();
             if (unlikely(intr != CAUSE_INTERRUPT_NONE))
                 cpu_process_intr(intr);
