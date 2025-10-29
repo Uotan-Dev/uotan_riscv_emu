@@ -6,6 +6,8 @@ hart0:
   supported_xlen: [64]
   misa:
    reset-val: 0x800000000014112d
+   rv32:
+     accessible: false
    rv64:
      accessible: true
      mxl:
@@ -23,7 +25,51 @@ hart0:
            warl:
               dependency_fields: []
               legal:
-                - extensions[25:0] bitmask [0x0001104, 0x0000000]
+                - extensions[25:0] bitmask [0x014112d, 0x0000000]
               wr_illegal:
                 - Unchanged
- 
+  mvendorid:
+    rv32:
+      accessible: false
+    rv64:
+      accessible: true
+      fields: []
+      shadow:
+      shadow_type: rw
+      msb: 31
+      lsb: 0
+      type:
+        ro_constant: 0x00000000
+    address: 3857
+    priv_mode: M
+    reset-val: 0x00000000
+  marchid:
+    rv32:
+      accessible: false
+    rv64:
+      accessible: true
+      fields: []
+      shadow:
+      shadow_type: rw
+      msb: 63
+      lsb: 0
+      type:
+        ro_constant: 0x00114514
+    address: 3858
+    priv_mode: M
+    reset-val: 0x00114514
+  mimpid:
+    rv32:
+      accessible: false
+    rv64:
+      accessible: true
+      fields: []
+      shadow:
+      shadow_type: rw
+      msb: 63
+      lsb: 0
+      type:
+        ro_constant: 0x00010000
+    address: 3859
+    priv_mode: M
+    reset-val: 0x00010000
