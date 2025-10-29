@@ -53,11 +53,16 @@ void ui_init() {
         goto ui_fail;
 
     // Create the texture
-    texture =
-        SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
-                          SDL_TEXTUREACCESS_STREAMING, FB_WIDTH, FB_HEIGHT);
+    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+                                SDL_TEXTUREACCESS_STATIC, FB_WIDTH, FB_HEIGHT);
     if (!texture)
         goto ui_fail;
+    /* For SDL3.
+     * ARGB8888 includes an alpha byte; if alpha is 0 pixels may be treated as
+     * transparent. Disable SDL blending so the renderer does not use the
+     * texture alpha for blending.
+     */
+    SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_NONE);
 
     // Make global update periodic
     ui_update_requested = 0;
