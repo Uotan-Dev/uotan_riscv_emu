@@ -131,7 +131,8 @@ riscof run --config=config.ini --suite=../riscv-arch-test/riscv-test-suite/ --en
 ## Known bugs
 
 ### Hardware simulation
-* Some CSRs like `menvcfg` is unimplemented.
+* ~~Some CSRs like `menvcfg` is unimplemented.~~
+* Other misc bugs.
 
 ### Linux experience
 * ~~The system can't shut down properly with `poweroff`.~~

@@ -187,6 +187,8 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
         case CSR_MIP:
             // csr_lock must be held here
             return rv.MIP;
+        case CSR_MENVCFG:
+            return rv.MENVCFG & MENVCFG_MASK;
         macro(MVENDORID) macro(MARCHID) macro(MIMPID) macro(MHARTID)
         macro(MISA) macro(MTVEC) macro(MSCRATCH) macro(MEPC) macro(MCAUSE)
         macro(MTVAL) macro(MIE) macro(MCYCLE) macro(MINSTRET) macro(MIDELEG)
@@ -202,8 +204,14 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
         }
         case CSR_SCOUNTEREN:
             return rv.SCOUNTEREN;
+        case CSR_STIMECMP:
+            if (unlikely(rv.privilege < PRIV_M && !(rv.MENVCFG & MENVCFG_STCE))) {
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                return 0;
+            }
+            return rv.STIMECMP;
         macro(STVEC) macro(SSCRATCH) macro(SEPC) macro(SCAUSE) macro(STVAL)
-        macro(SATP)  macro(STIMECMP)
+        macro(SATP)
 
         // Unprivileged
         case CSR_CYCLE: {
@@ -301,6 +309,9 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
             // csr_lock must be held here
             rv.MIP = value;
             break;
+        case CSR_MENVCFG:
+            rv.MENVCFG = (rv.MENVCFG & ~MENVCFG_MASK) | (value & MENVCFG_MASK);
+            break;
         macro(MTVEC) macro(MSCRATCH) macro(MCAUSE) macro(MTVAL) macro(MIE)
         macro(MSTATUS) macro(MCYCLE) macro(MSECCFG) macro(MIDELEG)
         macro(MEDELEG)
@@ -338,8 +349,13 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
         case CSR_SCOUNTEREN:
             rv.SCOUNTEREN = (uint32_t)(value & 0xFFFFFFFFU);
             break;
+        case CSR_STIMECMP:
+            if (unlikely(rv.privilege < PRIV_M && !(rv.MENVCFG & MENVCFG_STCE)))
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+            else
+                rv.STIMECMP = value;
+            break;
         macro(STVEC) macro(SSCRATCH) macro(SCAUSE) macro(STVAL)
-        macro(STIMECMP)
 
         // Unprivileged
         case CSR_CYCLE:

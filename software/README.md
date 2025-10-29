@@ -73,10 +73,3 @@ After success you get the firmware image: `build/platform/generic/firmware/fw_pa
 ```bash
 uemu /path/to/fw_payload.elf
 ```
-
-## 5) Known bugs
-### Linux experience
-* ~~The system can't shut down properly with `poweroff`.~~
-* `agetty` does not start properly on **Debian**.
-* `dbus` fails to start on **Buildroot**.
-* ~~The keyboard (implemented with **goldfish-events**) sometimes **freezes under certain conditions**.~~

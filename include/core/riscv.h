@@ -99,6 +99,12 @@ extern "C" {
 #define MCOUNTEREN_TM (1U << 1)
 #define MCOUNTEREN_IR (1U << 2)
 
+// MENVCFG
+#define MENVCFG_FIOM (1ULL << 0)
+#define MENVCFG_ADUE (1ULL << 61)
+#define MENVCFG_STCE (1ULL << 63)
+#define MENVCFG_MASK (MENVCFG_FIOM | MENVCFG_STCE)
+
 // MSECCFG
 #define MSECCFG_MML (1ULL << 0)   // Machine Mode Lockdown
 #define MSECCFG_MMWP (1ULL << 1)  // Machine Mode Whitelist Policy
@@ -229,6 +235,7 @@ enum {
     CSR_MIP = 0x344,      // Machine interrupt pending
 
     // Machine Configuration
+    CSR_MENVCFG = 0x30A, // Machine environment configuration register
     CSR_MSECCFG = 0x747, // Machine security configuration register
 
     // Machine Counter/Timers
@@ -310,9 +317,8 @@ typedef struct {
     uint64_t MIP;        // Machine interrupt pending
     uint64_t MCYCLE;     // Machine cycle counter
     uint64_t MINSTRET;   // Machine instructions-retired counter
+    uint64_t MENVCFG;    // Machine environment configuration register
     uint64_t MSECCFG;    // Machine security configuration register
-
-    uint64_t MTIME; // Mirrored from clint
 
     // SSTATUS, SIE, SIP are not here because they will be inferred
     // from M-mode CSRs
@@ -325,6 +331,8 @@ typedef struct {
     uint64_t STVAL;      // Supervisor bad address or instruction
     uint64_t SATP;       // Supervisor address translation and protection
     uint64_t STIMECMP;   // Supervisor timer compare.
+
+    uint64_t MTIME; // Mirrored from clint
 
     // Floating-point control and status register
     fcsr_t FCSR;
