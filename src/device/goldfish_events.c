@@ -95,8 +95,15 @@ static unsigned dequeue_event() {
         return 0;
     unsigned n = events_state.events[events_state.first];
     events_state.first = (events_state.first + 1) & (MAX_EVENTS - 1);
-    if (events_state.first == events_state.last)
+    if (events_state.first == events_state.last) {
         plic_set_irq(GOLDFISH_EVENTS_IRQ, 0);
+    } else if (((events_state.first + 2) & (MAX_EVENTS - 1)) <
+                   events_state.last ||
+               (events_state.first & (MAX_EVENTS - 1)) >
+                   events_state.last) { /* if there still is an event */
+        plic_set_irq(GOLDFISH_EVENTS_IRQ, 0);
+        plic_set_irq(GOLDFISH_EVENTS_IRQ, 1);
+    }
     return n;
 }
 
