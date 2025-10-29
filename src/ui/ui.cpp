@@ -30,6 +30,8 @@
 #include "utils/alarm.h"
 #include "utils/logger.h"
 
+#include "uotan_bmp.hpp"
+
 static struct SDL_Window *window;
 static struct SDL_Renderer *renderer;
 static struct SDL_Texture *texture;
@@ -37,6 +39,25 @@ static struct SDL_Texture *texture;
 static bool initialized;
 
 static sig_atomic_t ui_update_requested;
+
+static void ui_set_window_icon() {
+    SDL_IOStream *rw = SDL_IOFromConstMem(uotan_bmp, uotan_bmp_len);
+    if (!rw) {
+        log_warn("Failed to create RWops for embedded icon: %s",
+                 SDL_GetError());
+        return;
+    }
+
+    // Load BMP from memory
+    SDL_Surface *icon = SDL_LoadBMP_IO(rw, 1);
+    if (!icon) {
+        log_warn("Failed to load embedded icon: %s", SDL_GetError());
+        return;
+    }
+
+    SDL_SetWindowIcon(window, icon);
+    SDL_DestroySurface(icon);
+}
 
 void ui_init() {
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS))
@@ -46,6 +67,9 @@ void ui_init() {
     window = SDL_CreateWindow("Uotan RISC-V Emulator", FB_WIDTH, FB_HEIGHT, 0);
     if (!window)
         goto ui_fail;
+
+    // Set window icon
+    ui_set_window_icon();
 
     // Create the renderer
     renderer = SDL_CreateRenderer(window, NULL);
