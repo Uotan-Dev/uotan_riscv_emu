@@ -25,11 +25,12 @@ static inline void shutdown(int code) {
 }
 
 int main() {
-    volatile uint32_t a = 1, b = 2, c = 3;
-    volatile uint32_t s = a + b;
-    volatile uint32_t p = a * b;
-    volatile uint32_t v = s / p;
-    volatile uint32_t x = s % p;
+    __attribute__((__unused__)) volatile uint32_t a = 1, b = 2, c = 3;
+    __attribute__((__unused__)) volatile uint32_t s = a + b;
+    __attribute__((__unused__)) volatile uint32_t p = a * b;
+    __attribute__((__unused__)) volatile uint32_t v = s / p;
+    __attribute__((__unused__)) volatile uint32_t x = s % p;
+
     shutdown(0);
     while (true)
         ;
