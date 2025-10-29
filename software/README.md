@@ -9,7 +9,7 @@
 
 ---
 
-## 1) Build the kernel (with initramfs)
+## 1) Build the kernel
 
 A `uemu_defconfig` is provided in the directory. Copy it to `arch/riscv/configs/` and configure:
 
@@ -19,14 +19,14 @@ cp /path/to/uemu_defconfig arch/riscv/configs/uemu_defconfig
 make ARCH=riscv CROSS_COMPILE=riscv64-linux-gnu- uemu_defconfig
 ```
 
-**Embed an initramfs**
+<!-- **Embed an initramfs**
 Before the full `make`, set `CONFIG_INITRAMFS_SOURCE` to point to your `rootfs.cpio`:
 
 ```bash
 nano .config
 # edit .config manually to set:
 # CONFIG_INITRAMFS_SOURCE="/path/to/rootfs.cpio"
-```
+``` -->
 
 Then build the kernel Image:
 
@@ -75,4 +75,8 @@ uemu /path/to/fw_payload.elf
 ```
 
 ## 5) Known bugs
-* The system can't shut down properly with `poweroff`.
+### Linux experience
+* ~~The system can't shut down properly with `poweroff`.~~
+* `agetty` does not start properly on **Debian**.
+* `dbus` fails to start on **Buildroot**.
+* ~~The keyboard (implemented with **goldfish-events**) sometimes **freezes under certain conditions**.~~

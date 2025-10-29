@@ -3,8 +3,11 @@
 **Uotan Emulator** (*uemu*) is a small system emulator that boots real firmware and OS images (OpenSBI, U-Boot, Linux) and runs raw/ELF test binaries. Implemented ISA: **rv64imafdc_zicsr_zifencei**.
 
 ## Boot Demo
+### Alpine Linux v3.22
+![Booting Alpine Linux on uemu](./software/alpine.png)
+
 ### Debian Forky without systemd :(
-![Booting Linux on uemu](./software/linux.png)
+![Booting Debian on uemu](./software/debian.png)
 
 ## Quick facts
 
@@ -24,7 +27,7 @@ Install these on your host before building:
 
 * `cmake` (≥3.14), `make`, `gcc`/`g++` (build tools)
 * `pkg-config`
-* `libsdl2-dev` (SDL2 development package)
+* `libsdl3-dev` (SDL2 development package)
 * `git`
 * `riscv64-unknown-elf-gcc`, `riscv64-unknown-elf-objcopy`, `riscv64-unknown-elf-objdump`
 * (Optional) `gdb-multiarch` or other riscv gdb for remote debugging
@@ -125,6 +128,16 @@ riscof run --config=config.ini --suite=../riscv-arch-test/riscv-test-suite/ --en
 
 * ~~**riscv-arch-test** submodule has been set to our own fork due to GitHub issue [LA macro generates compressed instructions for platform that does not support C extension #659](https://github.com/riscv-non-isa/riscv-arch-test/issues/659)~~
 
+## Known bugs
+
+### Hardware simulation
+* Some CSRs like `menvcfg` is unimplemented.
+
+### Linux experience
+* ~~The system can't shut down properly with `poweroff`.~~
+* `agetty` does not start properly on **Debian**.
+* `dbus` fails to start on **Buildroot**.
+* ~~The keyboard (implemented with **goldfish-events**) sometimes **freezes under certain conditions**.~~
 
 ## TODO
 
