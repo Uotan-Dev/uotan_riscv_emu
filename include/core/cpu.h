@@ -140,6 +140,23 @@ FORCE_INLINE bool cpu_csr_need_lock(uint64_t csr) {
 }
 
 /**
+ * @brief Checks if access to certain csr must trap
+ *
+ * @param csr  The CSR address (e.g., `CSR_MSTATUS`, `CSR_MEPC`, etc.).
+ * @return  whether access to certain csr must trap
+ */
+FORCE_INLINE bool cpu_csr_trap_on_access(uint64_t csr) {
+    csr &= 0xFFF;
+    return (csr >= 0xC03 && csr <= 0xC1F)     // hpmcounter3 ~ hpmcounter31
+           || csr == 0xda0                    // Sscofpmf not implemented
+           || (csr == 0xfb0 || csr == 0x35c)  // Smaia not implemented
+           || (csr >= 0x30C && csr <= 0x30F)  // mstateen not implemented
+           || (csr >= 0x10C && csr <= 0x10F)  // stateen not implemented
+           || (csr == 0x321 || csr == 0x322)  // smcntrpmf not implemented
+           || (csr >= 0x7a0 && csr <= 0x7a4); // sdtrig not implemented
+}
+
+/**
  * @brief Reads the value of a control and status register (CSR).
  *
  * This function retrieves the current value of the specified CSR from the
@@ -154,8 +171,11 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
 #define macro(csr_name)                                                        \
     case CSR_##csr_name: return rv.csr_name;
 
-    // hpmcounter3 ~ hpmcounter31
-    if (unlikely(csr >= 0xC03 && csr <= 0xC1F)) {
+    // Access to certain CSRs must trap
+    // This is introduced to fix extension probing in OpenSBI.
+    // See https://github.com/riscv-software-src/opensbi/blob/v1.7/lib/sbi/sbi_hart.c
+    // TODO: Handle this more elegantly.
+    if (unlikely(cpu_csr_trap_on_access(csr))) {
         cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
         return 0;
     }
