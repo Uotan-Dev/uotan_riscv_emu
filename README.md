@@ -93,6 +93,44 @@ An incomplete [nexus-am](https://github.com/OpenXiangShan/nexus-am) (@OpenXiangS
 
 For [*Introduction to Computer System*](https://nju-projectn.github.io/ics-pa-gitbook/) students, porting [Abstract Machine](https://github.com/NJU-ProjectN/abstract-machine) and [Nanos-lite](https://github.com/NJU-ProjectN/nanos-lite) is an exercise.
 
+## Boot Alpine Linux
+
+The Alpine rootfs, kernel image and OpenSBI firmware used in this example are provided in the `20251030` release on the project releases page. Download the required assets from that release before continuing. See https://github.com/Uotan-Dev/uotan_riscv_emu/releases/tag/20251030
+
+### Required files
+
+* `uemu` — the emulator binary (build from source; see **Build** above)
+* `fw_jump.elf` — OpenSBI binary
+* `Image` (the Linux kernel image) from the release
+* `alpine-<...>.tar` — Alpine rootfs tarball from the release
+
+### Steps
+
+Create a 512 MiB empty disk image and format it as `ext4`:
+
+```bash
+dd if=/dev/zero of=disk.img bs=1M count=512
+mkfs.ext4 disk.img
+```
+
+Mount the image with a loop device, extract the Alpine rootfs into it, then unmount:
+
+```bash
+mkdir -p mnt
+sudo mount disk.img mnt
+cd mnt
+# replace the tar filename with the Alpine tarball you downloaded from the release
+tar -xvf /path/to/alpine-<version>.tar
+cd ..
+sudo umount mnt
+```
+
+Run the emulator, point it at `fw_jump.elf`, load the kernel `Image` at `0x80200000`, and attach the `disk.img`:
+
+```bash
+/path/to/uemu /path/to/fw_jump.elf --load /path/to/Image@0x80200000 --disk /full/path/to/disk.img
+```
+
 ## Unit / integration tests
 
 * Unit / integration tests are bundled into `run_tests` (GoogleTest). Execute:
