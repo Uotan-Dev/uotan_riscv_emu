@@ -1,6 +1,19 @@
 # Uotan Emulator — tiny RISC-V system emulator
 
-**Uotan Emulator** (*uemu*) is a small system emulator that boots real firmware and OS images (OpenSBI, U-Boot, Linux) and runs raw/ELF test binaries. Implemented ISA: **rv64imafdc_zicsr_zifencei**.
+**Uotan Emulator** (*uemu*) is a small rv64gc system emulator that boots real firmware and OS images (OpenSBI, U-Boot, Linux) and runs raw/ELF test binaries.
+
+**Uotan Emulator** supports the following RISC-V ISA features:
+* RV64I base ISAs, v2.1
+* Zifencei extension, v2.0
+* Zicsr extension, v2.0
+* Zicntr extension, v2.0
+* M extension, v2.0
+* A extension, v2.1
+* F extension, v2.2
+* D extension, v2.2
+* C extension, v2.0
+* Svadu extension, v1.0
+* Svade extension, v1.0
 
 ## Boot Demo
 ### Alpine Linux v3.22
