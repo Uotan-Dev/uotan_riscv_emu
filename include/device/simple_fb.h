@@ -17,6 +17,7 @@
 #pragma once
 
 #include <SDL3/SDL.h>
+#include <pthread.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>

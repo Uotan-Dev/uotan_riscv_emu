@@ -32,9 +32,10 @@
 
 #include "uotan_bmp.hpp"
 
-static struct SDL_Window *window;
-static struct SDL_Renderer *renderer;
-static struct SDL_Texture *texture;
+static SDL_Window *window;
+static SDL_Renderer *renderer;
+static SDL_Texture *texture;
+static SDL_Surface *icon;
 
 static bool initialized;
 
@@ -49,14 +50,48 @@ static void ui_set_window_icon() {
     }
 
     // Load BMP from memory
-    SDL_Surface *icon = SDL_LoadBMP_IO(rw, 1);
+    icon = SDL_LoadBMP_IO(rw, 1);
     if (!icon) {
         log_warn("Failed to load embedded icon: %s", SDL_GetError());
         return;
     }
 
     SDL_SetWindowIcon(window, icon);
-    SDL_DestroySurface(icon);
+    // SDL_DestroySurface(icon);
+}
+
+static void ui_startup_screen() {
+    if (!icon) {
+        log_warn("Icon not loaded, skipping startup screen");
+        return;
+    }
+
+    pthread_mutex_lock(&simple_fb.m);
+
+    uint8_t *buf = new uint8_t[FB_SIZE];
+    memset(buf, 0, FB_SIZE);
+
+    int x_offset = (FB_WIDTH - 96) / 2;
+    int y_offset = (FB_HEIGHT - 96) / 2;
+
+    for (int y = 0; y < 96; y++) {
+        uint8_t *src = (uint8_t *)icon->pixels + y * icon->pitch;
+        uint8_t *dst = buf + ((y_offset + y) * FB_WIDTH + x_offset) * FB_BPP;
+        memcpy(dst, src, 96 * FB_BPP);
+    }
+
+    simple_fb.dirty = true;
+    pthread_mutex_unlock(&simple_fb.m);
+
+    SDL_UpdateTexture(texture, nullptr, buf, FB_WIDTH * FB_BPP);
+    SDL_RenderClear(renderer);
+    SDL_RenderTexture(renderer, texture, nullptr, nullptr);
+    SDL_RenderPresent(renderer);
+
+    // delay 1.6s
+    SDL_Delay(1600);
+
+    delete[] buf;
 }
 
 void ui_init() {
@@ -72,7 +107,7 @@ void ui_init() {
     ui_set_window_icon();
 
     // Create the renderer
-    renderer = SDL_CreateRenderer(window, NULL);
+    renderer = SDL_CreateRenderer(window, nullptr);
     if (!renderer)
         goto ui_fail;
 
@@ -87,6 +122,9 @@ void ui_init() {
      * texture alpha for blending.
      */
     SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_NONE);
+
+    // Start splash screen
+    ui_startup_screen();
 
     // Make global update periodic
     ui_update_requested = 0;
@@ -105,15 +143,19 @@ void ui_close() {
     initialized = false;
     if (texture) {
         SDL_DestroyTexture(texture);
-        texture = NULL;
+        texture = nullptr;
     }
     if (renderer) {
         SDL_DestroyRenderer(renderer);
-        renderer = NULL;
+        renderer = nullptr;
     }
     if (window) {
         SDL_DestroyWindow(window);
-        window = NULL;
+        window = nullptr;
+    }
+    if (icon) {
+        SDL_DestroySurface(icon);
+        icon = nullptr;
     }
     SDL_Quit();
 }
@@ -163,7 +205,7 @@ void ui_update() {
 
     if (simple_fb_tick(texture)) {
         SDL_RenderClear(renderer);
-        SDL_RenderTexture(renderer, texture, NULL, NULL);
+        SDL_RenderTexture(renderer, texture, nullptr, nullptr);
         SDL_RenderPresent(renderer);
     }
 
