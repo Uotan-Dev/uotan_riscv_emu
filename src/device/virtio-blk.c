@@ -422,12 +422,40 @@ void vblk_init() {
     assert(vblk.priv);
 
     /* No disk image is provided */
+    char dummy_disk[] = "/tmp/uemu_dummy.img";
     if (!disk_file || *disk_file == '\0') {
-        /* By setting the block capacity to zero, the kernel will
-         * then not to touch the device after booting */
-        log_warn("No disk file has been provided!");
-        VBLK_PRIV(vblk)->capacity = 0;
-        goto register_device;
+        disk_file = dummy_disk;
+        log_warn(
+            "No disk file has been provided! Generating dummy disk file %s",
+            disk_file);
+
+        /* Remove existing dummy file if it exists */
+        if (access(disk_file, F_OK) == 0) {
+            if (unlink(disk_file) == -1) {
+                log_error("Could not remove existing dummy disk %s: %s",
+                          disk_file, strerror(errno));
+                goto fail;
+            }
+        }
+
+#define DUMMY_DISK_SIZE (64 * 1024 * 1024) /* 64MB */
+
+        int disk_fd = open(disk_file, O_RDWR | O_CREAT | O_EXCL, 0644);
+        if (disk_fd < 0) {
+            log_error("Could not create dummy disk %s: %s", disk_file,
+                      strerror(errno));
+            goto fail;
+        }
+
+        if (ftruncate(disk_fd, DUMMY_DISK_SIZE) == -1) {
+            log_error("Could not set dummy disk size: %s", strerror(errno));
+            close(disk_fd);
+            unlink(disk_file);
+            goto fail;
+        }
+
+        close(disk_fd);
+        /* Fall through to normal disk handling */
     }
 
     /* Open disk file */
@@ -480,7 +508,7 @@ void vblk_init() {
     VBLK_PRIV(vblk)->capacity =
         (VBLK_PRIV(vblk)->disk_size - 1) / DISK_BLK_SIZE + 1;
 
-register_device:
+    /* Register the device */
     atexit(vblk_fsync_device);
 
     rv_add_device((device_t){
