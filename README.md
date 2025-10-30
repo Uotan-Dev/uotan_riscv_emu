@@ -135,6 +135,9 @@ riscof run --config=config.ini --suite=../riscv-arch-test/riscv-test-suite/ --en
 
 [A recent test report](https://github.com/snnbyyds/uemu/blob/main/verif/Test%20Report.pdf)
 
+## Plan for JIT
+Visit [uemu_jit_plan](https://github.com/Uotan-Dev/uemu_jit_plan) for our plan for JIT implementation.
+
 ## Notes
 
 * **uemu** implements **rv64imafdc_zicsr_zifencei** only. Images built for other extensions may fail or trap.
