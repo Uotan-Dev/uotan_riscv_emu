@@ -508,5 +508,12 @@ void vblk_destroy() {
     disk_file = NULL;
     munmap(vblk.disk, VBLK_PRIV(vblk)->disk_size);
     free(vblk.priv);
+
+    if (vblk.disk_fd >= 0) {
+        if (close(vblk.disk_fd) == -1)
+            log_error("Failed to close disk fd: %s", strerror(errno));
+        vblk.disk_fd = -1;
+    }
+
     memset(&vblk, 0, sizeof(vblk));
 }
