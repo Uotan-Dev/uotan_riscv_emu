@@ -130,16 +130,25 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
             break;
     }
 
-    uint64_t new_pte = pte | PTE_A;
-    if (type == ACCESS_STORE)
-        new_pte |= PTE_D;
-    if (new_pte != pte) {
-        extern void dram_write(uint64_t addr, uint64_t value, size_t n);
-        // dram_write() performs no check
-        if (likely(paddr_in_pmem(pte_addr)))
-            dram_write(pte_addr, new_pte, 8);
-        else
-            goto access_fault;
+    if (rv.MENVCFG & MENVCFG_ADUE) {
+        // The Svade extension: when a virtual page is accessed and the A bit is
+        // clear, or is written and the D bit is clear, a page - fault exception
+        // is raised.
+        if (unlikely(!(pte & PTE_A) ||
+                     (type == ACCESS_STORE && !(pte & PTE_D))))
+            goto page_fault;
+    } else {
+        uint64_t new_pte = pte | PTE_A;
+        if (type == ACCESS_STORE)
+            new_pte |= PTE_D;
+        if (new_pte != pte) {
+            extern void dram_write(uint64_t addr, uint64_t value, size_t n);
+            // dram_write() performs no check
+            if (likely(paddr_in_pmem(pte_addr)))
+                dram_write(pte_addr, new_pte, 8);
+            else
+                goto access_fault;
+        }
     }
 
     uint64_t page_offset = va & (PAGE_SIZE - 1);

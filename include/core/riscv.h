@@ -103,7 +103,7 @@ extern "C" {
 #define MENVCFG_FIOM (1ULL << 0)
 #define MENVCFG_ADUE (1ULL << 61)
 #define MENVCFG_STCE (1ULL << 63)
-#define MENVCFG_MASK (MENVCFG_FIOM | MENVCFG_STCE)
+#define MENVCFG_MASK (MENVCFG_FIOM | MENVCFG_ADUE | MENVCFG_STCE)
 
 // MSECCFG
 #define MSECCFG_MML (1ULL << 0)   // Machine Mode Lockdown

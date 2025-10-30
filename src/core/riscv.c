@@ -55,7 +55,7 @@ void rv_init() {
     rv.MARCHID = MARCHID_DEFAULT;
     rv.MIMPID = MIMPID_DEFAULT;
     rv.MSTATUS = 0xa00000000; // Initialize with correct SXL and UXL
-    rv.MENVCFG |= MENVCFG_STCE; // Enable Sstc
+    rv.MENVCFG |= MENVCFG_STCE | MENVCFG_ADUE; // Enable Sstc and Svadu
     rv.STIMECMP = UINT64_MAX;
     // keep other CSRs zero
 
