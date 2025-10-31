@@ -20,7 +20,7 @@
 #include <unistd.h>
 
 // include some emu headers
-#include "core/cpu.h"
+#include "core/cpu/dispatch.h"
 #include "core/riscv.h"
 
 /* Sample Tests */

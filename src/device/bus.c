@@ -19,7 +19,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "core/cpu.h"
 #include "core/mem.h"
 #include "device/bus.h"
 #include "utils/logger.h"

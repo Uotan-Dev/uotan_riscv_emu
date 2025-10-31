@@ -20,7 +20,7 @@
 #include <vector>
 
 #include "../utils/test_utils.hpp"
-#include "core/cpu.h"
+#include "core/cpu/dispatch.h"
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "test-common.hpp"

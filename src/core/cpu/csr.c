@@ -14,159 +14,14 @@
  * limitations under the License.
  */
 
-#pragma once
+#include "core/cpu/csr.h"
+#include "core/cpu/fpu.h"
+#include "core/cpu/system.h"
+#include "core/entropy.h"
+#include "core/mem.h"
+#include "core/riscv.h"
 
-#include <assert.h>
-#include <stdint.h>
-
-#include "entropy.h"
-#include "fpu.h"
-#include "mem.h"
-#include "riscv.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/**
- * @brief Let the CPU step once.
- *
- * This function is usually for debugging and testing purposes.
- */
-void cpu_step();
-
-/**
- * @brief Starts normal CPU execution.
- *
- * This function enters the main execution loop and only returns when the
- * machine is shut down by the SiFive test mechanism.
- */
-void cpu_start();
-
-/**
- * @brief Starts CPU execution for riscv-arch-test.
- *
- * This function enters the main execution loop and only returns when it has
- * reached the time limit.
- */
-void cpu_start_archtest();
-
-/**
- * @brief Prints the state of registers.
- */
-void cpu_print_registers();
-
-/**
- * @brief Raise (set) a machine interrupt pending bit in CSR_MIP.
- *
- * This function is used by interrupt controllers (such as CLINT or PLIC)
- * to notify the CPU that an interrupt source has become pending.
- *
- * @details
- * - Each bit in the MIP CSR corresponds to a different interrupt source:
- *   - MIP_MSIP  (bit 3): Machine software interrupt
- *   - MIP_MTIP  (bit 7): Machine timer interrupt
- *   - MIP_MEIP  (bit 11): Machine external interrupt
- *   - Other bits may be implementation-defined.
- *
- * - Calling this function will atomically set the bits specified by `ip`
- *   in the MIP CSR, without affecting other bits.
- *
- * - This function internally locks the CSR subsystem to ensure thread-safety,
- *   since PLIC and CLINT may raise interrupts concurrently in multi-threaded
- *   simulation environments.
- *
- * @param ip Bitmask corresponding to one or more interrupt-pending bits
- *           (e.g. MIP_MSIP, MIP_MTIP, MIP_MEIP).
- * @param priv Privilege level for the target CSR.
- *
- * @note
- * - Typically invoked by CLINT (for MSIP/MTIP) and PLIC (for MEIP).
- * - This only marks the interrupt as pending; whether it actually traps
- *   depends on MIE/MSTATUS enable bits and the current privilege level.
- * - Should never be called from within the CPU core without proper locking,
- *   as it directly modifies interrupt state visible to privileged code.
- */
-void cpu_raise_intr(uint64_t ip, privilege_level_t priv);
-
-/**
- * @brief Clear (unset) a machine interrupt pending bit in CSR_MIP.
- *
- * This function clears specific interrupt-pending bits in the MIP CSR.
- * It is the logical counterpart of `cpu_raise_intr()`.
- *
- * @details
- * - Each bit in MIP represents whether a corresponding interrupt source
- *   is pending; clearing it means that interrupt source is no longer active.
- *
- * - This function performs a read–modify–write on the MIP CSR under lock,
- *   ensuring atomicity and thread safety.
- *
- * @param ip Bitmask corresponding to one or more interrupt-pending bits
- *           (e.g. MIP_MSIP, MIP_MTIP, MIP_MEIP).
- * @param priv Privilege level for the target CSR.
- *
- * @note
- * - Typically used by CLINT (when timer has been reset or MSIP cleared)
- *   or by PLIC (after an interrupt has been acknowledged and completed).
- * - Does not modify interrupt enable state (MIE); it only updates the
- *   pending bits.
- * - Internal locking ensures consistency across concurrent device updates.
- */
-void cpu_clear_intr(uint64_t ip, privilege_level_t priv);
-
-/**
- * @brief Raises a CPU exception.
- *
- * This function triggers an exception with the given cause and trap value. It
- * should only be called inside a CPU loop.
- *
- * @param cause  The exception cause.
- * @param tval   The trap value associated with the exception (e.g., faulting
- * address or instruction).
- */
-void cpu_raise_exception(exception_t cause, uint64_t tval);
-
-/**
- * @brief Judges whether current CSR must be locked before accessing.
- *
- * @param csr  The CSR address.
- * @return  The result indicating whether current CSR must be locked before
- * accessing.
- */
-FORCE_INLINE bool cpu_csr_need_lock(uint64_t csr) {
-    csr &= 0xFFF;
-    return csr == CSR_MIP || csr == CSR_SIP || csr == CSR_TIME;
-}
-
-/**
- * @brief Checks if access to certain csr must trap
- *
- * @param csr  The CSR address (e.g., `CSR_MSTATUS`, `CSR_MEPC`, etc.).
- * @return  whether access to certain csr must trap
- */
-FORCE_INLINE bool cpu_csr_trap_on_access(uint64_t csr) {
-    csr &= 0xFFF;
-    return (csr >= 0xC03 && csr <= 0xC1F)     // hpmcounter3 ~ hpmcounter31
-           || csr == 0xda0                    // Sscofpmf not implemented
-           || (csr == 0xfb0 || csr == 0x35c)  // Smaia not implemented
-           || (csr >= 0x30C && csr <= 0x30F)  // mstateen not implemented
-           || (csr >= 0x10C && csr <= 0x10F)  // stateen not implemented
-           || (csr == 0x321 || csr == 0x322)  // smcntrpmf not implemented
-           || (csr >= 0x7a0 && csr <= 0x7a4); // sdtrig not implemented
-}
-
-/**
- * @brief Reads the value of a control and status register (CSR).
- *
- * This function retrieves the current value of the specified CSR from the
- * simulated CPU state. It should only be used during instruction execution or
- * when simulating CSR read operations.
- *
- * @param csr  The CSR address (e.g., `CSR_MSTATUS`, `CSR_MEPC`, etc.).
- * @return The 64-bit value currently stored in the specified CSR.
- */
-FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
+uint64_t cpu_read_csr(uint64_t csr) {
     // clang-format off
 #define macro(csr_name)                                                        \
     case CSR_##csr_name: return rv.csr_name;
@@ -279,16 +134,7 @@ FORCE_INLINE uint64_t cpu_read_csr(uint64_t csr) {
     __UNREACHABLE;
 }
 
-/**
- * @brief Writes the value of a control and status register (CSR).
- *
- * This function should only be used during instruction execution or
- * when simulating CSR read operations.
- *
- * @param csr  The CSR address (e.g., `CSR_MSTATUS`, `CSR_MEPC`, etc.).
- * @param value The value to be assigned to the register.
- */
-FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
+void cpu_write_csr(uint64_t csr, uint64_t value) {
     // clang-format off
 #define macro(csr_name)                                                        \
     case CSR_##csr_name: rv.csr_name = value; break;
@@ -399,7 +245,3 @@ FORCE_INLINE void cpu_write_csr(uint64_t csr, uint64_t value) {
 
     // clang-format on
 }
-
-#ifdef __cplusplus
-}
-#endif

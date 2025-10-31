@@ -14,10 +14,14 @@
  * limitations under the License.
  */
 
+#include <pthread.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
-#include "core/cpu.h"
+#include "core/cpu/csr.h"
+#include "core/cpu/system.h"
+#include "core/riscv.h"
 #include "device/plic.h"
 #include "utils/logger.h"
 

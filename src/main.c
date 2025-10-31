@@ -23,7 +23,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "core/cpu.h"
+#include "core/cpu/dispatch.h"
+#include "core/mem.h"
 #include "core/riscv.h"
 #include "ui/ui.h"
 #include "utils/alarm.h"

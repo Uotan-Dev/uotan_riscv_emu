@@ -15,7 +15,7 @@
  */
 
 #include "core/mem.h"
-#include "core/cpu.h"
+#include "core/cpu/csr.h"
 #include "device/bus.h"
 
 /**

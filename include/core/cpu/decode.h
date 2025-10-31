@@ -132,6 +132,9 @@ finish:
     concat(__instpat_end_, name) :;                                            \
     }
 
+void decode_exec_32(Decode *s);
+void decode_exec_16(Decode *s);
+
 #ifdef __cplusplus
 }
 #endif

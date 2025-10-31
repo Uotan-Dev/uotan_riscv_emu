@@ -21,7 +21,7 @@
 #include <string.h>
 
 #include "common.h"
-#include "core/cpu.h"
+#include "core/cpu/csr.h"
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "device/bus.h"
@@ -108,52 +108,6 @@ void rv_add_device(device_t dev) {
     log_info("Added device %s at [0x%08" PRIx64 ", 0x%08" PRIx64 "]", dev.name,
              dev.start, dev.end);
     bus_add_device(dev);
-}
-
-interrupt_t rv_get_pending_interrupt() {
-    pthread_mutex_lock(&rv.csr_lock);
-    uint64_t m_pending = cpu_read_csr(CSR_MIE) & cpu_read_csr(CSR_MIP) &
-                         ~cpu_read_csr(CSR_MIDELEG);
-    uint64_t s_pending = cpu_read_csr(CSR_SIE) & cpu_read_csr(CSR_SIP);
-    pthread_mutex_unlock(&rv.csr_lock);
-
-    uint64_t pending = 0;
-    switch (rv.privilege) {
-        case PRIV_M:
-            if (cpu_read_csr(CSR_MSTATUS) & MSTATUS_MIE)
-                pending = m_pending;
-            break;
-        case PRIV_S:
-            if (cpu_read_csr(CSR_MSTATUS) & MSTATUS_MIE)
-                pending = m_pending;
-            else if (cpu_read_csr(CSR_SSTATUS) & SSTATUS_SIE)
-                pending = s_pending;
-            break;
-        case PRIV_U: break;
-    }
-
-    if (pending == 0)
-        return CAUSE_INTERRUPT_NONE;
-
-    // External
-    if (pending & MIP_MEIP)
-        return CAUSE_MACHINE_EXTERNAL;
-    if (pending & SIP_SEIP)
-        return CAUSE_SUPERVISOR_EXTERNAL;
-
-    // Software
-    if (pending & MIP_MSIP)
-        return CAUSE_MACHINE_SOFTWARE;
-    if (pending & SIP_SSIP)
-        return CAUSE_SUPERVISOR_SOFTWARE;
-
-    // Timer
-    if (pending & MIP_MTIP)
-        return CAUSE_MACHINE_TIMER;
-    if (pending & SIP_STIP)
-        return CAUSE_SUPERVISOR_TIMER;
-
-    return CAUSE_INTERRUPT_NONE;
 }
 
 void rv_shutdown(int code, shutdown_cause_t cause) {

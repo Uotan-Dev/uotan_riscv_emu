@@ -16,7 +16,7 @@
 
 #include <string.h>
 
-#include "core/cpu.h"
+#include "core/cpu/csr.h"
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "device/clint.h"
