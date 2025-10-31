@@ -16,14 +16,17 @@
 * Svade extension, v1.0
 
 ## Boot Demo
-### Alpine Linux v3.22
+### [Alpine Linux v3.22](https://www.alpinelinux.org/)
 ![Booting Alpine Linux on uemu](./software/alpine.png)
 
-### Debian Forky without systemd :(
+### [Das U-Boot](https://u-boot.org/)
+![Booting U-Boot on uemu](./software/u-boot.png)
+
+### [Debian Forky](https://www.debian.org/) (without systemd)
 ![Booting Debian on uemu](./software/debian.png)
 
-### Das U-Boot
-![Booting U-Boot on uemu](./software/u-boot.png)
+### [fceux-am](https://github.com/NJU-ProjectN/fceux-am) (`@NJU-ProjectN`'s port for FCEUX)
+![FCEUX-AM](./software/fceux-am.png)
 
 ## Quick facts
 
