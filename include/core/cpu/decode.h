@@ -25,36 +25,24 @@
 #include <stdint.h>
 
 #include "common.h"
+#include "exec.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct {
+typedef struct _Decode {
     uint64_t pc;
     uint64_t npc;  // next PC
-    uint32_t inst; // instruction
+    uint32_t inst; // raw instruction
+
+    // decoded fields
+    int rd, rs1, rs2, rs3;
+    uint64_t imm;
+
+    // instruction executor
+    rv_exec_t exec;
 } Decode;
-
-/**
- * The decoding algorithm is taken from NJU emulator
- * Keeping the original license here
- */
-
-/***************************************************************************************
- * Copyright (c) 2014-2024 Zihao Yu, Nanjing University
- *
- * NEMU is licensed under Mulan PSL v2.
- * You can use this software according to the terms and conditions of the Mulan
- *PSL v2. You may obtain a copy of Mulan PSL v2 at:
- *          http://license.coscl.org.cn/MulanPSL2
- *
- * THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY
- *KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
- *NON-INFRINGEMENT, MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
- *
- * See the Mulan PSL v2 for more details.
- ***************************************************************************************/
 
 // --- pattern matching mechanism ---
 FORCE_INLINE void pattern_decode(const char *str, int len, uint64_t *key,
@@ -132,8 +120,8 @@ finish:
     concat(__instpat_end_, name) :;                                            \
     }
 
-void decode_exec_32(Decode *s);
-void decode_exec_16(Decode *s);
+void cpu_decode_32(Decode *s);
+void cpu_decode_16(Decode *s);
 
 #ifdef __cplusplus
 }

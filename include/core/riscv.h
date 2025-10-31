@@ -108,7 +108,7 @@ typedef struct {
     bool reservation_valid;
 
     // Last exception
-    exception_t last_exception; // this is now only used in memory system
+    exception_t last_exception;
 
     // Seed CSR related
     bool seed_written;

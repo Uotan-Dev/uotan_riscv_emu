@@ -40,7 +40,8 @@ FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
     s->inst = vaddr_ifetch(pc, &len);
     if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
         s->npc = pc + len;
-        len == 4 ? decode_exec_32(s) : decode_exec_16(s);
+        len == 4 ? cpu_decode_32(s) : cpu_decode_16(s);
+        cpu_exec_inst(s);
     }
     rv.PC = s->npc;
     rv.MCYCLE++;
