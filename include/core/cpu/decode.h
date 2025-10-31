@@ -32,7 +32,8 @@ extern "C" {
 #endif
 
 typedef struct _Decode {
-    uint64_t pc;
+    uint64_t ppc;  // previous PC
+    uint64_t pc;   // current PC
     uint64_t npc;  // next PC
     uint32_t inst; // raw instruction
 

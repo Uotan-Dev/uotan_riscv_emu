@@ -19,12 +19,11 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "common.h"
 #include "core/cpu/csr.h"
-#include "core/cpu/decode.h"
 #include "core/cpu/dispatch.h"
+#include "core/cpu/interpreter.h"
 #include "core/cpu/system.h"
-#include "core/mem.h"
+#include "core/riscv.h"
 #include "device/clint.h"
 #include "device/goldfish_battery.h"
 #include "device/goldfish_rtc.h"
@@ -33,23 +32,6 @@
 #include "utils/alarm.h"
 #include "utils/logger.h"
 #include "utils/slowtimer.h"
-
-FORCE_INLINE void cpu_exec_once(Decode *s, uint64_t pc) {
-    s->pc = pc;
-    size_t len;
-    s->inst = vaddr_ifetch(pc, &len);
-    if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-        s->npc = pc + len;
-        len == 4 ? cpu_decode_32(s) : cpu_decode_16(s);
-        cpu_exec_inst(s);
-    }
-    rv.PC = s->npc;
-    rv.MCYCLE++;
-    if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE &&
-               !rv.suppress_minstret_increase))
-        rv.MINSTRET++;
-    rv.suppress_minstret_increase = false;
-}
 
 static pthread_t cpu_thread;
 static pthread_mutex_t cpu_mutex = PTHREAD_MUTEX_INITIALIZER;
@@ -76,7 +58,7 @@ static void *cpu_thread_func(void *arg) {
             if (unlikely(intr != CAUSE_INTERRUPT_NONE))
                 cpu_process_intr(intr);
         }
-        cpu_exec_once(&rv.decode, rv.PC);
+        cpu_interp_step(&rv.decode, rv.PC);
         inst_cnt++;
     }
 
@@ -167,7 +149,7 @@ void cpu_start() {
         interrupt_t intr = cpu_get_pending_intr();                             \
         if (unlikely(intr != CAUSE_INTERRUPT_NONE))                            \
             cpu_process_intr(intr);                                            \
-        cpu_exec_once(&rv.decode, rv.PC);                                      \
+        cpu_interp_step(&rv.decode, rv.PC);                                    \
     } while (0)
 
 void cpu_step() {
