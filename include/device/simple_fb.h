@@ -22,20 +22,16 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define FB_WIDTH 1024
-#define FB_HEIGHT 768
 #define FB_BPP 4 // Bytes per pixel (32-bit color)
-#define FB_SIZE (FB_WIDTH * FB_HEIGHT * FB_BPP)
 
 #define SIMPLEFB_BASE 0x50000000
-#define SIMPLEFB_SIZE FB_SIZE
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 typedef struct {
-    uint8_t vram[FB_SIZE];
+    uint8_t *vram;
     bool dirty; // Whether vram has been written
     pthread_mutex_t m;
 } simple_fb_t;

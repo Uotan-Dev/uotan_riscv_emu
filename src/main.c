@@ -57,13 +57,14 @@ static void print_usage(const char *progname) {
     printf("      --signature FILE      Write signature output to FILE\n");
     printf("      --load FILE@0xADDR    Load binary FILE to address 0xADDR\n");
     printf("                            Can be specified multiple times\n");
+    printf("      --small-screen        Use 400x300 screen resolution\n");
     printf("\nExamples:\n");
     printf("  %s hello.bin\n", progname);
     printf("  %s --gdb hello.bin\n", progname);
     printf("  %s --disk disk.img hello.bin\n", progname);
     printf("  %s --load data.bin@0x80100000 hello.bin\n", progname);
     printf("  %s --load data1.bin@0x80100000 --load data2.bin@0x80200000 "
-           "hello.bin\n",
+           "--small-screen hello.bin\n",
            progname);
     printf("  %s --help\n", progname);
 }
@@ -116,13 +117,14 @@ static void parse_args(int argc, char *argv[]) {
         {"disk", required_argument, NULL, 'd'},
         {"signature", required_argument, NULL, 's'},
         {"load", required_argument, NULL, 'l'},
+        {"small-screen", no_argument, NULL, 'S'},
         {NULL, 0, NULL, 0}};
 
     int opt;
     int option_index = 0;
 
-    while ((opt = getopt_long(argc, argv, "hg", long_options, &option_index)) !=
-           -1) {
+    while ((opt = getopt_long(argc, argv, "hgS", long_options,
+                              &option_index)) != -1) {
         switch (opt) {
             case 'h':
                 print_usage(argv[0]);
@@ -137,6 +139,7 @@ static void parse_args(int argc, char *argv[]) {
                     exit(EXIT_FAILURE);
                 }
                 break;
+            case 'S': ui_set_small(); break;
             case '?':
                 /* getopt_long already printed error message */
                 print_usage(argv[0]);

@@ -21,7 +21,18 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include <stddef.h>
 
+extern bool ui_small_screen;
+extern size_t ui_height, ui_width;
+
+#define UI_WIDTH_DEFAULT 1024
+#define UI_HEIGHT_DEFAULT 768
+
+#define UI_WIDTH_SMALL 400
+#define UI_HEIGHT_SMALL 300
+
+void ui_set_small();
 void ui_init();
 void ui_close();
 bool ui_initialized();

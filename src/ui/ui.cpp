@@ -32,10 +32,15 @@
 
 #include "uotan_bmp.hpp"
 
+bool ui_small_screen = false;
+size_t ui_height = UI_HEIGHT_DEFAULT;
+size_t ui_width = UI_WIDTH_DEFAULT;
+
 static SDL_Window *window;
 static SDL_Renderer *renderer;
 static SDL_Texture *texture;
 static SDL_Surface *icon;
+static const char *title = "Uotan RISC-V Emulator";
 
 static bool initialized;
 
@@ -68,22 +73,23 @@ static void ui_startup_screen() {
 
     pthread_mutex_lock(&simple_fb.m);
 
-    uint8_t *buf = new uint8_t[FB_SIZE];
-    memset(buf, 0, FB_SIZE);
+    const size_t fb_size = ui_width * ui_height * FB_BPP;
+    uint8_t *buf = new uint8_t[fb_size];
+    memset(buf, 0, fb_size);
 
-    int x_offset = (FB_WIDTH - 96) / 2;
-    int y_offset = (FB_HEIGHT - 96) / 2;
+    int x_offset = (ui_width - 96) >> 1;
+    int y_offset = (ui_height - 96) >> 1;
 
     for (int y = 0; y < 96; y++) {
         uint8_t *src = (uint8_t *)icon->pixels + y * icon->pitch;
-        uint8_t *dst = buf + ((y_offset + y) * FB_WIDTH + x_offset) * FB_BPP;
+        uint8_t *dst = buf + ((y_offset + y) * ui_width + x_offset) * FB_BPP;
         memcpy(dst, src, 96 * FB_BPP);
     }
 
     simple_fb.dirty = true;
     pthread_mutex_unlock(&simple_fb.m);
 
-    SDL_UpdateTexture(texture, nullptr, buf, FB_WIDTH * FB_BPP);
+    SDL_UpdateTexture(texture, nullptr, buf, ui_width * FB_BPP);
     SDL_RenderClear(renderer);
     SDL_RenderTexture(renderer, texture, nullptr, nullptr);
     SDL_RenderPresent(renderer);
@@ -94,12 +100,22 @@ static void ui_startup_screen() {
     delete[] buf;
 }
 
+void ui_set_small() {
+    ui_small_screen = true;
+    ui_height = UI_HEIGHT_SMALL;
+    ui_width = UI_WIDTH_SMALL;
+}
+
 void ui_init() {
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS))
         goto ui_fail;
 
     // Create the window
-    window = SDL_CreateWindow("Uotan RISC-V Emulator", FB_WIDTH, FB_HEIGHT, 0);
+    if (ui_small_screen)
+        window = SDL_CreateWindow(title, ui_width * 3, ui_height * 3, 0);
+    else
+        window = SDL_CreateWindow(title, ui_width, ui_height, 0);
+
     if (!window)
         goto ui_fail;
 
@@ -113,7 +129,7 @@ void ui_init() {
 
     // Create the texture
     texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
-                                SDL_TEXTUREACCESS_STATIC, FB_WIDTH, FB_HEIGHT);
+                                SDL_TEXTUREACCESS_STATIC, ui_width, ui_height);
     if (!texture)
         goto ui_fail;
     /* For SDL3.
