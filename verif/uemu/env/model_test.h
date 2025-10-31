@@ -15,6 +15,9 @@
   li x1, 1;                                                                   \
   write_tohost:                                                               \
     sw x1, tohost, t5;                                                        \
+    lui t2, 0x100;                                                            \
+    li t0, 0x5555;                                                            \
+    sw t0, 0(t2);                                                             \
     j write_tohost;
 
 #define RVMODEL_BOOT

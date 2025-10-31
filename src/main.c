@@ -268,8 +268,10 @@ int main(int argc, char *argv[]) {
     if (opt_gdb) {
         gdbstub_emu_start();
     } else if (signature_out_file) {
+        log_warn("Running in archtest mode");
         cpu_start_archtest();
-        dump_signature(bin_file, signature_out_file);
+        if (rv.shutdown) // Dump signature only if we have shutdown gracefully
+            dump_signature(bin_file, signature_out_file);
     } else {
         // Start the UI
         ui_init();

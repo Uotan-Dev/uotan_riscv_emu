@@ -163,19 +163,20 @@ void cpu_step() {
 }
 
 void cpu_start_archtest() {
-    // FIXME: Use a better way to end the test
     uint64_t start = slowtimer_get_microseconds();
-    alarm_turn(true);
+    // alarm_turn(true);
     for (size_t i = 0; i < SIZE_MAX; i++) {
-        if (i % 1000 == 1 && slowtimer_get_microseconds() - start > 4000000)
+        if (unlikely(rv.shutdown))
             break;
-        if (rv.shutdown)
-            continue;
+        if (i % 1000 == 1 && slowtimer_get_microseconds() - start > 4000000) {
+            log_error("TLE");
+            break;
+        }
         clint_tick();
-        uart_tick();
+        // uart_tick();
         CPU_EXEC_COMMON();
     }
-    alarm_turn(false);
+    // alarm_turn(false);
 }
 
 // clang-format off
