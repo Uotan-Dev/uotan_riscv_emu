@@ -116,7 +116,7 @@ typedef struct {
     // Memory
 #define MSIZE 0x20000000
 #define MBASE 0x80000000
-    uint8_t memory[MSIZE] __attribute((aligned(4096)));
+    uint8_t memory[MSIZE + 8] __attribute((aligned(4096)));
 
     // Track current running instruction
     rv_insn_t *ir;

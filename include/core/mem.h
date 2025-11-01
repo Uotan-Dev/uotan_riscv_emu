@@ -53,6 +53,26 @@ FORCE_INLINE bool paddr_in_pmem(uint64_t addr) {
     return addr_in_range(addr, MBASE, MSIZE);
 }
 
+FORCE_INLINE uint64_t pmem_read(uint64_t addr, size_t n) {
+    switch (n) {
+        case 1: return *(uint8_t *)addr;
+        case 2: return *(uint16_t *)addr;
+        case 4: return *(uint32_t *)addr;
+        case 8: return *(uint64_t *)addr;
+    }
+    __UNREACHABLE;
+}
+
+FORCE_INLINE void pmem_write(uint64_t addr, size_t n, uint64_t value) {
+    switch (n) {
+        case 1: *(uint8_t *)addr = value;
+        case 2: *(uint16_t *)addr = value;
+        case 4: *(uint32_t *)addr = value;
+        case 8: *(uint64_t *)addr = value;
+    }
+    __UNREACHABLE;
+}
+
 /**
  * @brief Reads a 64-bit doubleword from the specified virtual address.
  *

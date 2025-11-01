@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include "common.h"
@@ -32,7 +33,6 @@ extern "C" {
 #endif
 
 typedef struct _rv_insn {
-    uint64_t ppc;  // previous PC
     uint64_t pc;   // current PC
     uint64_t npc;  // next PC
     uint32_t inst; // raw instruction
@@ -43,6 +43,12 @@ typedef struct _rv_insn {
 
     // instruction executor
     rv_exec_t exec;
+
+    // physical address of the insn
+    uint64_t pa;
+
+    // length of the insn
+    size_t len;
 } rv_insn_t;
 
 // --- pattern matching mechanism ---
