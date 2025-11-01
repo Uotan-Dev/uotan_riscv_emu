@@ -118,8 +118,8 @@ typedef struct {
 #define MBASE 0x80000000
     uint8_t memory[MSIZE] __attribute((aligned(4096)));
 
-    // Decoder status
-    rv_insn_t decode;
+    // Track current running instruction
+    rv_insn_t *ir;
 
     // Bus status
     bus_t bus;
