@@ -14,22 +14,26 @@
  * limitations under the License.
  */
 
+#include "core/cpu/interpreter.h"
 #include "core/cpu/decode.h"
 #include "core/cpu/exec.h"
 #include "core/cpu/system.h"
 #include "core/mem.h"
 #include "core/riscv.h"
 
-void cpu_interp_step(rv_insn_t *s, uint64_t pc) {
-    s->pc = pc;
+static rv_insn_t interp_ir;
+
+void cpu_interp_step(uint64_t pc) {
+    rv.ir = &interp_ir;
+    interp_ir.pc = pc;
     size_t len;
-    s->inst = vaddr_ifetch(pc, &len);
+    interp_ir.inst = vaddr_ifetch(pc, &len);
     if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
-        s->npc = pc + len;
-        len == 4 ? cpu_decode_32(s) : cpu_decode_16(s);
-        cpu_exec_inst(s);
+        interp_ir.npc = pc + len;
+        len == 4 ? cpu_decode_32(&interp_ir) : cpu_decode_16(&interp_ir);
+        cpu_exec_inst(&interp_ir);
     }
-    rv.PC = s->npc;
+    rv.PC = interp_ir.npc;
     rv.MCYCLE++;
     if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE &&
                !rv.suppress_minstret_increase))

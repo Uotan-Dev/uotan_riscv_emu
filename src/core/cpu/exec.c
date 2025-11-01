@@ -55,14 +55,14 @@ void cpu_exec_inst(rv_insn_t *s) {
     do {                                                                       \
         if (((((csr) >> 8) & 0x3) == 3 && rv.privilege < PRIV_M) ||            \
             ((((csr) >> 8) & 0x3) == 1 && rv.privilege < PRIV_S))              \
-            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);      \
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);             \
     } while (0)
 
 #define FP_INST_PREP()                                                         \
     do {                                                                       \
         assert(softfloat_exceptionFlags == 0);                                 \
         if ((rv.MSTATUS & MSTATUS_FS) == 0)                                    \
-            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);      \
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);             \
     } while (0)
 
 #define FP_SETUP_RM()                                                          \
@@ -71,7 +71,7 @@ void cpu_exec_inst(rv_insn_t *s) {
         if (rm == FRM_DYN)                                                     \
             rm = rv.FCSR.fields.frm;                                           \
         if (unlikely(rm > FRM_RMM))                                            \
-            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);      \
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->pc);             \
         else                                                                   \
             softfloat_roundingMode = rm;                                       \
     } while (0)
