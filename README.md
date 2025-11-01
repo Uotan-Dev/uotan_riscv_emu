@@ -14,6 +14,8 @@
 * C extension, v2.0
 * Svadu extension, v1.0
 * Svade extension, v1.0
+* Zca extension, v1.0
+* Zcd extension, v1.0
 
 ## Boot Demo
 ### [Alpine Linux v3.22](https://www.alpinelinux.org/)
