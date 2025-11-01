@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-void cpu_interp_step(Decode *s, uint64_t pc);
+void cpu_interp_step(rv_insn_t *s, uint64_t pc);
 
 #ifdef __cplusplus
 }

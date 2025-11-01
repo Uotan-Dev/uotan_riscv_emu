@@ -20,7 +20,7 @@
 #include "core/mem.h"
 #include "core/riscv.h"
 
-void cpu_interp_step(Decode *s, uint64_t pc) {
+void cpu_interp_step(rv_insn_t *s, uint64_t pc) {
     s->pc = pc;
     size_t len;
     s->inst = vaddr_ifetch(pc, &len);

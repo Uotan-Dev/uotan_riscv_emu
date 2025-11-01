@@ -161,7 +161,7 @@ typedef enum {
             *imm = raw;                                                        \
     } while (0)
 
-FORCE_INLINE void decode_operand_32(Decode *s, int *rd, int *rs1, int *rs2,
+FORCE_INLINE void decode_operand_32(rv_insn_t *s, int *rd, int *rs1, int *rs2,
                                     int *rs3, uint64_t *imm, inst_type_t type) {
     uint32_t i = s->inst;
     *rs1 = BITS(i, 19, 15);
@@ -181,7 +181,7 @@ FORCE_INLINE void decode_operand_32(Decode *s, int *rd, int *rs1, int *rs2,
     }
 }
 
-FORCE_INLINE void decode_operand_16(Decode *s, int *rd, int *rs1, int *rs2,
+FORCE_INLINE void decode_operand_16(rv_insn_t *s, int *rd, int *rs1, int *rs2,
                                     uint64_t *imm, inst_type_t type) {
     uint16_t i = s->inst & 0xffff;
     uint8_t funct3;
@@ -304,7 +304,7 @@ FORCE_INLINE void decode_operand_16(Decode *s, int *rd, int *rs1, int *rs2,
         (s)->exec = exec_##name;                                               \
     }
 
-void cpu_decode_32(Decode *s) {
+void cpu_decode_32(rv_insn_t *s) {
     INSTPAT_START();
 
     // RV64I instructions
@@ -499,7 +499,7 @@ void cpu_decode_32(Decode *s) {
         (s)->exec = exec_##name;                                               \
     }
 
-void cpu_decode_16(Decode *s) {
+void cpu_decode_16(rv_insn_t *s) {
     INSTPAT_START();
 
     // RV64C instructions

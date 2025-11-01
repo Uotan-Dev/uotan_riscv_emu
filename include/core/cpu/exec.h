@@ -49,10 +49,10 @@
     f(inv)
 // clang-format on
 
-#define RV_EXEC_IMPL(inst_name) void exec_##inst_name(Decode *s);
+#define RV_EXEC_IMPL(inst_name) void exec_##inst_name(rv_insn_t *s);
 
-typedef struct _Decode Decode;
-typedef void (*rv_exec_t)(Decode *);
+typedef struct _rv_insn rv_insn_t;
+typedef void (*rv_exec_t)(rv_insn_t *);
 
 #ifdef __cplusplus
 extern "C" {
@@ -60,7 +60,7 @@ extern "C" {
 
 RISCV_INSTRUCTIONS(RV_EXEC_IMPL)
 
-void cpu_exec_inst(Decode *s);
+void cpu_exec_inst(rv_insn_t *s);
 
 #ifdef __cplusplus
 }

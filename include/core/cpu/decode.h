@@ -31,7 +31,7 @@
 extern "C" {
 #endif
 
-typedef struct _Decode {
+typedef struct _rv_insn {
     uint64_t ppc;  // previous PC
     uint64_t pc;   // current PC
     uint64_t npc;  // next PC
@@ -43,7 +43,7 @@ typedef struct _Decode {
 
     // instruction executor
     rv_exec_t exec;
-} Decode;
+} rv_insn_t;
 
 // --- pattern matching mechanism ---
 FORCE_INLINE void pattern_decode(const char *str, int len, uint64_t *key,
@@ -121,8 +121,8 @@ finish:
     concat(__instpat_end_, name) :;                                            \
     }
 
-void cpu_decode_32(Decode *s);
-void cpu_decode_16(Decode *s);
+void cpu_decode_32(rv_insn_t *s);
+void cpu_decode_16(rv_insn_t *s);
 
 #ifdef __cplusplus
 }

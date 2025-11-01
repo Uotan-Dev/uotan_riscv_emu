@@ -17,7 +17,6 @@
 #pragma once
 
 #include <pthread.h>
-#include <stdatomic.h>
 #include <stdbool.h>
 #include <stdint.h>
 
@@ -120,7 +119,7 @@ typedef struct {
     uint8_t memory[MSIZE] __attribute((aligned(4096)));
 
     // Decoder status
-    Decode decode;
+    rv_insn_t decode;
 
     // Bus status
     bus_t bus;
