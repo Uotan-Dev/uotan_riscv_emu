@@ -117,9 +117,16 @@ typedef struct {
 #define MSIZE 0x20000000
 #define MBASE 0x80000000
     uint8_t memory[MSIZE] __attribute((aligned(4096)));
+    bool memory_dirty; // whether last instruction modifies the memory
 
     // Track current running instruction
     rv_insn_t *ir;
+
+    // Whether last instruction is fetched with mmu
+    bool last_fetch_with_mmu;
+
+    // Whether last instruction modifies satp
+    bool satp_dirty;
 
     // Bus status
     bus_t bus;

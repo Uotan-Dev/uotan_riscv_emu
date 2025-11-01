@@ -172,8 +172,12 @@ void cpu_write_csr(uint64_t csr, uint64_t value) {
             // the entire write has no effect;
             // no fields in satp are modified.
             uint64_t mode = GET_SATP_MODE(value);
-            if (mode == 0 || mode == SATP_MODE_SV39)
-                rv.SATP = value;
+            if (mode == 0 || mode == SATP_MODE_SV39) {
+                if (value != rv.SATP) {
+                    rv.SATP = value;
+                    rv.satp_dirty = true;
+                }
+            }
             break;
         }
         case CSR_SSTATUS: {

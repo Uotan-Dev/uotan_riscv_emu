@@ -35,6 +35,7 @@ typedef struct _rv_insn {
     uint64_t ppc;  // previous PC
     uint64_t pc;   // current PC
     uint64_t npc;  // next PC
+    uint64_t pa;   // physical address
     uint32_t inst; // raw instruction
 
     // decoded fields

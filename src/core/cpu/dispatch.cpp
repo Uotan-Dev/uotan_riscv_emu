@@ -52,7 +52,6 @@ static void *cpu_thread_func(void *arg) {
     for (uint64_t i = 0; i < UINT64_MAX; i++) {
         if (unlikely(rv.shutdown))
             break;
-        rv.last_exception = CAUSE_EXCEPTION_NONE;
         if ((i & 32767) == 0) {
             interrupt_t intr = cpu_get_pending_intr();
             if (unlikely(intr != CAUSE_INTERRUPT_NONE))

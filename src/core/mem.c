@@ -241,6 +241,7 @@ VADDR_READ_IMPL(b, uint8_t, 1)
             vaddr_raise_exception(r, addr);                                    \
             return;                                                            \
         }                                                                      \
+        rv.memory_dirty = true;                                                \
         bus_write(paddr, data, n);                                             \
     }
 
@@ -255,12 +256,32 @@ uint32_t vaddr_ifetch(uint64_t addr, size_t *len) {
         return 0;
     }
 
-    uint64_t paddr;
-    mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_INSN);
+    bool fetch_with_mmu =
+        rv.privilege != PRIV_M && GET_SATP_MODE(rv.SATP) != SATP_MODE_BARE;
 
-    if (unlikely(r != TRANSLATE_OK)) {
-        vaddr_raise_exception(r, addr);
-        return 0;
+    uint64_t paddr;
+    mmu_result_t r;
+
+    // Try to skip MMU if
+    // 1. both instructions are fetched with MMU
+    // 2. last instruction is impossible to modify the page table
+    // 3. last instruction does not change satp
+    // 4. both instructions are on the same page
+    // 5. no exception has happened
+    if (fetch_with_mmu && !rv.memory_dirty &&
+        addr >> PAGE_SHIFT == rv.ir->ppc >> PAGE_SHIFT &&
+        rv.last_fetch_with_mmu && !rv.satp_dirty &&
+        rv.last_exception == CAUSE_EXCEPTION_NONE) {
+        // rv.ir still contains the old pa
+        // calculate pa directly
+        paddr = rv.ir->pa + addr - rv.ir->ppc;
+    } else {
+        rv.last_exception = CAUSE_EXCEPTION_NONE;
+        r = vaddr_translate(addr, &paddr, ACCESS_INSN);
+        if (unlikely(r != TRANSLATE_OK)) {
+            vaddr_raise_exception(r, addr);
+            return 0;
+        }
     }
 
     uint32_t inst = bus_ifetch(paddr);
@@ -270,7 +291,7 @@ uint32_t vaddr_ifetch(uint64_t addr, size_t *len) {
     }
 
     *len = 4;
-    if (likely((paddr & (PAGE_SIZE - 1)) <= PAGE_SIZE - 4))
+    if (likely((paddr & (PAGE_SIZE - 1)) <= PAGE_SIZE - 4) || !fetch_with_mmu)
         return inst;
 
     uint32_t inst_lo = inst & 0xffff;

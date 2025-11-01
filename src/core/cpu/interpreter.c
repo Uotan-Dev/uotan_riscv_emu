@@ -25,14 +25,21 @@ static rv_insn_t interp_ir;
 
 void cpu_interp_step(uint64_t pc) {
     rv.ir = &interp_ir;
+    interp_ir.ppc = interp_ir.pc;
     interp_ir.pc = pc;
+
     size_t len;
     interp_ir.inst = vaddr_ifetch(pc, &len);
+
+    rv.memory_dirty = false;
+    rv.satp_dirty = false;
+
     if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
         interp_ir.npc = pc + len;
         len == 4 ? cpu_decode_32(&interp_ir) : cpu_decode_16(&interp_ir);
         cpu_exec_inst(&interp_ir);
     }
+
     rv.PC = interp_ir.npc;
     rv.MCYCLE++;
     if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE &&
