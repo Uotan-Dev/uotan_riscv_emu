@@ -128,8 +128,9 @@ void ui_init() {
         goto ui_fail;
 
     // Create the texture
-    texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
-                                SDL_TEXTUREACCESS_STATIC, ui_width, ui_height);
+    texture =
+        SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+                          SDL_TEXTUREACCESS_STREAMING, ui_width, ui_height);
     if (!texture)
         goto ui_fail;
     /* For SDL3.
