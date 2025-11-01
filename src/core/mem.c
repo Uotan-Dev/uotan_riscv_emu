@@ -131,13 +131,10 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
     }
 
     if (rv.MENVCFG & MENVCFG_ADUE) {
-        // The Svade extension: when a virtual page is accessed and the A bit is
-        // clear, or is written and the D bit is clear, a page - fault exception
-        // is raised.
-        if (unlikely(!(pte & PTE_A) ||
-                     (type == ACCESS_STORE && !(pte & PTE_D))))
-            goto page_fault;
-    } else {
+        // When ADUE=1, hardware updating of PTE A/D
+        // bits is enabled during S-mode address translation, and the
+        // implementation behaves as though the Svade extension were not
+        // implemented for S-mode address translation.
         uint64_t new_pte = pte | PTE_A;
         if (type == ACCESS_STORE)
             new_pte |= PTE_D;
@@ -149,6 +146,13 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
             else
                 goto access_fault;
         }
+    } else {
+        // The Svade extension: when a virtual page is accessed and the A bit is
+        // clear, or is written and the D bit is clear, a page - fault exception
+        // is raised.
+        if (unlikely(!(pte & PTE_A) ||
+                     (type == ACCESS_STORE && !(pte & PTE_D))))
+            goto page_fault;
     }
 
     uint64_t page_offset = va & (PAGE_SIZE - 1);
