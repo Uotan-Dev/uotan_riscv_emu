@@ -19,11 +19,14 @@
 #include <list>
 #include <unordered_map>
 
-/**
- * O(1) LRU Cache with automatic memory management for pointers.
- * NOT thread-safe - use external synchronization if needed.
- */
-template <typename Key, typename Value> class LruCache {
+template <typename Key, typename Value,
+          template <typename...> class Map = std::unordered_map>
+class LruCache {
+private:
+    using ListType = std::list<std::pair<Key, Value>>;
+    using IteratorType = typename ListType::iterator;
+    using MapType = Map<Key, IteratorType>;
+
 public:
     explicit LruCache(size_t max_size) : _max_size(max_size) {}
 
@@ -102,7 +105,6 @@ public:
 
 private:
     size_t _max_size;
-    std::list<std::pair<Key, Value>> _cache_list; // Front = MRU, Back = LRU
-    std::unordered_map<Key, typename std::list<std::pair<Key, Value>>::iterator>
-        _cache_map;
+    ListType _cache_list; // Front = MRU, Back = LRU
+    MapType _cache_map;
 };
