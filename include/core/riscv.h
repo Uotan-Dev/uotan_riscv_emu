@@ -92,6 +92,9 @@ typedef struct {
     // Floating-point control and status register
     fcsr_t FCSR;
 
+    // Whether satp is dirty
+    bool satp_dirty;
+
     // Lock for CSRs that are accessed in multiple threads.
     // Currently for MIP and SIP.
     pthread_mutex_t csr_lock;
@@ -119,6 +122,7 @@ typedef struct {
 #define MBASE 0x80000000
     uint8_t memory[MSIZE] __attribute((aligned(4096)));
     uint64_t ppv[MSIZE >> 12]; // physical page version
+    uint64_t dirty_vm;
 
     // Decoder status
     rv_insn_t decode;

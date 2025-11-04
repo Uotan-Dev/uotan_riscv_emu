@@ -241,6 +241,7 @@ VADDR_READ_IMPL(b, uint8_t, 1)
             vaddr_raise_exception(r, addr);                                    \
             return;                                                            \
         }                                                                      \
+        rv.dirty_vm = addr; /* not precise, but placing here anyway */         \
         bus_write(paddr, data, n);                                             \
     }
 

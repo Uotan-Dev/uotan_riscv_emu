@@ -22,13 +22,18 @@
 #include "core/riscv.h"
 
 void cpu_interp_step(rv_insn_t *s) {
+    rv.satp_dirty = false;
+    rv.dirty_vm = 0;
+
     size_t len;
     s->inst = vaddr_ifetch(rv.PC, &len);
+
     if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE)) {
         rv.npc = rv.PC + len;
         len == 4 ? cpu_decode_32(s) : cpu_decode_16(s);
         cpu_exec_inst(s);
     }
+
     rv.PC = rv.npc;
     rv.MCYCLE++;
     if (likely(rv.last_exception == CAUSE_EXCEPTION_NONE &&
