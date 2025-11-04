@@ -549,3 +549,30 @@ void cpu_decode_16(rv_insn_t *s) {
 
     R(0) = 0; // reset $zero to 0
 }
+
+bool cpu_insn_is_branch(rv_insn_t *ir) {
+    rv_exec_t exec = ir->exec;
+    return exec == exec_beq || exec == exec_bge || exec == exec_bgeu ||
+           exec == exec_blt || exec == exec_bltu || exec == exec_bne ||
+           exec == exec_c_beqz || exec == exec_c_bnez;
+}
+
+bool cpu_insn_is_direct_jmp(rv_insn_t *ir) {
+    rv_exec_t exec = ir->exec;
+    return exec == exec_jal || exec == exec_c_j || cpu_insn_is_branch(ir);
+}
+
+bool cpu_insn_is_indirect_jmp(rv_insn_t *ir) {
+    rv_exec_t exec = ir->exec;
+
+    // Note: some instructions can also produce a jmp with exceptions in certain
+    // cases, but they will be checked at runtime.
+    return exec == exec_jalr || exec == exec_mret || exec == exec_sret ||
+           exec == exec_c_jr || exec == exec_c_jalr || exec == exec_ebreak ||
+           exec == exec_ecall || exec == exec_inv || exec == exec_c_inv;
+}
+
+bool cpu_insn_is_sfence_vma(rv_insn_t *ir) {
+    rv_exec_t exec = ir->exec;
+    return exec == exec_sfence_vma;
+}

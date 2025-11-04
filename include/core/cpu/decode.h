@@ -22,6 +22,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "common.h"
@@ -120,6 +121,11 @@ finish:
 
 void cpu_decode_32(rv_insn_t *s);
 void cpu_decode_16(rv_insn_t *s);
+
+bool cpu_insn_is_branch(rv_insn_t *ir);
+bool cpu_insn_is_direct_jmp(rv_insn_t *ir);
+bool cpu_insn_is_indirect_jmp(rv_insn_t *ir);
+bool cpu_insn_is_sfence_vma(rv_insn_t *ir);
 
 #ifdef __cplusplus
 }
