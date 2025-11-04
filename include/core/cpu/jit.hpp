@@ -72,5 +72,5 @@ private:
     absl::flat_hash_map<std::pair<uint64_t, uint64_t>, uint64_t>
         _jhotness; // Task hotness
 
-    static constexpr uint64_t _jhotness_threshold = 6400;
+    static constexpr uint64_t _jhotness_threshold = 96;
 };
