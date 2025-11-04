@@ -28,8 +28,8 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
         // Shift to S mode
         rv.privilege = PRIV_S;
 
-        rv.decode.npc = cpu_read_csr(CSR_STVEC) & ~3ULL;
-        cpu_write_csr(CSR_SEPC, rv.decode.pc);
+        rv.npc = cpu_read_csr(CSR_STVEC) & ~3ULL;
+        cpu_write_csr(CSR_SEPC, rv.PC);
         cpu_write_csr(CSR_SCAUSE, cause);
         cpu_write_csr(CSR_STVAL, tval);
 
@@ -50,8 +50,8 @@ void cpu_raise_exception(exception_t cause, uint64_t tval) {
         // Shift to M Mode
         rv.privilege = PRIV_M;
 
-        rv.decode.npc = cpu_read_csr(CSR_MTVEC) & ~3ULL;
-        cpu_write_csr(CSR_MEPC, rv.decode.pc);
+        rv.npc = cpu_read_csr(CSR_MTVEC) & ~3ULL;
+        cpu_write_csr(CSR_MEPC, rv.PC);
         cpu_write_csr(CSR_MCAUSE, cause);
         cpu_write_csr(CSR_MTVAL, tval);
 

@@ -43,6 +43,7 @@ typedef struct {
 
     // Program counter
     uint64_t PC;
+    uint64_t npc;
 
     // FPRs
 #define NR_FPR 32

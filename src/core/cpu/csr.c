@@ -31,7 +31,7 @@ uint64_t cpu_read_csr(uint64_t csr) {
     // See https://github.com/riscv-software-src/opensbi/blob/v1.7/lib/sbi/sbi_hart.c
     // TODO: Handle this more elegantly.
     if (unlikely(cpu_csr_trap_on_access(csr))) {
-        cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+        cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
         return 0;
     }
 
@@ -61,7 +61,7 @@ uint64_t cpu_read_csr(uint64_t csr) {
             return rv.SCOUNTEREN;
         case CSR_STIMECMP:
             if (unlikely(rv.privilege < PRIV_M && !(rv.MENVCFG & MENVCFG_STCE))) {
-                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
                 return 0;
             }
             return rv.STIMECMP;
@@ -77,7 +77,7 @@ uint64_t cpu_read_csr(uint64_t csr) {
                 counteren = counteren & rv.MCOUNTEREN & rv.SCOUNTEREN;
             if (counteren & MCOUNTEREN_CY)
                 return rv.MCYCLE;
-            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
             return 0;
         }
         case CSR_TIME: {
@@ -88,7 +88,7 @@ uint64_t cpu_read_csr(uint64_t csr) {
                 counteren = counteren & rv.MCOUNTEREN & rv.SCOUNTEREN;
             if (counteren & MCOUNTEREN_TM)
                 return rv.MTIME; // csr_lock must be held here
-            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
             return 0;
         }
         case CSR_INSTRET: {
@@ -99,7 +99,7 @@ uint64_t cpu_read_csr(uint64_t csr) {
                 counteren = counteren & rv.MCOUNTEREN & rv.SCOUNTEREN;
             if (counteren & MCOUNTEREN_IR)
                 return rv.MINSTRET;
-            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
             return 0;
         }
         case CSR_SEED:
@@ -107,13 +107,13 @@ uint64_t cpu_read_csr(uint64_t csr) {
                 // The seed CSR is always available in machine mode as normal (with a CSR
                 // readwrite instruction.) Attempted read without a write raises an
                 // illegal-instruction exception regardless of mode and access control bits.
-                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
                 return 0;
             } else if (rv.privilege == PRIV_S && !(rv.MSECCFG & MSECCFG_SSEED)) {
-                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
                 return 0;
             } else if (rv.privilege == PRIV_U && !(rv.MSECCFG & MSECCFG_USEED)) {
-                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
                 return 0;
             }
             rv.seed_written = false;
@@ -197,7 +197,7 @@ void cpu_write_csr(uint64_t csr, uint64_t value) {
             break;
         case CSR_STIMECMP:
             if (unlikely(rv.privilege < PRIV_M && !(rv.MENVCFG & MENVCFG_STCE)))
-                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
             else
                 rv.STIMECMP = value;
             break;
@@ -206,23 +206,23 @@ void cpu_write_csr(uint64_t csr, uint64_t value) {
         // Unprivileged
         case CSR_CYCLE:
             if (value != rv.MCYCLE)
-                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
             break;
         case CSR_INSTRET:
             if (value != rv.MINSTRET)
-                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
             break;
         case CSR_TIME:
             // csr_lock must be held here
             if (value != rv.MTIME)
-                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
             break;
         case CSR_SEED:
             if (rv.privilege == PRIV_S && !(rv.MSECCFG & MSECCFG_SSEED)) {
-                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
                 break;
             } else if (rv.privilege == PRIV_U && !(rv.MSECCFG & MSECCFG_USEED)) {
-                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);
+                cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);
                 break;
             }
             rv.seed_written = true;

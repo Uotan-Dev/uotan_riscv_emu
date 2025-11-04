@@ -58,7 +58,7 @@ static void *cpu_thread_func(void *arg) {
             if (unlikely(intr != CAUSE_INTERRUPT_NONE))
                 cpu_process_intr(intr);
         }
-        cpu_interp_step(&rv.decode, rv.PC);
+        cpu_interp_step(&rv.decode);
         inst_cnt++;
     }
 
@@ -149,7 +149,7 @@ void cpu_start() {
         interrupt_t intr = cpu_get_pending_intr();                             \
         if (unlikely(intr != CAUSE_INTERRUPT_NONE))                            \
             cpu_process_intr(intr);                                            \
-        cpu_interp_step(&rv.decode, rv.PC);                                    \
+        cpu_interp_step(&rv.decode);                                           \
     } while (0)
 
 void cpu_step() {

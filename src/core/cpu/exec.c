@@ -55,14 +55,14 @@ void cpu_exec_inst(rv_insn_t *s) {
     do {                                                                       \
         if (((((csr) >> 8) & 0x3) == 3 && rv.privilege < PRIV_M) ||            \
             ((((csr) >> 8) & 0x3) == 1 && rv.privilege < PRIV_S))              \
-            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);      \
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);             \
     } while (0)
 
 #define FP_INST_PREP()                                                         \
     do {                                                                       \
         assert(softfloat_exceptionFlags == 0);                                 \
         if ((rv.MSTATUS & MSTATUS_FS) == 0)                                    \
-            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);      \
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);             \
     } while (0)
 
 #define FP_SETUP_RM()                                                          \
@@ -71,7 +71,7 @@ void cpu_exec_inst(rv_insn_t *s) {
         if (rm == FRM_DYN)                                                     \
             rm = rv.FCSR.fields.frm;                                           \
         if (unlikely(rm > FRM_RMM))                                            \
-            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.decode.pc);      \
+            cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, rv.PC);             \
         else                                                                   \
             softfloat_roundingMode = rm;                                       \
     } while (0)
@@ -129,43 +129,43 @@ void exec_andi(rv_insn_t *s) {
 
 void exec_auipc(rv_insn_t *s) {
     EXTRACT_OPRAND();
-    R(rd) = s->pc + imm;
+    R(rd) = rv.PC + imm;
 }
 
 void exec_beq(rv_insn_t *s) {
     EXTRACT_OPRAND();
     if (R(rs1) == R(rs2))
-        s->npc = s->pc + imm;
+        rv.npc = rv.PC + imm;
 }
 
 void exec_bge(rv_insn_t *s) {
     EXTRACT_OPRAND();
     if ((int64_t)R(rs1) >= (int64_t)R(rs2))
-        s->npc = s->pc + imm;
+        rv.npc = rv.PC + imm;
 }
 
 void exec_bgeu(rv_insn_t *s) {
     EXTRACT_OPRAND();
     if (R(rs1) >= R(rs2))
-        s->npc = s->pc + imm;
+        rv.npc = rv.PC + imm;
 }
 
 void exec_blt(rv_insn_t *s) {
     EXTRACT_OPRAND();
     if ((int64_t)R(rs1) < (int64_t)R(rs2))
-        s->npc = s->pc + imm;
+        rv.npc = rv.PC + imm;
 }
 
 void exec_bltu(rv_insn_t *s) {
     EXTRACT_OPRAND();
     if (R(rs1) < R(rs2))
-        s->npc = s->pc + imm;
+        rv.npc = rv.PC + imm;
 }
 
 void exec_bne(rv_insn_t *s) {
     EXTRACT_OPRAND();
     if (R(rs1) != R(rs2))
-        s->npc = s->pc + imm;
+        rv.npc = rv.PC + imm;
 }
 
 void exec_fence(rv_insn_t *s) {
@@ -180,14 +180,14 @@ void exec_fence_i(rv_insn_t *s) {
 
 void exec_jal(rv_insn_t *s) {
     EXTRACT_OPRAND();
-    R(rd) = s->pc + 4;
-    s->npc = s->pc + imm;
+    R(rd) = rv.PC + 4;
+    rv.npc = rv.PC + imm;
 }
 
 void exec_jalr(rv_insn_t *s) {
     EXTRACT_OPRAND();
-    uint64_t t = s->pc + 4;
-    s->npc = (R(rs1) + imm) & ~1ULL;
+    uint64_t t = rv.PC + 4;
+    rv.npc = (R(rs1) + imm) & ~1ULL;
     R(rd) = t;
 }
 
@@ -473,15 +473,15 @@ void exec_csrrwi(rv_insn_t *s) {
 
 void exec_ebreak(rv_insn_t *s) {
     EXTRACT_OPRAND();
-    cpu_raise_exception(CAUSE_BREAKPOINT, s->pc);
+    cpu_raise_exception(CAUSE_BREAKPOINT, rv.PC);
 }
 
 void exec_ecall(rv_insn_t *s) {
     EXTRACT_OPRAND();
     switch (rv.privilege) {
-        case PRIV_M: cpu_raise_exception(CAUSE_MACHINE_ECALL, s->pc); break;
-        case PRIV_S: cpu_raise_exception(CAUSE_SUPERVISOR_ECALL, s->pc); break;
-        case PRIV_U: cpu_raise_exception(CAUSE_USER_ECALL, s->pc); break;
+        case PRIV_M: cpu_raise_exception(CAUSE_MACHINE_ECALL, rv.PC); break;
+        case PRIV_S: cpu_raise_exception(CAUSE_SUPERVISOR_ECALL, rv.PC); break;
+        case PRIV_U: cpu_raise_exception(CAUSE_USER_ECALL, rv.PC); break;
         default: __UNREACHABLE;
     }
 }
@@ -492,7 +492,7 @@ void exec_mret(rv_insn_t *s) {
         cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
         return;
     }
-    s->npc = cpu_read_csr(CSR_MEPC);
+    rv.npc = cpu_read_csr(CSR_MEPC);
     uint64_t mstatus = cpu_read_csr(CSR_MSTATUS);
 
     // Restore PRIV level
@@ -528,7 +528,7 @@ void exec_sret(rv_insn_t *s) {
         cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
         return;
     }
-    s->npc = cpu_read_csr(CSR_SEPC);
+    rv.npc = cpu_read_csr(CSR_SEPC);
     uint64_t sstatus = cpu_read_csr(CSR_SSTATUS);
     rv.privilege =
         (privilege_level_t)((sstatus & SSTATUS_SPP) >> SSTATUS_SPP_SHIFT);
@@ -1695,19 +1695,19 @@ void exec_c_addw(rv_insn_t *s) {
 
 void exec_c_j(rv_insn_t *s) {
     EXTRACT_OPRAND();
-    s->npc = s->pc + imm;
+    rv.npc = rv.PC + imm;
 }
 
 void exec_c_beqz(rv_insn_t *s) {
     EXTRACT_OPRAND();
     if (R(rs1) == 0)
-        s->npc = s->pc + imm;
+        rv.npc = rv.PC + imm;
 }
 
 void exec_c_bnez(rv_insn_t *s) {
     EXTRACT_OPRAND();
     if (R(rs1) != 0)
-        s->npc = s->pc + imm;
+        rv.npc = rv.PC + imm;
 }
 
 void exec_c_inv(rv_insn_t *s) {
@@ -1788,7 +1788,7 @@ void exec_c_jr(rv_insn_t *s) {
     if (unlikely(rs1 == 0))
         cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
     else
-        s->npc = R(rs1) & ~1ULL;
+        rv.npc = R(rs1) & ~1ULL;
 }
 
 void exec_c_mv(rv_insn_t *s) {
@@ -1809,8 +1809,8 @@ void exec_c_jalr(rv_insn_t *s) {
     if (unlikely(rs1 == 0)) {
         cpu_raise_exception(CAUSE_ILLEGAL_INSTRUCTION, s->inst);
     } else {
-        uint64_t t = s->pc + 2;
-        s->npc = R(rs1) & ~1ULL;
+        uint64_t t = rv.PC + 2;
+        rv.npc = R(rs1) & ~1ULL;
         R(1) = t;
     }
 }
