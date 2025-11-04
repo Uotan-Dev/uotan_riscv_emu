@@ -225,9 +225,9 @@ jit_block *jit::__compile(uint64_t start_pc) {
     jit_block *jb = new jit_block;
 
     std::stack<uint64_t> tasks;
-    std::unordered_map<uint64_t, size_t>
+    absl::flat_hash_map<uint64_t, size_t>
         finished; // pc->idx map for finished tasks
-    std::unordered_map<uint64_t, std::vector<size_t>> holes;
+    absl::flat_hash_map<uint64_t, std::vector<size_t>> holes;
 
     tasks.push(start_pc);
 

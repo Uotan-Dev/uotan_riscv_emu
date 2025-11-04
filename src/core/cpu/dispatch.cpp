@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
+#include <absl/container/flat_hash_map.h>
 #include <inttypes.h>
 #include <pthread.h>
-#include <stdlib.h>
 #include <unistd.h>
 
 #include "core/cpu/csr.h"

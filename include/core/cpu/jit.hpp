@@ -16,8 +16,9 @@
 
 #pragma once
 
+#include <absl/container/flat_hash_map.h>
+#include <absl/hash/hash.h>
 #include <cstring>
-#include <map>
 #include <vector>
 
 #include "core/cpu/decode.h"
@@ -46,18 +47,18 @@ public:
     std::vector<jit_step> block;
 
     // ppv / pa of the compiled code, rounddown(pc)->(rounddown(pa),ppv)
-    std::unordered_map<uint64_t, std::pair<uint64_t, uint64_t>> pc_map;
+    absl::flat_hash_map<uint64_t, std::pair<uint64_t, uint64_t>> pc_map;
 };
 
-class jit_cache
-    : public LruCache<std::pair<uint64_t, uint64_t>, jit_block *, std::map> {
+class jit_cache : public LruCache<std::pair<uint64_t, uint64_t>, jit_block *,
+                                  absl::flat_hash_map> {
 public:
     jit_cache()
-        : LruCache<std::pair<uint64_t, uint64_t>, jit_block *, std::map>(
-              _max_size) {}
+        : LruCache<std::pair<uint64_t, uint64_t>, jit_block *,
+                   absl::flat_hash_map>(_max_size) {}
 
 private:
-    static constexpr size_t _max_size = 6400;
+    static constexpr size_t _max_size = 32000;
 };
 
 class jit {
@@ -67,8 +68,9 @@ public:
 private:
     jit_block *__compile(uint64_t pc);
 
-    jit_cache _jcache;                                           // Code cache
-    std::map<std::pair<uint64_t, uint64_t>, uint64_t> _jhotness; // Task hotness
+    jit_cache _jcache; // Code cache
+    absl::flat_hash_map<std::pair<uint64_t, uint64_t>, uint64_t>
+        _jhotness; // Task hotness
 
     static constexpr uint64_t _jhotness_threshold = 6400;
 };
