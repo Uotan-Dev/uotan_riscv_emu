@@ -18,7 +18,6 @@
 
 #include <cstring>
 #include <map>
-#include <tuple>
 #include <vector>
 
 #include "core/cpu/decode.h"
@@ -50,12 +49,12 @@ public:
     std::unordered_map<uint64_t, std::pair<uint64_t, uint64_t>> pc_map;
 };
 
-class jit_cache : public LruCache<std::tuple<uint64_t, uint64_t, uint64_t>,
-                                  jit_block *, std::map> {
+class jit_cache
+    : public LruCache<std::pair<uint64_t, uint64_t>, jit_block *, std::map> {
 public:
     jit_cache()
-        : LruCache<std::tuple<uint64_t, uint64_t, uint64_t>, jit_block *,
-                   std::map>(_max_size) {}
+        : LruCache<std::pair<uint64_t, uint64_t>, jit_block *, std::map>(
+              _max_size) {}
 
 private:
     static constexpr size_t _max_size = 6400;
@@ -68,9 +67,8 @@ public:
 private:
     jit_block *__compile(uint64_t pc);
 
-    jit_cache _jcache; // Code cache
-    std::map<std::tuple<uint64_t, uint64_t, uint64_t>, uint64_t>
-        _jhotness; // Task hotness
+    jit_cache _jcache;                                           // Code cache
+    std::map<std::pair<uint64_t, uint64_t>, uint64_t> _jhotness; // Task hotness
 
     static constexpr uint64_t _jhotness_threshold = 6400;
 };

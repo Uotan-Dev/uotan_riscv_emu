@@ -195,18 +195,12 @@ uint64_t jit::try_run(uint64_t pc) {
     if (pc & 0x1) [[unlikely]]
         return 0;
 
-    uint64_t start_pa = 0;
-    mmu_result_t r = vaddr_translate(pc, &start_pa, ACCESS_INSN, true);
-
-    if (r != TRANSLATE_OK)
-        return 0;
-
     uint64_t satp = rv.SATP;
-    jit_block *jb = _jcache.get({pc, start_pa, satp});
+    jit_block *jb = _jcache.get({pc, satp});
 
     if (jb == nullptr) {
-        if (++_jhotness[{pc, start_pa, satp}] >= _jhotness_threshold) {
-            _jhotness.erase({pc, start_pa, satp});
+        if (++_jhotness[{pc, satp}] >= _jhotness_threshold) {
+            _jhotness.erase({pc, satp});
             jb = __compile(pc);
             if (jb == nullptr)
                 return 0;
@@ -219,7 +213,7 @@ uint64_t jit::try_run(uint64_t pc) {
     uint64_t steps = jb->run(invalidate);
 
     if (invalidate)
-        _jcache.remove({pc, start_pa, satp});
+        _jcache.remove({pc, satp});
 
     return steps;
 }
@@ -234,11 +228,6 @@ jit_block *jit::__compile(uint64_t start_pc) {
     std::unordered_map<uint64_t, size_t>
         finished; // pc->idx map for finished tasks
     std::unordered_map<uint64_t, std::vector<size_t>> holes;
-
-    uint64_t start_pa = 0;
-    mmu_result_t r = vaddr_translate(start_pc, &start_pa, ACCESS_INSN, true);
-    if (r != TRANSLATE_OK) [[unlikely]]
-        return nullptr;
 
     tasks.push(start_pc);
 
@@ -339,8 +328,7 @@ jit_block *jit::__compile(uint64_t start_pc) {
         }
     }
 
-    assert(start_pa);
-    _jcache.put({start_pc, start_pa, rv.SATP}, jb);
+    _jcache.put({start_pc, rv.SATP}, jb);
 
     return jb;
 }
