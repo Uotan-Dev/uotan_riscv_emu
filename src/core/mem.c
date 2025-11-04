@@ -18,29 +18,8 @@
 #include "core/cpu/csr.h"
 #include "device/bus.h"
 
-/**
- * @brief Translates a virtual address under the RISC-V SV39 scheme.
- *
- * This function performs a virtual-to-physical address translation
- * according to the SV39 page-based virtual memory system. It walks
- * the three-level page table starting from the root page table
- * (pointed to by `satp.ppn`), checking access permissions and updating
- * the A/D bits as needed.
- *
- * On success, the corresponding physical address is stored in `*pa`.
- * On failure (e.g., page fault, misaligned access, or invalid PTE),
- * an appropriate exception is raised or an error code is returned.
- *
- * @param va    The virtual address to be translated.
- * @param pa    Output pointer for the resulting physical address.
- * @param type  The type of memory access (instruction fetch, load, or store),
- *              defined by @ref mmu_access_t.
- *
- * @return The translation result, defined by @ref mmu_result_t.
- *         Typically indicates success or the specific fault cause.
- */
-FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
-                                          mmu_access_t type) {
+mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa, mmu_access_t type,
+                             bool offline) {
     // TODO: Try TLB first
 
     uint64_t satp = cpu_read_csr(CSR_SATP);
@@ -54,11 +33,15 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
 
     uint64_t priv = (uint64_t)rv.privilege;
     uint64_t mstatus = cpu_read_csr(CSR_MSTATUS);
-    if (type != ACCESS_INSN && (mstatus & MSTATUS_MPRV))
-        priv = (mstatus & MSTATUS_MPP) >> MSTATUS_MPP_SHIFT;
-    if (priv == (uint64_t)PRIV_M) {
-        *pa = va;
-        return TRANSLATE_OK;
+
+    // Checking mstatus is meaningless for offline translation?
+    if (!offline) {
+        if (type != ACCESS_INSN && (mstatus & MSTATUS_MPRV))
+            priv = (mstatus & MSTATUS_MPP) >> MSTATUS_MPP_SHIFT;
+        if (priv == (uint64_t)PRIV_M) {
+            *pa = va;
+            return TRANSLATE_OK;
+        }
     }
 
     // See include/core/cpu.h for satp write restrictions
@@ -130,29 +113,32 @@ FORCE_INLINE mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa,
             break;
     }
 
-    if (rv.MENVCFG & MENVCFG_ADUE) {
-        // When ADUE=1, hardware updating of PTE A/D
-        // bits is enabled during S-mode address translation, and the
-        // implementation behaves as though the Svade extension were not
-        // implemented for S-mode address translation.
-        uint64_t new_pte = pte | PTE_A;
-        if (type == ACCESS_STORE)
-            new_pte |= PTE_D;
-        if (new_pte != pte) {
-            extern void dram_write(uint64_t addr, uint64_t value, size_t n);
-            // dram_write() performs no check
-            if (likely(paddr_in_pmem(pte_addr)))
-                dram_write(pte_addr, new_pte, 8);
-            else
-                goto access_fault;
+    // Only enable Svade / Svadu extension for online translation
+    if (!offline) {
+        if (rv.MENVCFG & MENVCFG_ADUE) {
+            // When ADUE=1, hardware updating of PTE A/D
+            // bits is enabled during S-mode address translation, and the
+            // implementation behaves as though the Svade extension were not
+            // implemented for S-mode address translation.
+            uint64_t new_pte = pte | PTE_A;
+            if (type == ACCESS_STORE)
+                new_pte |= PTE_D;
+            if (new_pte != pte) {
+                extern void dram_write(uint64_t addr, uint64_t value, size_t n);
+                // dram_write() performs no check
+                if (likely(paddr_in_pmem(pte_addr)))
+                    dram_write(pte_addr, new_pte, 8);
+                else
+                    goto access_fault;
+            }
+        } else {
+            // The Svade extension: when a virtual page is accessed and the A
+            // bit is clear, or is written and the D bit is clear, a page -
+            // fault exception is raised.
+            if (unlikely(!(pte & PTE_A) ||
+                         (type == ACCESS_STORE && !(pte & PTE_D))))
+                goto page_fault;
         }
-    } else {
-        // The Svade extension: when a virtual page is accessed and the A bit is
-        // clear, or is written and the D bit is clear, a page - fault exception
-        // is raised.
-        if (unlikely(!(pte & PTE_A) ||
-                     (type == ACCESS_STORE && !(pte & PTE_D))))
-            goto page_fault;
     }
 
     uint64_t page_offset = va & (PAGE_SIZE - 1);
@@ -185,7 +171,7 @@ access_fault:
     __UNREACHABLE;
 }
 
-FORCE_INLINE void vaddr_raise_exception(mmu_result_t r, uint64_t addr) {
+void vaddr_raise_exception(mmu_result_t r, uint64_t addr) {
     switch (r) {
         case TRANSLATE_FETCH_PAGE_FAULT:
             cpu_raise_exception(CAUSE_INSN_PAGEFAULT, addr);
@@ -216,7 +202,7 @@ FORCE_INLINE void vaddr_raise_exception(mmu_result_t r, uint64_t addr) {
             return 0;                                                          \
         }                                                                      \
         uint64_t paddr;                                                        \
-        mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_LOAD);           \
+        mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_LOAD, false);    \
         if (r != TRANSLATE_OK) {                                               \
             vaddr_raise_exception(r, addr);                                    \
             return 0;                                                          \
@@ -236,7 +222,7 @@ VADDR_READ_IMPL(b, uint8_t, 1)
             return;                                                            \
         }                                                                      \
         uint64_t paddr;                                                        \
-        mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_STORE);          \
+        mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_STORE, false);   \
         if (r != TRANSLATE_OK) {                                               \
             vaddr_raise_exception(r, addr);                                    \
             return;                                                            \
@@ -257,7 +243,7 @@ uint32_t vaddr_ifetch(uint64_t addr, size_t *len) {
     }
 
     uint64_t paddr;
-    mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_INSN);
+    mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_INSN, false);
 
     if (unlikely(r != TRANSLATE_OK)) {
         vaddr_raise_exception(r, addr);
@@ -276,7 +262,7 @@ uint32_t vaddr_ifetch(uint64_t addr, size_t *len) {
 
     uint32_t inst_lo = inst & 0xffff;
 
-    r = vaddr_translate(addr + 2, &paddr, ACCESS_INSN);
+    r = vaddr_translate(addr + 2, &paddr, ACCESS_INSN, false);
     if (unlikely(r != TRANSLATE_OK)) {
         vaddr_raise_exception(r, addr + 2);
         return 0;
@@ -284,4 +270,50 @@ uint32_t vaddr_ifetch(uint64_t addr, size_t *len) {
     uint32_t inst_hi = bus_ifetch(paddr) & 0xffff;
 
     return inst_lo | (inst_hi << 16);
+}
+
+uint32_t vaddr_ifetch_offline(uint64_t addr, uint64_t *pa, size_t *len,
+                              bool *success) {
+    *pa = *len = 0;
+    *success = true;
+
+    if (unlikely((addr & 0x1) != 0))
+        goto fail;
+
+    uint64_t paddr;
+    mmu_result_t r = vaddr_translate(addr, &paddr, ACCESS_INSN, true);
+
+    if (unlikely(r != TRANSLATE_OK))
+        goto fail;
+
+    *pa = paddr;
+
+    if (!paddr_in_pmem(paddr))
+        goto fail;
+
+    extern uint64_t dram_read(uint64_t addr, size_t n);
+
+    uint32_t inst = dram_read(paddr, 4);
+    if ((inst & 0x3) < 3) {
+        *len = 2;
+        return inst & 0xffff;
+    }
+
+    *len = 4;
+    if (likely((paddr & (PAGE_SIZE - 1)) <= PAGE_SIZE - 4))
+        return inst;
+
+    uint32_t inst_lo = inst & 0xffff;
+
+    r = vaddr_translate(addr + 2, &paddr, ACCESS_INSN, true);
+    if (unlikely(r != TRANSLATE_OK))
+        goto fail;
+
+    uint32_t inst_hi = dram_read(paddr, 2);
+
+    return inst_lo | (inst_hi << 16);
+
+fail:
+    *success = false;
+    return 0;
 }

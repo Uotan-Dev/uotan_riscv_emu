@@ -146,6 +146,16 @@ void vaddr_write_b(uint64_t addr, uint8_t data);
  */
 uint32_t vaddr_ifetch(uint64_t addr, size_t *len);
 
+/**
+ * @brief Fetches a instruction from the specified virtual address (offline
+ * mode).
+ *
+ * Performs instruction fetch translation under SV39 and returns the
+ * instruction word from the corresponding physical memory.
+ */
+uint32_t vaddr_ifetch_offline(uint64_t addr, uint64_t *pa, size_t *len,
+                              bool *success);
+
 // SATP Mode
 #define SATP_MODE_BARE 0ULL
 #define SATP_MODE_SV39 8ULL
@@ -195,6 +205,34 @@ typedef enum {
     TRANSLATE_LOAD_ACCESS_FAULT,
     TRANSLATE_STORE_ACCESS_FAULT,
 } mmu_result_t;
+
+void vaddr_raise_exception(mmu_result_t r, uint64_t addr);
+
+/**
+ * @brief Translates a virtual address under the RISC-V SV39 scheme.
+ *
+ * This function performs a virtual-to-physical address translation
+ * according to the SV39 page-based virtual memory system. It walks
+ * the three-level page table starting from the root page table
+ * (pointed to by `satp.ppn`), checking access permissions and updating
+ * the A/D bits as needed.
+ *
+ * On success, the corresponding physical address is stored in `*pa`.
+ * On failure (e.g., page fault, misaligned access, or invalid PTE),
+ * an appropriate exception is raised or an error code is returned.
+ *
+ * @param va    The virtual address to be translated.
+ * @param pa    Output pointer for the resulting physical address.
+ * @param type  The type of memory access (instruction fetch, load, or store),
+ *              defined by @ref mmu_access_t.
+ * @param offline The style of translation. An offline translation will not make
+ * architectural change.
+ *
+ * @return The translation result, defined by @ref mmu_result_t.
+ *         Typically indicates success or the specific fault cause.
+ */
+mmu_result_t vaddr_translate(uint64_t va, uint64_t *pa, mmu_access_t type,
+                             bool offline);
 
 #ifdef __cplusplus
 }
