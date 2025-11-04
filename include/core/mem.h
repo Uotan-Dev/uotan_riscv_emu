@@ -29,6 +29,9 @@ extern "C" {
 #define PAGE_SHIFT 12ULL
 #define PAGE_SIZE (1ULL << PAGE_SHIFT)
 
+#define ON_SAME_PAGE(addr1, addr2)                                             \
+    (((addr1) >> PAGE_SHIFT) == ((addr2) >> PAGE_SHIFT))
+
 #define GUEST_TO_HOST(paddr) ((void *)(rv.memory + ((uint64_t)(paddr) - MBASE)))
 #define HOST_TO_GUEST(haddr)                                                   \
     ((uint64_t)((void *)(haddr) - (void *)rv.memory + MBASE))

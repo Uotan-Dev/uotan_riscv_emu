@@ -22,6 +22,7 @@
 #include "core/cpu/csr.h"
 #include "core/cpu/dispatch.h"
 #include "core/cpu/interpreter.h"
+#include "core/cpu/jit.hpp"
 #include "core/cpu/system.h"
 #include "core/riscv.h"
 #include "device/clint.h"
@@ -46,13 +47,16 @@ static void *cpu_thread_func(void *arg) {
     pthread_cond_broadcast(&cpu_cond);
     pthread_mutex_unlock(&cpu_mutex);
 
+    jit cpu_jit;
     uint64_t start = slowtimer_get_microseconds();
 
     while (true) {
         if (unlikely(rv.shutdown))
             break;
 
-        cpu_interp_block();
+        uint64_t jsteps = cpu_jit.try_run(rv.PC);
+        if (jsteps == 0)
+            cpu_interp_block();
     }
 
     uint64_t end = slowtimer_get_microseconds();
