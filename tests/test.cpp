@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <absl/container/flat_hash_map.h>
 #include <gtest/gtest.h>
 #include <inttypes.h>
 #include <string>
@@ -349,6 +350,10 @@ struct TestData {
     }                                                                          \
     TEST(UtilTestSuite, LRUTest_Map_##test_name) {                             \
         using CacheType = LruCache<int, TestData *, std::map>;                 \
+        test_body                                                              \
+    }                                                                          \
+    TEST(UtilTestSuite, LRUTest_FlatHashMap_##test_name) {                     \
+        using CacheType = LruCache<int, TestData *, absl::flat_hash_map>;      \
         test_body                                                              \
     }
 
