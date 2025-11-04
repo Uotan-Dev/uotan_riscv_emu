@@ -21,7 +21,6 @@
 #include <stdint.h>
 
 #include "../device/bus.h"
-#include "cpu/decode.h"
 #include "cpu/fpu.h"
 #include "cpu/system.h"
 
@@ -123,9 +122,6 @@ typedef struct {
     uint8_t memory[MSIZE] __attribute((aligned(4096)));
     uint64_t ppv[MSIZE >> 12]; // physical page version
     uint64_t dirty_vm;
-
-    // Decoder status
-    rv_insn_t decode;
 
     // Bus status
     bus_t bus;

@@ -22,6 +22,7 @@
 #include "core/riscv.h"
 
 void cpu_interp_step(rv_insn_t *s) {
+    rv.last_exception = CAUSE_EXCEPTION_NONE;
     rv.satp_dirty = false;
     rv.dirty_vm = 0;
 
@@ -40,4 +41,24 @@ void cpu_interp_step(rv_insn_t *s) {
                !rv.suppress_minstret_increase))
         rv.MINSTRET++;
     rv.suppress_minstret_increase = false;
+}
+
+void cpu_interp_block() {
+    rv_insn_t ir;
+
+    while (likely(!rv.shutdown)) {
+        if (unlikely(rv.MCYCLE & 32767)) {
+            interrupt_t intr = cpu_get_pending_intr();
+            if (intr != CAUSE_INTERRUPT_NONE)
+                cpu_process_intr(intr);
+        }
+
+        cpu_interp_step(&ir);
+
+        if (unlikely(rv.last_exception != CAUSE_EXCEPTION_NONE))
+            break;
+
+        if (cpu_insn_is_direct_jmp(&ir) || cpu_insn_is_indirect_jmp(&ir))
+            break;
+    }
 }

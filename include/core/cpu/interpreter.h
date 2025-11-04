@@ -23,6 +23,7 @@ extern "C" {
 #endif
 
 void cpu_interp_step(rv_insn_t *s);
+void cpu_interp_block();
 
 #ifdef __cplusplus
 }

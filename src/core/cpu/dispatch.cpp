@@ -47,26 +47,19 @@ static void *cpu_thread_func(void *arg) {
     pthread_mutex_unlock(&cpu_mutex);
 
     uint64_t start = slowtimer_get_microseconds();
-    uint64_t inst_cnt = 0;
 
-    for (uint64_t i = 0; i < UINT64_MAX; i++) {
+    while (true) {
         if (unlikely(rv.shutdown))
             break;
-        rv.last_exception = CAUSE_EXCEPTION_NONE;
-        if ((i & 32767) == 0) {
-            interrupt_t intr = cpu_get_pending_intr();
-            if (unlikely(intr != CAUSE_INTERRUPT_NONE))
-                cpu_process_intr(intr);
-        }
-        cpu_interp_step(&rv.decode);
-        inst_cnt++;
+
+        cpu_interp_block();
     }
 
     uint64_t end = slowtimer_get_microseconds();
     double delta = (double)(end - start) / 1000000.0;
     log_info("Simulation time: %f seconds (%" PRIu64 " microseconds)", delta,
              end - start);
-    log_info("Simulation speed: %f insts per second", inst_cnt / delta);
+    log_info("Simulation speed: %f insts per second", rv.MCYCLE / delta);
 
     sleep(1);
 
@@ -145,11 +138,12 @@ void cpu_start() {
 
 #define CPU_EXEC_COMMON()                                                      \
     do {                                                                       \
+        static rv_insn_t ir;                                                   \
         rv.last_exception = CAUSE_EXCEPTION_NONE;                              \
         interrupt_t intr = cpu_get_pending_intr();                             \
         if (unlikely(intr != CAUSE_INTERRUPT_NONE))                            \
             cpu_process_intr(intr);                                            \
-        cpu_interp_step(&rv.decode);                                           \
+        cpu_interp_step(&ir);                                                  \
     } while (0)
 
 void cpu_step() {
