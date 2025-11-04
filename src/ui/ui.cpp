@@ -16,9 +16,10 @@
  */
 
 #include <SDL3/SDL.h>
-#include <assert.h>
+#include <algorithm>
+#include <cassert>
+#include <cstdlib>
 #include <signal.h>
-#include <stdlib.h>
 
 #include <linux/input-event-codes.h>
 
@@ -71,7 +72,7 @@ static void ui_startup_screen() {
         return;
     }
 
-    pthread_mutex_lock(&simple_fb.m);
+    log_info("Displaying boot screen");
 
     const size_t fb_size = ui_width * ui_height * FB_BPP;
     uint8_t *buf = new uint8_t[fb_size];
@@ -81,21 +82,49 @@ static void ui_startup_screen() {
     int y_offset = (ui_height - 96) >> 1;
 
     for (int y = 0; y < 96; y++) {
-        uint8_t *src = (uint8_t *)icon->pixels + y * icon->pitch;
+        uint8_t *src = static_cast<uint8_t *>(icon->pixels) + y * icon->pitch;
         uint8_t *dst = buf + ((y_offset + y) * ui_width + x_offset) * FB_BPP;
         memcpy(dst, src, 96 * FB_BPP);
     }
 
-    simple_fb.dirty = true;
-    pthread_mutex_unlock(&simple_fb.m);
-
     SDL_UpdateTexture(texture, nullptr, buf, ui_width * FB_BPP);
-    SDL_RenderClear(renderer);
-    SDL_RenderTexture(renderer, texture, nullptr, nullptr);
-    SDL_RenderPresent(renderer);
 
-    // delay 1.6s
-    SDL_Delay(1600);
+    const uint32_t total_ms = 3200;
+    const uint32_t stable_ms = 640;
+    const uint32_t fade_ms = (total_ms - stable_ms) / 2;
+    const uint32_t t0 = SDL_GetTicks();
+    const uint32_t t_fade_in_end = t0 + fade_ms;
+    const uint32_t t_stable_end = t_fade_in_end + stable_ms;
+    const uint32_t t_end = t0 + total_ms;
+
+    while (true) {
+        uint32_t now = SDL_GetTicks();
+        if (now >= t_end)
+            break;
+
+        uint8_t alpha = 255;
+        if (now <= t_fade_in_end) {
+            float f = static_cast<float>(now - t0) / fade_ms;
+            f = std::clamp(f, 0.f, 1.f);
+            alpha = static_cast<uint8_t>(f * 255.0f);
+        } else if (now <= t_stable_end) {
+            alpha = 255;
+        } else {
+            float f = static_cast<float>(t_end - now) / fade_ms;
+            f = std::clamp(f, 0.f, 1.f);
+            alpha = static_cast<uint8_t>(f * 255.0f);
+        }
+
+        SDL_SetTextureAlphaMod(texture, alpha);
+
+        SDL_RenderClear(renderer);
+        SDL_RenderTexture(renderer, texture, nullptr, nullptr);
+        SDL_RenderPresent(renderer);
+
+        SDL_Delay(16);
+    }
+
+    SDL_Delay(64);
 
     delete[] buf;
 }
@@ -133,15 +162,16 @@ void ui_init() {
                           SDL_TEXTUREACCESS_STREAMING, ui_width, ui_height);
     if (!texture)
         goto ui_fail;
+
+    // Start splash screen
+    ui_startup_screen();
+
     /* For SDL3.
      * ARGB8888 includes an alpha byte; if alpha is 0 pixels may be treated as
      * transparent. Disable SDL blending so the renderer does not use the
      * texture alpha for blending.
      */
     SDL_SetTextureBlendMode(texture, SDL_BLENDMODE_NONE);
-
-    // Start splash screen
-    ui_startup_screen();
 
     // Make global update periodic
     ui_update_requested = 0;
