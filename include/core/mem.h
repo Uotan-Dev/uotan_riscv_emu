@@ -26,6 +26,9 @@
 extern "C" {
 #endif
 
+#define PAGE_SHIFT 12ULL
+#define PAGE_SIZE (1ULL << PAGE_SHIFT)
+
 #define GUEST_TO_HOST(paddr) ((void *)(rv.memory + ((uint64_t)(paddr) - MBASE)))
 #define HOST_TO_GUEST(haddr)                                                   \
     ((uint64_t)((void *)(haddr) - (void *)rv.memory + MBASE))
@@ -51,6 +54,17 @@ FORCE_INLINE bool addr_in_range(uint64_t addr, uint64_t base, size_t n) {
  */
 FORCE_INLINE bool paddr_in_pmem(uint64_t addr) {
     return addr_in_range(addr, MBASE, MSIZE);
+}
+
+/**
+ * @brief Calculates the page number in DRAM for a physical address.
+ *
+ * @param pa  The physical address to calculate.
+ * @return DRAM page number of the physical address
+ */
+FORCE_INLINE size_t paddr_get_pmem_pg_id(uint64_t pa) {
+    assert(paddr_in_pmem(pa));
+    return (pa - MBASE) >> PAGE_SHIFT;
 }
 
 /**
@@ -136,8 +150,6 @@ uint32_t vaddr_ifetch(uint64_t addr, size_t *len);
 #define SATP_MODE_BARE 0ULL
 #define SATP_MODE_SV39 8ULL
 
-#define PAGE_SHIFT 12ULL
-#define PAGE_SIZE (1ULL << PAGE_SHIFT)
 #define PTE_SIZE 8ULL
 #define VPN_BITS 9ULL
 #define SV39_LEVELS 3

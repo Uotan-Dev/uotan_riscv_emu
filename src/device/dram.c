@@ -32,6 +32,7 @@ uint64_t dram_read(uint64_t addr, size_t n) {
 
 void dram_write(uint64_t addr, uint64_t value, size_t n) {
     void *host_addr = GUEST_TO_HOST(addr);
+    rv.ppv[paddr_get_pmem_pg_id(addr)]++;
     switch (n) {
         case 1: *(uint8_t *)host_addr = value; return;
         case 2: *(uint16_t *)host_addr = value; return;

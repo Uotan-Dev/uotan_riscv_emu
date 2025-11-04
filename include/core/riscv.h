@@ -118,6 +118,7 @@ typedef struct {
 #define MSIZE 0x20000000
 #define MBASE 0x80000000
     uint8_t memory[MSIZE] __attribute((aligned(4096)));
+    uint64_t ppv[MSIZE >> 12]; // physical page version
 
     // Decoder status
     rv_insn_t decode;
