@@ -316,7 +316,7 @@ jit_block *jit::__compile(uint64_t start_pc) {
 
         // Fill nxt
         if (js.ir.exec == nullptr || cpu_insn_is_indirect_jmp(&js.ir) ||
-            js.ir.exec == exec_sfence_vma) {
+            cpu_insn_is_sfence_vma(&js.ir)) {
             js.nxt.clear();
         } else if (cpu_insn_is_branch(&js.ir)) {
             HANDLE_BRANCH_TAKEN();
