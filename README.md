@@ -49,6 +49,7 @@ Install these on your host before building:
 * `cmake` (≥3.14), `make`, `gcc`/`g++` (build tools)
 * `pkg-config`
 * `libsdl3-dev` (SDL2 development package)
+* `abseil`
 * `git`
 * `riscv64-unknown-elf-gcc`, `riscv64-unknown-elf-objcopy`, `riscv64-unknown-elf-objdump`
 * (Optional) `gdb-multiarch` or other riscv gdb for remote debugging
@@ -182,7 +183,9 @@ riscof run --config=config.ini --suite=../riscv-arch-test/riscv-test-suite/ --en
 [A recent test report](https://github.com/snnbyyds/uemu/blob/main/verif/Test%20Report.pdf)
 
 ## Plan for JIT
-Visit [uemu_jit_plan](https://github.com/Uotan-Dev/uemu_jit_plan) for our plan for JIT implementation.
+~~Visit [uemu_jit_plan](https://github.com/Uotan-Dev/uemu_jit_plan) for our plan for JIT implementation.~~
+
+A primitive JIT has been implemented. See https://github.com/Uotan-Dev/uotan_riscv_emu/commit/f6757469e709bac096cb9d4a8409f65b47b92abf
 
 ## Notes
 
@@ -208,7 +211,7 @@ Due to the limitation of the author's ability,
 planned and ongoing work for future versions of **uemu** includes:
 
 * ~~**Full RV64GC support**~~
-* **JIT compilation** — introduce a lightweight dynamic translation layer for improved performance.
+* **JIT compilation** — introduce a lightweight dynamic translation layer for improved performance. (WIP)
 * **Full keyboard and mouse support**
 * **Support for modern Linux distros** - Debian, archlinux or any other excellent Linux distributions.
 * **Emulation for more devices** - mouse, GPU etc.
