@@ -17,36 +17,36 @@
 #include <cassert>
 #include <stack>
 
-#include "core/cpu/jit.hpp"
+#include "core/cpu/jit_v1.hpp"
 #include "core/mem.h"
 #include "core/riscv.h"
 #include "utils/logger.h"
 
-jit_step::jit_step() {
+jit_v1_step::jit_v1_step() {
     memset(&ir, 0, sizeof(ir));
     len = 0;
 }
 
-size_t jit_step::find_nxt(uint64_t npc) const {
+size_t jit_v1_step::find_nxt(uint64_t npc) const {
     for (size_t i = 0; i < nxt.size(); i++)
         if (npc == nxt[i].first)
             return nxt[i].second;
     return SIZE_MAX;
 }
 
-void jit_step::add_nxt(uint64_t npc, size_t idx) {
+void jit_v1_step::add_nxt(uint64_t npc, size_t idx) {
     if (find_nxt(npc) != SIZE_MAX)
         return;
     nxt.emplace_back(npc, idx);
     assert(nxt.size() <= 2);
 }
 
-jit_block::jit_block() {
+jit_v1_block::jit_v1_block() {
     // TODO: Do research for a better value
     block.reserve(256);
 }
 
-uint64_t jit_block::run(bool &invalidate) {
+uint64_t jit_v1_block::run(bool &invalidate) {
     assert(!block.empty());
 
     invalidate = false;
@@ -128,7 +128,7 @@ uint64_t jit_block::run(bool &invalidate) {
             }
         }
 
-        jit_step &js = block[idx];
+        jit_v1_step &js = block[idx];
 
         // Some unexpected mismatch happened
         if (js.pc != rv.PC) [[unlikely]] {
@@ -191,12 +191,12 @@ uint64_t jit_block::run(bool &invalidate) {
     __UNREACHABLE;
 }
 
-uint64_t jit::try_run(uint64_t pc) {
+uint64_t jit_v1::try_run(uint64_t pc) {
     if (pc & 0x1) [[unlikely]]
         return 0;
 
     uint64_t satp = rv.SATP;
-    jit_block *jb = _jcache.get({pc, satp});
+    jit_v1_block *jb = _jcache.get({pc, satp});
 
     if (jb == nullptr) {
         if (++_jhotness[{pc, satp}] >= _jhotness_threshold) {
@@ -218,11 +218,11 @@ uint64_t jit::try_run(uint64_t pc) {
     return steps;
 }
 
-jit_block *jit::__compile(uint64_t start_pc) {
+jit_v1_block *jit_v1::__compile(uint64_t start_pc) {
     if (start_pc & 0x1) [[unlikely]]
         return nullptr;
 
-    jit_block *jb = new jit_block;
+    jit_v1_block *jb = new jit_v1_block;
 
     std::stack<uint64_t> tasks;
     absl::flat_hash_map<uint64_t, size_t>
@@ -245,7 +245,7 @@ jit_block *jit::__compile(uint64_t start_pc) {
 
         // Build current step
         {
-            jit_step js;
+            jit_v1_step js;
             js.pc = pc;
 
             if (!succ) [[unlikely]] {
@@ -270,14 +270,14 @@ jit_block *jit::__compile(uint64_t start_pc) {
             // now current block is finished, fill holes caused by this task
             if (holes.contains(pc)) {
                 for (size_t idx : holes[pc]) {
-                    jit_step &js_ = jb->block[idx];
+                    jit_v1_step &js_ = jb->block[idx];
                     js_.add_nxt(pc, finished[pc]);
                 }
                 holes.erase(pc);
             }
         }
 
-        jit_step &js = jb->block.back();
+        jit_v1_step &js = jb->block.back();
 
 #define HANDLE_BRANCH_TAKEN()                                                  \
     do {                                                                       \

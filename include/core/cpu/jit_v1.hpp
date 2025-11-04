@@ -25,50 +25,50 @@
 #include "core/cpu/exec.h"
 #include "utils/lru_cache.hpp"
 
-class jit_step {
+class jit_v1_step {
 public:
-    jit_step();
+    jit_v1_step();
 
     rv_insn_t ir;
     size_t len;
     uint64_t pc;
     std::vector<std::pair<uint64_t, size_t>>
-        nxt; // possible nxt idx in jit_block
+        nxt; // possible nxt idx in jit_v1_block
 
     size_t find_nxt(uint64_t npc) const;
     void add_nxt(uint64_t npc, size_t idx);
 };
 
-class jit_block {
+class jit_v1_block {
 public:
-    jit_block();
+    jit_v1_block();
     uint64_t run(bool &invalidate);
 
-    std::vector<jit_step> block;
+    std::vector<jit_v1_step> block;
 
     // ppv / pa of the compiled code, rounddown(pc)->(rounddown(pa),ppv)
     absl::flat_hash_map<uint64_t, std::pair<uint64_t, uint64_t>> pc_map;
 };
 
-class jit_cache : public LruCache<std::pair<uint64_t, uint64_t>, jit_block *,
-                                  absl::flat_hash_map> {
+class jit_v1_cache : public LruCache<std::pair<uint64_t, uint64_t>,
+                                     jit_v1_block *, absl::flat_hash_map> {
 public:
-    jit_cache()
-        : LruCache<std::pair<uint64_t, uint64_t>, jit_block *,
+    jit_v1_cache()
+        : LruCache<std::pair<uint64_t, uint64_t>, jit_v1_block *,
                    absl::flat_hash_map>(_max_size) {}
 
 private:
     static constexpr size_t _max_size = 32000;
 };
 
-class jit {
+class jit_v1 {
 public:
     uint64_t try_run(uint64_t pc);
 
 private:
-    jit_block *__compile(uint64_t pc);
+    jit_v1_block *__compile(uint64_t pc);
 
-    jit_cache _jcache; // Code cache
+    jit_v1_cache _jcache; // Code cache
     absl::flat_hash_map<std::pair<uint64_t, uint64_t>, uint64_t>
         _jhotness; // Task hotness
 
