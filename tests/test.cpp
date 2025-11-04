@@ -22,6 +22,7 @@
 // include some emu headers
 #include "core/cpu/dispatch.h"
 #include "core/riscv.h"
+#include "utils/lru_cache.hpp"
 
 /* Sample Tests */
 
@@ -329,3 +330,289 @@ TEST(RISVTestSuite, RV64UC_TEST) {
 
     test_files(files);
 }
+
+/* Util Tests */
+
+// Test data structure
+struct TestData {
+    int value;
+    std::string name;
+
+    TestData(int v, const std::string &n) : value(v), name(n) {}
+};
+
+// Helper macro to test both map types
+#define TEST_BOTH_MAPS(test_name, test_body)                                   \
+    TEST(UtilTestSuite, LRUTest_UnorderedMap_##test_name) {                    \
+        using CacheType = LruCache<int, TestData *>;                           \
+        test_body                                                              \
+    }                                                                          \
+    TEST(UtilTestSuite, LRUTest_Map_##test_name) {                             \
+        using CacheType = LruCache<int, TestData *, std::map>;                 \
+        test_body                                                              \
+    }
+
+// Test 1: Basic put and get
+TEST_BOTH_MAPS(BasicPutGet, {
+    CacheType cache(3);
+
+    cache.put(1, new TestData(100, "first"));
+    cache.put(2, new TestData(200, "second"));
+
+    TestData *data1 = cache.get(1);
+    ASSERT_NE(data1, nullptr);
+    EXPECT_EQ(data1->value, 100);
+    EXPECT_EQ(data1->name, "first");
+
+    TestData *data2 = cache.get(2);
+    ASSERT_NE(data2, nullptr);
+    EXPECT_EQ(data2->value, 200);
+
+    TestData *data3 = cache.get(999);
+    EXPECT_EQ(data3, nullptr);
+})
+
+// Test 2: LRU eviction
+TEST_BOTH_MAPS(LRUEviction, {
+    CacheType cache(3);
+
+    cache.put(1, new TestData(1, "one"));
+    cache.put(2, new TestData(2, "two"));
+    cache.put(3, new TestData(3, "three"));
+
+    EXPECT_EQ(cache.size(), 3);
+
+    // Insert 4th element, should evict key 1 (least recently used)
+    cache.put(4, new TestData(4, "four"));
+
+    EXPECT_EQ(cache.size(), 3);
+    EXPECT_EQ(cache.get(1), nullptr); // Evicted
+    EXPECT_NE(cache.get(2), nullptr); // Still exists
+    EXPECT_NE(cache.get(3), nullptr);
+    EXPECT_NE(cache.get(4), nullptr);
+})
+
+// Test 3: Access updates LRU order
+TEST_BOTH_MAPS(AccessUpdatesOrder, {
+    CacheType cache(3);
+
+    cache.put(1, new TestData(1, "one"));
+    cache.put(2, new TestData(2, "two"));
+    cache.put(3, new TestData(3, "three"));
+
+    // Access key 1, making it most recently used
+    cache.get(1);
+
+    // Insert 4th element, should evict key 2 (now LRU)
+    cache.put(4, new TestData(4, "four"));
+
+    EXPECT_NE(cache.get(1), nullptr); // Still exists (was accessed)
+    EXPECT_EQ(cache.get(2), nullptr); // Evicted (was LRU)
+    EXPECT_NE(cache.get(3), nullptr);
+    EXPECT_NE(cache.get(4), nullptr);
+})
+
+// Test 4: Update existing key
+TEST_BOTH_MAPS(UpdateExisting, {
+    CacheType cache(3);
+
+    cache.put(1, new TestData(100, "old"));
+
+    TestData *old_data = cache.get(1);
+    EXPECT_EQ(old_data->name, "old");
+
+    // Update with new data (old pointer should be deleted automatically)
+    cache.put(1, new TestData(999, "new"));
+
+    TestData *new_data = cache.get(1);
+    EXPECT_EQ(new_data->value, 999);
+    EXPECT_EQ(new_data->name, "new");
+    EXPECT_EQ(cache.size(), 1);
+})
+
+// Test 5: Remove element
+TEST_BOTH_MAPS(RemoveElement, {
+    CacheType cache(3);
+
+    cache.put(1, new TestData(1, "one"));
+    cache.put(2, new TestData(2, "two"));
+    cache.put(3, new TestData(3, "three"));
+
+    EXPECT_TRUE(cache.remove(2));
+    EXPECT_EQ(cache.size(), 2);
+    EXPECT_EQ(cache.get(2), nullptr);
+
+    EXPECT_FALSE(cache.remove(999)); // Non-existent key
+    EXPECT_EQ(cache.size(), 2);
+})
+
+// Test 6: Contains check
+TEST_BOTH_MAPS(ContainsCheck, {
+    CacheType cache(3);
+
+    cache.put(1, new TestData(1, "one"));
+    cache.put(2, new TestData(2, "two"));
+
+    EXPECT_TRUE(cache.contains(1));
+    EXPECT_TRUE(cache.contains(2));
+    EXPECT_FALSE(cache.contains(999));
+
+    cache.remove(1);
+    EXPECT_FALSE(cache.contains(1));
+})
+
+// Test 7: Clear cache
+TEST_BOTH_MAPS(ClearCache, {
+    CacheType cache(3);
+
+    cache.put(1, new TestData(1, "one"));
+    cache.put(2, new TestData(2, "two"));
+    cache.put(3, new TestData(3, "three"));
+
+    EXPECT_EQ(cache.size(), 3);
+
+    cache.clear();
+
+    EXPECT_EQ(cache.size(), 0);
+    EXPECT_TRUE(cache.empty());
+    EXPECT_EQ(cache.get(1), nullptr);
+    EXPECT_EQ(cache.get(2), nullptr);
+    EXPECT_EQ(cache.get(3), nullptr);
+})
+
+// Test 8: Empty cache operations
+TEST_BOTH_MAPS(EmptyCache, {
+    CacheType cache(3);
+
+    EXPECT_TRUE(cache.empty());
+    EXPECT_EQ(cache.size(), 0);
+    EXPECT_EQ(cache.capacity(), 3);
+
+    EXPECT_EQ(cache.get(1), nullptr);
+    EXPECT_FALSE(cache.contains(1));
+    EXPECT_FALSE(cache.remove(1));
+})
+
+// Test 9: Single element cache
+TEST_BOTH_MAPS(SingleElementCache, {
+    CacheType cache(1);
+
+    cache.put(1, new TestData(1, "one"));
+    EXPECT_EQ(cache.size(), 1);
+
+    // Adding second element should evict first
+    cache.put(2, new TestData(2, "two"));
+    EXPECT_EQ(cache.size(), 1);
+    EXPECT_EQ(cache.get(1), nullptr);
+    EXPECT_NE(cache.get(2), nullptr);
+})
+
+// Test 10: Complex LRU scenario
+TEST_BOTH_MAPS(ComplexLRUScenario, {
+    CacheType cache(3);
+
+    // Initial state: [1, 2, 3]
+    cache.put(1, new TestData(1, "one"));
+    cache.put(2, new TestData(2, "two"));
+    cache.put(3, new TestData(3, "three"));
+
+    // Access 1, order becomes: [1, 3, 2]
+    cache.get(1);
+
+    // Access 2, order becomes: [2, 1, 3]
+    cache.get(2);
+
+    // Insert 4, evicts 3 (LRU), order becomes: [4, 2, 1]
+    cache.put(4, new TestData(4, "four"));
+
+    EXPECT_NE(cache.get(1), nullptr);
+    EXPECT_NE(cache.get(2), nullptr);
+    EXPECT_EQ(cache.get(3), nullptr); // Evicted
+    EXPECT_NE(cache.get(4), nullptr);
+})
+
+// Test 11: std::map with tuple key (only for std::map)
+TEST(UtilTestSuite, LRUTest_Map_TupleKey) {
+    using Key = std::tuple<int, int>;
+    LruCache<Key, TestData *, std::map> cache(3);
+
+    cache.put({1, 2}, new TestData(12, "one-two"));
+    cache.put({3, 4}, new TestData(34, "three-four"));
+    cache.put({5, 6}, new TestData(56, "five-six"));
+
+    TestData *data = cache.get({1, 2});
+    ASSERT_NE(data, nullptr);
+    EXPECT_EQ(data->value, 12);
+    EXPECT_EQ(data->name, "one-two");
+
+    // Test eviction with tuple key
+    cache.put({7, 8}, new TestData(78, "seven-eight"));
+    EXPECT_EQ(cache.get({3, 4}), nullptr); // Evicted
+    EXPECT_NE(cache.get({1, 2}), nullptr); // Still exists (was accessed)
+}
+
+// Test 12: std::map with pair key (only for std::map)
+TEST(UtilTestSuite, LRUTest_Map_PairKey) {
+    using Key = std::pair<std::string, int>;
+    LruCache<Key, TestData *, std::map> cache(2);
+
+    cache.put({"alpha", 1}, new TestData(100, "test1"));
+    cache.put({"beta", 2}, new TestData(200, "test2"));
+
+    TestData *data = cache.get({"alpha", 1});
+    ASSERT_NE(data, nullptr);
+    EXPECT_EQ(data->value, 100);
+
+    cache.put({"gamma", 3}, new TestData(300, "test3"));
+
+    // "beta" should be evicted
+    EXPECT_EQ(cache.get({"beta", 2}), nullptr);
+    EXPECT_NE(cache.get({"alpha", 1}), nullptr);
+    EXPECT_NE(cache.get({"gamma", 3}), nullptr);
+}
+
+// Test 13: Stress test - many operations
+TEST_BOTH_MAPS(StressTest, {
+    CacheType cache(100);
+
+    // Insert 200 elements (will evict 100)
+    for (int i = 0; i < 200; i++) {
+        cache.put(i, new TestData(i, "data_" + std::to_string(i)));
+    }
+
+    EXPECT_EQ(cache.size(), 100);
+
+    // First 100 should be evicted
+    for (int i = 0; i < 100; i++) {
+        EXPECT_EQ(cache.get(i), nullptr);
+    }
+
+    // Last 100 should exist
+    for (int i = 100; i < 200; i++) {
+        EXPECT_NE(cache.get(i), nullptr);
+    }
+})
+
+// Test 14: Interleaved operations
+TEST_BOTH_MAPS(InterleavedOps, {
+    CacheType cache(5);
+
+    cache.put(1, new TestData(1, "one"));
+    cache.put(2, new TestData(2, "two"));
+    EXPECT_TRUE(cache.contains(1));
+
+    cache.put(3, new TestData(3, "three"));
+    cache.remove(2);
+    EXPECT_FALSE(cache.contains(2));
+
+    cache.put(4, new TestData(4, "four"));
+    cache.put(5, new TestData(5, "five"));
+    EXPECT_EQ(cache.size(), 4);
+
+    cache.get(1); // Access 1
+    cache.put(6, new TestData(6, "six"));
+    cache.put(7, new TestData(7, "seven"));
+
+    // 1 should still exist (was recently accessed)
+    EXPECT_NE(cache.get(1), nullptr);
+})
