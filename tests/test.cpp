@@ -35,6 +35,7 @@ TEST(SampleTestSuite, MathTest) {
 }
 
 /* Bare Min test */
+
 #include "test-programs/bare-min.hpp"
 
 TEST(BareMinTestSuite, BareMin_TEST) {
@@ -86,6 +87,20 @@ TEST(M_modeTestSuite, TRAP_TEST) {
     cpu_start();
     ASSERT_EQ(rv.shutdown_code, 52);
     ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
+    rv_destroy();
+}
+
+/* SMC test */
+
+#include "test-programs/smc.hpp"
+
+TEST(SMCTestSuite, SMC_TEST) {
+    rv_init();
+    rv_load(smc_bin, sizeof(smc_bin));
+    cpu_start();
+    ASSERT_EQ(rv.shutdown_code, 0);
+    ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
+    ASSERT_EQ(rv.X[10], 499500);
     rv_destroy();
 }
 
