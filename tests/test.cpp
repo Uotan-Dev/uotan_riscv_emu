@@ -34,6 +34,18 @@ TEST(SampleTestSuite, MathTest) {
     ASSERT_EQ(5 * 5, 25);
 }
 
+/* Bare Min test */
+#include "test-programs/bare-min.hpp"
+
+TEST(BareMinTestSuite, BareMin_TEST) {
+    rv_init();
+    rv_load(bare_min_bin, sizeof(bare_min_bin));
+    cpu_start();
+    ASSERT_EQ(rv.shutdown_code, 0);
+    ASSERT_EQ(rv.shutdown_cause, SHUTDOWN_CAUSE_GUEST_SHUTDOWN);
+    rv_destroy();
+}
+
 /* M mode Tests */
 
 #include "m_mode-tests/trap_tests.hpp"

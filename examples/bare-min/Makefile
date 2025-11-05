@@ -16,7 +16,7 @@ CROSS ?= riscv64-unknown-elf-
 CC_RISCV = $(CROSS)gcc
 LD_RISCV = $(CROSS)ld
 OBJCOPY = $(CROSS)objcopy
-CFLAGS_RISCV = -march=rv64im -mabi=lp64 -O2 -fno-common -fno-builtin -nostdlib -ffreestanding -fno-pic -mstrict-align
+CFLAGS_RISCV = -march=rv64gc -mabi=lp64 -O0 -fno-common -fno-builtin -nostdlib -ffreestanding -fno-pic -mstrict-align
 LDFLAGS = -T link.ld
 
 .PHONY: all clean
