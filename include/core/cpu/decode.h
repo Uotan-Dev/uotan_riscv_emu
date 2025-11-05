@@ -36,7 +36,7 @@ typedef struct _rv_insn {
     uint32_t inst; // raw instruction
 
     // decoded fields
-    int rd, rs1, rs2, rs3;
+    int8_t rd, rs1, rs2, rs3;
     uint64_t imm;
 
     // instruction executor

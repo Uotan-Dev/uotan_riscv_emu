@@ -31,8 +31,8 @@ void cpu_exec_inst(rv_insn_t *s) {
 }
 
 #define EXTRACT_OPRAND()                                                       \
-    __attribute__((__unused__)) int rd = s->rd, rs1 = s->rs1, rs2 = s->rs2,    \
-                                    rs3 = s->rs3;                              \
+    __attribute__((__unused__)) int8_t rd = s->rd, rs1 = s->rs1, rs2 = s->rs2, \
+                                       rs3 = s->rs3;                           \
     __attribute__((__unused__)) uint64_t imm = s->imm;
 
 #define LOAD(rd, addr, type, sz_type, sz)                                      \

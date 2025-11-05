@@ -161,8 +161,9 @@ typedef enum {
             *imm = raw;                                                        \
     } while (0)
 
-FORCE_INLINE void decode_operand_32(rv_insn_t *s, int *rd, int *rs1, int *rs2,
-                                    int *rs3, uint64_t *imm, inst_type_t type) {
+FORCE_INLINE void decode_operand_32(rv_insn_t *s, int8_t *rd, int8_t *rs1,
+                                    int8_t *rs2, int8_t *rs3, uint64_t *imm,
+                                    inst_type_t type) {
     uint32_t i = s->inst;
     *rs1 = BITS(i, 19, 15);
     *rs2 = BITS(i, 24, 20);
@@ -181,8 +182,9 @@ FORCE_INLINE void decode_operand_32(rv_insn_t *s, int *rd, int *rs1, int *rs2,
     }
 }
 
-FORCE_INLINE void decode_operand_16(rv_insn_t *s, int *rd, int *rs1, int *rs2,
-                                    uint64_t *imm, inst_type_t type) {
+FORCE_INLINE void decode_operand_16(rv_insn_t *s, int8_t *rd, int8_t *rs1,
+                                    int8_t *rs2, uint64_t *imm,
+                                    inst_type_t type) {
     uint16_t i = s->inst & 0xffff;
     uint8_t funct3;
     uint8_t opcode;
@@ -292,7 +294,7 @@ FORCE_INLINE void decode_operand_16(rv_insn_t *s, int *rd, int *rs1, int *rs2,
 
 #define INSTPAT_MATCH(s, name, type)                                           \
     {                                                                          \
-        int rd = 0, rs1 = 0, rs2 = 0, rs3 = 0;                                 \
+        int8_t rd = 0, rs1 = 0, rs2 = 0, rs3 = 0;                              \
         uint64_t imm = 0;                                                      \
         decode_operand_32(s, &rd, &rs1, &rs2, &rs3, &imm,                      \
                           concat(TYPE_, type));                                \
@@ -489,7 +491,7 @@ void cpu_decode_32(rv_insn_t *s) {
 
 #define INSTPAT_MATCH(s, name, type)                                           \
     {                                                                          \
-        int rd = 0, rs1 = 0, rs2 = 0;                                          \
+        int8_t rd = 0, rs1 = 0, rs2 = 0;                                       \
         uint64_t imm = 0;                                                      \
         decode_operand_16(s, &rd, &rs1, &rs2, &imm, concat(TYPE_, type));      \
         (s)->rd = rd;                                                          \
