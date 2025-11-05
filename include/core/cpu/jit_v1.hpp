@@ -32,8 +32,9 @@ public:
     rv_insn_t ir;
     size_t len;
     uint64_t pc;
-    std::vector<std::pair<uint64_t, size_t>>
-        nxt; // possible nxt idx in jit_v1_block
+
+    std::pair<uint64_t, size_t> nxt[2]; // possible nxt idx in jit_v1_block
+    size_t nxt_size;
 
     size_t find_nxt(uint64_t npc) const;
     void add_nxt(uint64_t npc, size_t idx);

@@ -23,12 +23,12 @@
 #include "utils/logger.h"
 
 jit_v1_step::jit_v1_step() {
-    memset(&ir, 0, sizeof(ir));
     len = 0;
+    nxt_size = 0;
 }
 
 size_t jit_v1_step::find_nxt(uint64_t npc) const {
-    for (size_t i = 0; i < nxt.size(); i++)
+    for (size_t i = 0; i < nxt_size; i++)
         if (npc == nxt[i].first)
             return nxt[i].second;
     return SIZE_MAX;
@@ -37,8 +37,8 @@ size_t jit_v1_step::find_nxt(uint64_t npc) const {
 void jit_v1_step::add_nxt(uint64_t npc, size_t idx) {
     if (find_nxt(npc) != SIZE_MAX)
         return;
-    nxt.emplace_back(npc, idx);
-    assert(nxt.size() <= 2);
+    assert(nxt_size < 2);
+    nxt[nxt_size++] = {npc, idx};
 }
 
 jit_v1_block::jit_v1_block() {
@@ -156,7 +156,7 @@ uint64_t jit_v1_block::run(bool &invalidate) {
         rv.suppress_minstret_increase = false;
 
         // The step is an indirect jmp or sfence.vma
-        if (js.nxt.empty()) [[unlikely]]
+        if (js.nxt_size == 0) [[unlikely]]
             return STEPS();
 
         // An exception happened
@@ -317,7 +317,7 @@ jit_v1_block *jit_v1::__compile(uint64_t start_pc) {
         // Fill nxt
         if (js.ir.exec == nullptr || cpu_insn_is_indirect_jmp(&js.ir) ||
             cpu_insn_is_sfence_vma(&js.ir)) {
-            js.nxt.clear();
+            js.nxt_size = 0;
         } else if (cpu_insn_is_branch(&js.ir)) {
             HANDLE_BRANCH_TAKEN();
             HANDLE_NORMAL();
