@@ -14,10 +14,11 @@
  * limitations under the License.
  */
 
-#include "core/entropy.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/random.h>
+
+#include "core/entropy.h"
 
 uint16_t generate_entropy() {
     uint16_t entropy;
@@ -29,9 +30,11 @@ uint16_t generate_entropy() {
 
     FILE *f = fopen("/dev/urandom", "rb");
     if (f) {
-        fread(&entropy, sizeof(entropy), 1, f);
-        fclose(f);
-        return entropy;
+        size_t r = fread(&entropy, sizeof(entropy), 1, f);
+        if (r == 1) {
+            fclose(f);
+            return entropy;
+        }
     }
 
     return (uint16_t)random();
