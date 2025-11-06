@@ -71,7 +71,12 @@ uint64_t jit_v1_block::run(bool &invalidate) {
 
 #define STEPS() (rv.MCYCLE - start_mcycle)
 
-    bool check_new_page = true, check_cross_page_insn = true;
+    bool check_new_page = true;
+
+    uint64_t first_pc = block.front().pc;
+    uint64_t first_len = block.front().len;
+    bool check_cross_page_insn =
+        ((first_pc & (PAGE_SIZE - 1)) > PAGE_SIZE - 4 && first_len == 4);
 
     while (true) {
         if (rv.shutdown) [[unlikely]]
