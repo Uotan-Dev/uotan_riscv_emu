@@ -120,13 +120,8 @@ uint64_t jit_v1_block::run(bool &invalidate) {
         rv.satp_dirty = false;
         rv.dirty_vm = 0;
 
-        if ((rv.MCYCLE & 32767) == 0) {
-            interrupt_t intr = cpu_get_pending_intr();
-            if (intr != CAUSE_INTERRUPT_NONE) {
-                cpu_process_intr(intr);
-                return STEPS();
-            }
-        }
+        if ((rv.MCYCLE & 8191) == 0 && cpu_check_and_process_intr())
+            return STEPS();
 
         jit_v1_step &js = block[idx];
 

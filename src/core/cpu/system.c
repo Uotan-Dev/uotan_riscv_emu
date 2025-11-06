@@ -191,3 +191,12 @@ void cpu_clear_intr(uint64_t ip, privilege_level_t priv) {
         __UNREACHABLE;
     pthread_mutex_unlock(&rv.csr_lock);
 }
+
+bool cpu_check_and_process_intr() {
+    interrupt_t intr = cpu_get_pending_intr();
+    if (intr != CAUSE_INTERRUPT_NONE) {
+        cpu_process_intr(intr);
+        return true;
+    }
+    return false;
+}

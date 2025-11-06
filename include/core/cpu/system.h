@@ -160,6 +160,14 @@ interrupt_t cpu_get_pending_intr();
  */
 void cpu_process_intr(interrupt_t intr);
 
+/**
+ * @brief Checks and processes an interruption at runtime.
+ *
+ * @param intr  true if an interruption has been proccessed or false if it
+ * hasn't.
+ */
+bool cpu_check_and_process_intr();
+
 #ifdef __cplusplus
 }
 #endif

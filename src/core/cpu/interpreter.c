@@ -47,13 +47,8 @@ void cpu_interp_block() {
     rv_insn_t ir;
 
     while (likely(!rv.shutdown)) {
-        if (unlikely(rv.MCYCLE & 32767)) {
-            interrupt_t intr = cpu_get_pending_intr();
-            if (intr != CAUSE_INTERRUPT_NONE) {
-                cpu_process_intr(intr);
-                break;
-            }
-        }
+        if (unlikely((rv.MCYCLE & 4095) == 0) && cpu_check_and_process_intr())
+            break;
 
         cpu_interp_step(&ir);
 
