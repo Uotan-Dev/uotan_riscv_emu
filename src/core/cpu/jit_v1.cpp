@@ -78,6 +78,9 @@ uint64_t jit_v1_block::run(bool &invalidate) {
     bool check_cross_page_insn =
         ((first_pc & (PAGE_SIZE - 1)) > PAGE_SIZE - 4 && first_len == 4);
 
+    rv.last_exception = CAUSE_EXCEPTION_NONE;
+    rv.satp_dirty = false;
+
     while (true) {
         if (rv.shutdown) [[unlikely]]
             return rv.MCYCLE - start_mcycle;
@@ -121,8 +124,6 @@ uint64_t jit_v1_block::run(bool &invalidate) {
             }
         }
 
-        rv.last_exception = CAUSE_EXCEPTION_NONE;
-        rv.satp_dirty = false;
         rv.dirty_vm = 0;
 
         if ((rv.MCYCLE & 8191) == 0 && cpu_check_and_process_intr())
