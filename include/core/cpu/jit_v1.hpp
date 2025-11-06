@@ -62,9 +62,13 @@ private:
     static constexpr size_t _max_size = 32000;
 };
 
+class jit_v2;
+
 class jit_v1 {
 public:
     uint64_t try_run(uint64_t pc);
+
+    friend class jit_v2;
 
 private:
     jit_v1_block *__compile(uint64_t pc);

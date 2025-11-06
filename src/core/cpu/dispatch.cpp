@@ -15,6 +15,7 @@
  */
 
 #include <absl/container/flat_hash_map.h>
+#include <asmjit/x86.h>
 #include <inttypes.h>
 #include <pthread.h>
 #include <unistd.h>
@@ -23,6 +24,7 @@
 #include "core/cpu/dispatch.h"
 #include "core/cpu/interpreter.h"
 #include "core/cpu/jit_v1.hpp"
+#include "core/cpu/jit_v2.hpp"
 #include "core/cpu/system.h"
 #include "core/riscv.h"
 #include "device/clint.h"
@@ -48,14 +50,15 @@ static void *cpu_thread_func(void *arg) {
     pthread_mutex_unlock(&cpu_mutex);
 
     jit_v1 cpu_jit_v1;
+    jit_v2 cpu_jit_v2(cpu_jit_v1);
+
     uint64_t start = slowtimer_get_microseconds();
 
     while (true) {
         if (unlikely(rv.shutdown))
             break;
 
-        uint64_t jsteps = cpu_jit_v1.try_run(rv.PC);
-        if (jsteps == 0)
+        if (cpu_jit_v2.try_run(rv.PC) == 0 && cpu_jit_v1.try_run(rv.PC) == 0)
             cpu_interp_block();
     }
 
