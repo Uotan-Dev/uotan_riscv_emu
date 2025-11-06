@@ -1,0 +1,113 @@
+# Copyright 2025 Nuo Shen, Nanjing University
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: CI Build and Test
+
+on:
+  push:
+    branches: [ main, master, dev ]
+  pull_request:
+    branches: [ main, master, dev ]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          cmake \
+          ninja-build \
+          pkg-config \
+          git \
+          wget \
+          xz-utils \
+          libx11-dev \
+          libxext-dev \
+          libxrandr-dev \
+          libxcursor-dev \
+          libxinerama-dev \
+          libasound2-dev \
+          libpulse-dev \
+          libdbus-1-dev \
+          libudev-dev \
+          libegl1-mesa-dev \
+          libgl1-mesa-dev \
+          libxkbcommon-dev \
+          libwayland-dev
+
+    - name: Install RISC-V toolchain
+      run: |
+        wget https://github.com/riscv-collab/riscv-gnu-toolchain/releases/download/2025.11.04/riscv64-elf-ubuntu-22.04-gcc.tar.xz
+        tar -xJf riscv64-elf-ubuntu-22.04-gcc.tar.xz -C $HOME
+        echo "$HOME/riscv/bin" >> $GITHUB_PATH
+
+    - name: Verify RISC-V toolchain
+      run: |
+        riscv64-unknown-elf-gcc --version
+
+    - name: Build and install SDL3 from source
+      run: |
+        git clone https://github.com/libsdl-org/SDL.git --depth=1 -b release-3.2.26
+        cd SDL
+        mkdir -p build
+        cd build
+        cmake .. -DCMAKE_BUILD_TYPE=Release -G Ninja -DSDL_TEST=OFF
+        cmake --build . --parallel $(nproc)
+        sudo cmake --install . --parallel $(nproc)
+        cd ../..
+
+    - name: Install Abseil
+      run: |
+        git clone https://github.com/abseil/abseil-cpp.git -b 20250814.1 --depth=1
+        cd abseil-cpp
+        mkdir build && cd build
+        cmake .. \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DABSL_BUILD_TESTING=OFF \
+          -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+          -DABSL_PROPAGATE_CXX_STD=ON \
+          -G Ninja
+        cmake --build . --parallel $(nproc)
+        sudo cmake --install . --parallel $(nproc)
+        cd ../..
+
+    - name: Configure CMake
+      run: |
+        mkdir build
+        cd build
+        cmake .. \
+          -DCMAKE_BUILD_TYPE=Release
+        cd ..
+
+    - name: Build project (parallel)
+      run: |
+        cd build
+        make -j$(nproc)
+        cd ..
+
+    - name: Run tests (parallel)
+      run: |
+        cd build
+        ctest --output-on-failure -j $(nproc)
+        cd ..
