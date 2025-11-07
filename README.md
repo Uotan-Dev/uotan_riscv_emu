@@ -21,7 +21,7 @@
 
 | Status (main) | Description |
 | :-----------: | :---------: |
-| [![build status](https://github.com/Uotan-Dev/uotan_riscv_emu/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Uotan-Dev/uotan_riscv_emu/actions/workflows/ci.yml?query=branch%3Amain) | Build and Package |
+| [![build status](https://github.com/Uotan-Dev/uotan_riscv_emu/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Uotan-Dev/uotan_riscv_emu/actions/workflows/ci.yml?query=branch%3Amain) | Build and Test |
 
 ## Boot Demo
 ### [Alpine Linux v3.22](https://www.alpinelinux.org/)

@@ -100,14 +100,14 @@ jobs:
           -DCMAKE_BUILD_TYPE=Release
         cd ..
 
-    - name: Build project (parallel)
+    - name: Build project
       run: |
         cd build
         make -j$(nproc)
         cd ..
 
-    - name: Run tests (parallel)
+    - name: Run tests
       run: |
         cd build
-        ctest --output-on-failure -j $(nproc)
+        ctest --output-on-failure
         cd ..
