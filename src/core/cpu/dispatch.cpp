@@ -16,7 +16,7 @@
 
 #include <absl/container/flat_hash_map.h>
 #include <asmjit/x86.h>
-#include <inttypes.h>
+#include <cinttypes>
 #include <pthread.h>
 #include <unistd.h>
 
@@ -76,7 +76,7 @@ static void *cpu_thread_func(void *arg) {
     pthread_cond_broadcast(&cpu_cond);
     pthread_mutex_unlock(&cpu_mutex);
 
-    return NULL;
+    return nullptr;
 }
 
 static inline void cpu_thread_start() {
@@ -87,7 +87,7 @@ static inline void cpu_thread_start() {
         return;
     }
 
-    if (pthread_create(&cpu_thread, NULL, cpu_thread_func, NULL) != 0) {
+    if (pthread_create(&cpu_thread, nullptr, cpu_thread_func, nullptr) != 0) {
         pthread_mutex_unlock(&cpu_mutex);
         log_error("pthread_create failed");
         exit(EXIT_FAILURE);
@@ -101,8 +101,8 @@ static inline void cpu_thread_start() {
 void cpu_start() {
     alarm_turn(true);
 
-    pthread_cond_init(&cpu_cond, NULL);
-    pthread_mutex_init(&cpu_mutex, NULL);
+    pthread_cond_init(&cpu_cond, nullptr);
+    pthread_mutex_init(&cpu_mutex, nullptr);
 
     cpu_thread_start();
 
@@ -137,7 +137,7 @@ void cpu_start() {
     }
 
     alarm_turn(false);
-    pthread_join(cpu_thread, NULL);
+    pthread_join(cpu_thread, nullptr);
 
     pthread_mutex_destroy(&cpu_mutex);
     pthread_cond_destroy(&cpu_cond);
@@ -164,20 +164,41 @@ void cpu_step() {
 }
 
 void cpu_start_archtest() {
+    pthread_cond_init(&cpu_cond, nullptr);
+    pthread_mutex_init(&cpu_mutex, nullptr);
+
     uint64_t start = slowtimer_get_microseconds();
-    // alarm_turn(true);
-    for (size_t i = 0; i < SIZE_MAX; i++) {
-        if (unlikely(rv.shutdown))
+
+    cpu_thread_start();
+
+    while (true) {
+        pthread_mutex_lock(&cpu_mutex);
+        bool running = cpu_thread_running;
+        pthread_mutex_unlock(&cpu_mutex);
+
+        if (!running)
             break;
-        if (i % 1000 == 1 && slowtimer_get_microseconds() - start > 4000000) {
-            log_error("TLE");
-            break;
-        }
+
+        if (slowtimer_get_microseconds() - start > 3200000)
+            rv_shutdown(-1, SHUTDOWN_CAUSE_GUEST_PANIC);
+
+        // Update clint
         clint_tick();
-        // uart_tick();
-        CPU_EXEC_COMMON();
+
+        // Update stip
+        pthread_mutex_lock(&rv.csr_lock);
+        bool trigger = rv.MTIME >= rv.STIMECMP;
+        pthread_mutex_unlock(&rv.csr_lock);
+        if (trigger)
+            cpu_raise_intr(SIP_STIP, PRIV_S);
+        else
+            cpu_clear_intr(SIP_STIP, PRIV_S);
     }
-    // alarm_turn(false);
+
+    pthread_join(cpu_thread, nullptr);
+
+    pthread_mutex_destroy(&cpu_mutex);
+    pthread_cond_destroy(&cpu_cond);
 }
 
 // clang-format off
