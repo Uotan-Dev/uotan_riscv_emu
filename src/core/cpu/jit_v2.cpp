@@ -153,11 +153,7 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
     a.mov(asmjit::x86::r12, asmjit::x86::rdi);
 
     // Allocate space on stack
-    // rv_insn_t ir + bool check_new_page + bool check_cross_page_insn
-    constexpr size_t ir_sz = ((sizeof(rv_insn_t) + 15) / 16) * 16;
-    constexpr size_t bool_sz = 16;
-    constexpr size_t total_sz_unaligned = ir_sz + bool_sz;
-    constexpr size_t total_sz = ((total_sz_unaligned + 15) / 16) * 16;
+    constexpr size_t total_sz = ((sizeof(rv_insn_t) + 15) / 16) * 16;
     a.sub(asmjit::x86::rsp, asmjit::Imm(static_cast<int>(total_sz)));
 
     // rbx = &rv
@@ -167,25 +163,7 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
     a.mov(asmjit::x86::r13,
           asmjit::x86::qword_ptr(asmjit::x86::rbx, offsetof(riscv_t, MCYCLE)));
 
-    int ir_stack_offset = 0;
-    int check_new_page_offset = static_cast<int>(ir_sz);
-    int check_cross_page_offset = static_cast<int>(ir_sz + 8);
-
-    asmjit::x86::Mem ir_on_stack =
-        asmjit::x86::ptr(asmjit::x86::rsp, ir_stack_offset);
-    asmjit::x86::Mem check_new_page_flag =
-        asmjit::x86::byte_ptr(asmjit::x86::rsp, check_new_page_offset);
-    asmjit::x86::Mem check_cross_page_flag =
-        asmjit::x86::byte_ptr(asmjit::x86::rsp, check_cross_page_offset);
-
-    // Initialize checking flags for first instruction
-    uint64_t first_pc = block_v1.front().pc;
-    uint64_t first_len = block_v1.front().len;
-    bool initial_check_new_page = true;
-    bool initial_check_cross_page =
-        ((first_pc & (PAGE_SIZE - 1)) > PAGE_SIZE - 4 && first_len == 4);
-    a.mov(check_new_page_flag, asmjit::Imm(initial_check_new_page ? 1 : 0));
-    a.mov(check_cross_page_flag, asmjit::Imm(initial_check_cross_page ? 1 : 0));
+    asmjit::x86::Mem ir_on_stack = asmjit::x86::ptr(asmjit::x86::rsp, 0);
 
     // Create labels
     asmjit::Label lb_exit = a.new_label();
@@ -194,6 +172,32 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
     labels.reserve(block_v1.size());
     for (size_t i = 0; i < block_v1.size(); i++)
         labels.push_back(a.new_label());
+
+#define EMIT_NEW_PAGE_CHECK()                                                  \
+    do {                                                                       \
+        a.mov(asmjit::x86::rdi,                                                \
+              asmjit::Imm(reinterpret_cast<uint64_t>(&jb->pc_map)));           \
+        a.call(asmjit::Imm(reinterpret_cast<uintptr_t>(check_new_page)));      \
+        a.test(asmjit::x86::rax, asmjit::x86::rax);                            \
+        a.jz(lb_invalidate);                                                   \
+    } while (0)
+
+#define EMIT_CROSS_PAGE_CHECK()                                                \
+    do {                                                                       \
+        a.mov(asmjit::x86::rdi,                                                \
+              asmjit::Imm(reinterpret_cast<uint64_t>(&jb->pc_map)));           \
+        a.call(                                                                \
+            asmjit::Imm(reinterpret_cast<uintptr_t>(check_cross_page_insn)));  \
+        a.test(asmjit::x86::rax, asmjit::x86::rax);                            \
+        a.jz(lb_invalidate);                                                   \
+    } while (0)
+
+    EMIT_NEW_PAGE_CHECK();
+
+    uint64_t first_pc = block_v1.front().pc;
+    uint64_t first_len = block_v1.front().len;
+    if ((first_pc & (PAGE_SIZE - 1)) > PAGE_SIZE - 4 && first_len == 4)
+        EMIT_CROSS_PAGE_CHECK();
 
     for (size_t i = 0; i < block_v1.size(); i++) {
         const auto &js = block_v1[i];
@@ -205,33 +209,6 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
                                     offsetof(riscv_t, shutdown)),
               asmjit::Imm(0));
         a.jne(lb_exit);
-
-        // Check new page
-        asmjit::Label skip_new_page = a.new_label();
-        a.cmp(check_new_page_flag, asmjit::Imm(0));
-        a.je(skip_new_page);
-        {
-            a.mov(asmjit::x86::rdi,
-                  asmjit::Imm(reinterpret_cast<uint64_t>(&jb->pc_map)));
-            a.call(asmjit::Imm(reinterpret_cast<uintptr_t>(check_new_page)));
-            a.test(asmjit::x86::rax, asmjit::x86::rax);
-            a.jz(lb_invalidate);
-        }
-        a.bind(skip_new_page);
-
-        // Check cross page instructions
-        asmjit::Label skip_cross_page = a.new_label();
-        a.cmp(check_cross_page_flag, asmjit::Imm(0));
-        a.je(skip_cross_page);
-        {
-            a.mov(asmjit::x86::rdi,
-                  asmjit::Imm(reinterpret_cast<uint64_t>(&jb->pc_map)));
-            a.call(asmjit::Imm(
-                reinterpret_cast<uintptr_t>(check_cross_page_insn)));
-            a.test(asmjit::x86::rax, asmjit::x86::rax);
-            a.jz(lb_invalidate);
-        }
-        a.bind(skip_cross_page);
 
         // Reset flags
         a.mov(asmjit::x86::r11,
@@ -258,13 +235,6 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
         a.test(asmjit::x86::rax, asmjit::x86::rax);
         a.jnz(lb_exit);
         a.bind(skip_intr);
-
-        // Check PC mismatch
-        a.mov(asmjit::x86::rax,
-              asmjit::x86::qword_ptr(asmjit::x86::rbx, offsetof(riscv_t, PC)));
-        a.mov(asmjit::x86::r11, asmjit::Imm(js.pc));
-        a.cmp(asmjit::x86::rax, asmjit::x86::r11);
-        a.jne(lb_invalidate);
 
         // Check ir.exec
         if (js.ir.exec == nullptr) {
@@ -372,25 +342,20 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
         if (js.nxt_size == 1) {
             auto [nxt_pc, nxt_idx] = js.nxt[0];
 
-            bool next_check_new_page = !ON_SAME_PAGE(js.pc, nxt_pc);
-            bool next_check_cross_page = false;
-            if (nxt_idx < block_v1.size()) {
-                next_check_cross_page =
-                    ((nxt_pc & (PAGE_SIZE - 1)) > PAGE_SIZE - 4 &&
-                     block_v1[nxt_idx].len == 4);
-            }
+            assert(nxt_idx < block_v1.size());
 
-            a.mov(check_new_page_flag,
-                  asmjit::Imm(next_check_new_page ? 1 : 0));
-            a.mov(check_cross_page_flag,
-                  asmjit::Imm(next_check_cross_page ? 1 : 0));
+            if (!ON_SAME_PAGE(js.pc, nxt_pc))
+                EMIT_NEW_PAGE_CHECK();
+
+            if ((nxt_pc & (PAGE_SIZE - 1)) > PAGE_SIZE - 4 &&
+                block_v1[nxt_idx].len == 4)
+                EMIT_CROSS_PAGE_CHECK();
 
             a.mov(asmjit::x86::r11, asmjit::Imm(nxt_pc));
             a.cmp(asmjit::x86::r14, asmjit::x86::r11);
             a.je(labels[nxt_idx]);
 
             a.jmp(lb_exit);
-
         } else if (js.nxt_size == 2) {
             auto [nxt_pc0, nxt_idx0] = js.nxt[0];
             auto [nxt_pc1, nxt_idx1] = js.nxt[1];
@@ -409,35 +374,27 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
 
             a.bind(path0);
             {
-                bool next_check_new_page = !ON_SAME_PAGE(js.pc, nxt_pc0);
-                bool next_check_cross_page = false;
-                if (nxt_idx0 < block_v1.size()) {
-                    next_check_cross_page =
-                        ((nxt_pc0 & (PAGE_SIZE - 1)) > PAGE_SIZE - 4 &&
-                         block_v1[nxt_idx0].len == 4);
-                }
-                a.mov(check_new_page_flag,
-                      asmjit::Imm(next_check_new_page ? 1 : 0));
-                a.mov(check_cross_page_flag,
-                      asmjit::Imm(next_check_cross_page ? 1 : 0));
+                assert(nxt_idx0 < block_v1.size());
+                if (!ON_SAME_PAGE(js.pc, nxt_pc0))
+                    EMIT_NEW_PAGE_CHECK();
+                if ((nxt_pc0 & (PAGE_SIZE - 1)) > PAGE_SIZE - 4 &&
+                    block_v1[nxt_idx0].len == 4)
+                    EMIT_CROSS_PAGE_CHECK();
                 a.jmp(labels[nxt_idx0]);
             }
 
             a.bind(path1);
             {
-                bool next_check_new_page = !ON_SAME_PAGE(js.pc, nxt_pc1);
-                bool next_check_cross_page = false;
-                if (nxt_idx1 < block_v1.size()) {
-                    next_check_cross_page =
-                        ((nxt_pc1 & (PAGE_SIZE - 1)) > PAGE_SIZE - 4 &&
-                         block_v1[nxt_idx1].len == 4);
-                }
-                a.mov(check_new_page_flag,
-                      asmjit::Imm(next_check_new_page ? 1 : 0));
-                a.mov(check_cross_page_flag,
-                      asmjit::Imm(next_check_cross_page ? 1 : 0));
+                assert(nxt_idx1 < block_v1.size());
+                if (!ON_SAME_PAGE(js.pc, nxt_pc1))
+                    EMIT_NEW_PAGE_CHECK();
+                if ((nxt_pc1 & (PAGE_SIZE - 1)) > PAGE_SIZE - 4 &&
+                    block_v1[nxt_idx1].len == 4)
+                    EMIT_CROSS_PAGE_CHECK();
                 a.jmp(labels[nxt_idx1]);
             }
+        } else {
+            a.jmp(lb_exit);
         }
     }
 
