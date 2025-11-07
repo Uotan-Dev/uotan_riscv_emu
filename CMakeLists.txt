@@ -61,8 +61,11 @@ find_package(SDL3 CONFIG REQUIRED)
 # Abseil Configuration
 find_package(absl REQUIRED)
 
-# Find asmjit library
-find_package(asmjit CONFIG REQUIRED)
+# AsmJit Configuration (as submodule)
+set(ASMJIT_STATIC TRUE)
+set(ASMJIT_NO_FOREIGN TRUE)
+set(ASMJIT_BUILD_RELEASE TRUE)
+add_subdirectory(asmjit)
 
 # GDB Stub
 add_custom_target(gdbstub_build

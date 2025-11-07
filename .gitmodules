@@ -7,3 +7,6 @@
 [submodule "riscv-arch-test"]
 	path = riscv-arch-test
 	url = https://github.com/riscv-non-isa/riscv-arch-test.git
+[submodule "asmjit"]
+	path = asmjit
+	url = https://github.com/asmjit/asmjit.git
