@@ -57,6 +57,8 @@ public:
 
 private:
     jit_v2_block *__compile(const jit_v1_block &jb_v1);
+    bool __emit_step(const jit_v1_step &js_v1,
+                      asmjit::x86::Assembler &a) const;
 
     jit_v2_cache _jcache; // Code cache
     absl::flat_hash_map<std::pair<uint64_t, uint64_t>, uint64_t>

@@ -143,7 +143,6 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
 
     // Push callee-saved registers
     a.push(asmjit::x86::rbx);
-    a.push(asmjit::x86::r11);
     a.push(asmjit::x86::r12);
     a.push(asmjit::x86::r13);
     a.push(asmjit::x86::r14);
@@ -211,11 +210,11 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
         a.jne(lb_exit);
 
         // Reset flags
-        a.mov(asmjit::x86::r11,
+        a.mov(asmjit::x86::r15,
               asmjit::Imm(static_cast<uint64_t>(CAUSE_EXCEPTION_NONE)));
         a.mov(asmjit::x86::qword_ptr(asmjit::x86::rbx,
                                      offsetof(riscv_t, last_exception)),
-              asmjit::x86::r11);
+              asmjit::x86::r15);
         a.mov(asmjit::x86::byte_ptr(asmjit::x86::rbx,
                                     offsetof(riscv_t, satp_dirty)),
               asmjit::Imm(0));
@@ -243,35 +242,42 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
         }
 
         // Fill the npc
-        a.mov(asmjit::x86::r11, asmjit::Imm(js.pc + js.len));
+        a.mov(asmjit::x86::r15, asmjit::Imm(js.pc + js.len));
         a.mov(asmjit::x86::qword_ptr(asmjit::x86::rbx, offsetof(riscv_t, npc)),
-              asmjit::x86::r11);
+              asmjit::x86::r15);
 
-        // Prepare the ir
-        a.lea(asmjit::x86::rdi, ir_on_stack);
-        a.mov(
-            asmjit::x86::dword_ptr(asmjit::x86::rdi, offsetof(rv_insn_t, inst)),
-            asmjit::Imm(static_cast<uint32_t>(js.ir.inst)));
-        a.mov(asmjit::x86::byte_ptr(asmjit::x86::rdi, offsetof(rv_insn_t, rd)),
-              asmjit::Imm(static_cast<int32_t>(js.ir.rd)));
-        a.mov(asmjit::x86::byte_ptr(asmjit::x86::rdi, offsetof(rv_insn_t, rs1)),
-              asmjit::Imm(static_cast<int32_t>(js.ir.rs1)));
-        a.mov(asmjit::x86::byte_ptr(asmjit::x86::rdi, offsetof(rv_insn_t, rs2)),
-              asmjit::Imm(static_cast<int32_t>(js.ir.rs2)));
-        a.mov(asmjit::x86::byte_ptr(asmjit::x86::rdi, offsetof(rv_insn_t, rs3)),
-              asmjit::Imm(static_cast<int32_t>(js.ir.rs3)));
-        a.mov(asmjit::x86::r11, asmjit::Imm(static_cast<uint64_t>(js.ir.imm)));
-        a.mov(
-            asmjit::x86::qword_ptr(asmjit::x86::rdi, offsetof(rv_insn_t, imm)),
-            asmjit::x86::r11);
-        a.mov(asmjit::x86::r11,
-              asmjit::Imm(reinterpret_cast<uintptr_t>(js.ir.exec)));
-        a.mov(
-            asmjit::x86::qword_ptr(asmjit::x86::rdi, offsetof(rv_insn_t, exec)),
-            asmjit::x86::r11);
+        if (!__emit_step(js, a)) {
+            // Prepare the ir
+            a.lea(asmjit::x86::rdi, ir_on_stack);
+            a.mov(asmjit::x86::dword_ptr(asmjit::x86::rdi,
+                                         offsetof(rv_insn_t, inst)),
+                  asmjit::Imm(static_cast<uint32_t>(js.ir.inst)));
+            a.mov(asmjit::x86::byte_ptr(asmjit::x86::rdi,
+                                        offsetof(rv_insn_t, rd)),
+                  asmjit::Imm(static_cast<int32_t>(js.ir.rd)));
+            a.mov(asmjit::x86::byte_ptr(asmjit::x86::rdi,
+                                        offsetof(rv_insn_t, rs1)),
+                  asmjit::Imm(static_cast<int32_t>(js.ir.rs1)));
+            a.mov(asmjit::x86::byte_ptr(asmjit::x86::rdi,
+                                        offsetof(rv_insn_t, rs2)),
+                  asmjit::Imm(static_cast<int32_t>(js.ir.rs2)));
+            a.mov(asmjit::x86::byte_ptr(asmjit::x86::rdi,
+                                        offsetof(rv_insn_t, rs3)),
+                  asmjit::Imm(static_cast<int32_t>(js.ir.rs3)));
+            a.mov(asmjit::x86::r15,
+                  asmjit::Imm(static_cast<uint64_t>(js.ir.imm)));
+            a.mov(asmjit::x86::qword_ptr(asmjit::x86::rdi,
+                                         offsetof(rv_insn_t, imm)),
+                  asmjit::x86::r15);
+            a.mov(asmjit::x86::r15,
+                  asmjit::Imm(reinterpret_cast<uintptr_t>(js.ir.exec)));
+            a.mov(asmjit::x86::qword_ptr(asmjit::x86::rdi,
+                                         offsetof(rv_insn_t, exec)),
+                  asmjit::x86::r15);
 
-        // Run the instruction
-        a.call(asmjit::Imm(reinterpret_cast<uintptr_t>(cpu_exec_inst)));
+            // Run the instruction
+            a.call(asmjit::Imm(reinterpret_cast<uintptr_t>(cpu_exec_inst)));
+        }
 
         // Update PC to npc
         a.mov(asmjit::x86::rax,
@@ -285,11 +291,11 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
 
         // Update MINSTRET
         asmjit::Label skip_minstret = a.new_label();
-        a.mov(asmjit::x86::r11,
+        a.mov(asmjit::x86::r15,
               asmjit::Imm(static_cast<uint64_t>(CAUSE_EXCEPTION_NONE)));
         a.cmp(asmjit::x86::qword_ptr(asmjit::x86::rbx,
                                      offsetof(riscv_t, last_exception)),
-              asmjit::x86::r11);
+              asmjit::x86::r15);
         a.jne(skip_minstret);
         a.cmp(asmjit::x86::byte_ptr(
                   asmjit::x86::rbx,
@@ -311,11 +317,11 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
         }
 
         // An exception happened
-        a.mov(asmjit::x86::r11,
+        a.mov(asmjit::x86::r15,
               asmjit::Imm(static_cast<uint64_t>(CAUSE_EXCEPTION_NONE)));
         a.cmp(asmjit::x86::qword_ptr(asmjit::x86::rbx,
                                      offsetof(riscv_t, last_exception)),
-              asmjit::x86::r11);
+              asmjit::x86::r15);
         a.jne(lb_exit);
 
         // SMC detected
@@ -351,8 +357,8 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
                 block_v1[nxt_idx].len == 4)
                 EMIT_CROSS_PAGE_CHECK();
 
-            a.mov(asmjit::x86::r11, asmjit::Imm(nxt_pc));
-            a.cmp(asmjit::x86::r14, asmjit::x86::r11);
+            a.mov(asmjit::x86::r15, asmjit::Imm(nxt_pc));
+            a.cmp(asmjit::x86::r14, asmjit::x86::r15);
             a.je(labels[nxt_idx]);
 
             a.jmp(lb_exit);
@@ -363,11 +369,11 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
             asmjit::Label path0 = a.new_label();
             asmjit::Label path1 = a.new_label();
 
-            a.mov(asmjit::x86::r11, asmjit::Imm(nxt_pc0));
-            a.cmp(asmjit::x86::r14, asmjit::x86::r11);
+            a.mov(asmjit::x86::r15, asmjit::Imm(nxt_pc0));
+            a.cmp(asmjit::x86::r14, asmjit::x86::r15);
             a.je(path0);
-            a.mov(asmjit::x86::r11, asmjit::Imm(nxt_pc1));
-            a.cmp(asmjit::x86::r14, asmjit::x86::r11);
+            a.mov(asmjit::x86::r15, asmjit::Imm(nxt_pc1));
+            a.cmp(asmjit::x86::r14, asmjit::x86::r15);
             a.je(path1);
 
             a.jmp(lb_exit);
@@ -413,7 +419,6 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
     a.pop(asmjit::x86::r14);
     a.pop(asmjit::x86::r13);
     a.pop(asmjit::x86::r12);
-    a.pop(asmjit::x86::r11);
     a.pop(asmjit::x86::rbx);
     a.pop(asmjit::x86::rbp);
     a.ret();
@@ -430,4 +435,225 @@ jit_v2_block *jit_v2::__compile(const jit_v1_block &jb_v1) {
     _jcache.put({block_v1.front().pc, rv.SATP}, jb);
 
     return jb;
+}
+
+bool jit_v2::__emit_step(const jit_v1_step &js_v1,
+                         asmjit::x86::Assembler &a) const {
+    const auto [inst, rd, rs1, rs2, rs3, imm, exec, iname] = js_v1.ir;
+
+    constexpr size_t reg_width = sizeof(*rv.X);
+    constexpr size_t reg_base = offsetof(riscv_t, X);
+
+    auto reg_ptr = [](int idx) -> asmjit::x86::Mem {
+        return qword_ptr(asmjit::x86::rbx,
+                         static_cast<int>(reg_base + idx * reg_width));
+    };
+
+    switch (iname) {
+        case rv_add:
+            if (rd) {
+                a.mov(asmjit::x86::rax, reg_ptr(rs1));
+                a.add(asmjit::x86::rax, reg_ptr(rs2));
+                a.mov(reg_ptr(rd), asmjit::x86::rax);
+            }
+            return true;
+
+        case rv_addi:
+            if (rd) {
+                a.mov(asmjit::x86::rax, asmjit::Imm(imm));
+                a.add(asmjit::x86::rax, reg_ptr(rs1));
+                a.mov(reg_ptr(rd), asmjit::x86::rax);
+            }
+            return true;
+
+        case rv_addiw:
+            if (rd) {
+                a.mov(asmjit::x86::rax, asmjit::Imm(imm));
+                a.add(asmjit::x86::eax,
+                      asmjit::x86::dword_ptr(
+                          asmjit::x86::rbx,
+                          static_cast<int>(reg_base + rs1 * reg_width)));
+                a.cdqe();
+                a.mov(reg_ptr(rd), asmjit::x86::rax);
+            }
+            return true;
+
+        case rv_addw:
+            if (rd) {
+                a.mov(asmjit::x86::rax, reg_ptr(rs2));
+                a.add(asmjit::x86::eax,
+                      asmjit::x86::dword_ptr(
+                          asmjit::x86::rbx,
+                          static_cast<int>(reg_base + rs1 * reg_width)));
+                a.cdqe();
+                a.mov(reg_ptr(rd), asmjit::x86::rax);
+            }
+            return true;
+
+        case rv_and:
+            if (rd) {
+                a.mov(asmjit::x86::rax, reg_ptr(rs1));
+                a.and_(asmjit::x86::rax, reg_ptr(rs2));
+                a.mov(reg_ptr(rd), asmjit::x86::rax);
+            }
+            return true;
+
+        case rv_andi:
+            if (rd) {
+                a.mov(asmjit::x86::rax, reg_ptr(rs1));
+                a.and_(asmjit::x86::rax, asmjit::Imm(imm));
+                a.mov(reg_ptr(rd), asmjit::x86::rax);
+            }
+            return true;
+
+        case rv_auipc:
+            if (rd) {
+                a.mov(asmjit::x86::rax, asmjit::Imm(imm));
+                a.add(asmjit::x86::rax,
+                      asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                             offsetof(riscv_t, PC)));
+                a.mov(reg_ptr(rd), asmjit::x86::rax);
+            }
+            return true;
+
+        case rv_beq: {
+            a.mov(asmjit::x86::rax, reg_ptr(rs2));
+            a.cmp(reg_ptr(rs1), asmjit::x86::rax);
+            asmjit::Label skip = a.new_label();
+            a.jne(skip);
+            a.mov(asmjit::x86::rax, asmjit::Imm(imm));
+            a.add(asmjit::x86::rax,
+                  asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, PC)));
+            a.mov(asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, npc)),
+                  asmjit::x86::rax);
+            a.bind(skip);
+            return true;
+        }
+
+        case rv_bge: {
+            a.mov(asmjit::x86::rax, reg_ptr(rs2));
+            a.cmp(reg_ptr(rs1), asmjit::x86::rax);
+            asmjit::Label skip = a.new_label();
+            a.jl(skip);
+            a.mov(asmjit::x86::rax, asmjit::Imm(imm));
+            a.add(asmjit::x86::rax,
+                  asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, PC)));
+            a.mov(asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, npc)),
+                  asmjit::x86::rax);
+            a.bind(skip);
+            return true;
+        }
+
+        case rv_bgeu: {
+            a.mov(asmjit::x86::rax, reg_ptr(rs2));
+            a.cmp(reg_ptr(rs1), asmjit::x86::rax);
+            asmjit::Label skip = a.new_label();
+            a.jb(skip);
+            a.mov(asmjit::x86::rax, asmjit::Imm(imm));
+            a.add(asmjit::x86::rax,
+                  asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, PC)));
+            a.mov(asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, npc)),
+                  asmjit::x86::rax);
+            a.bind(skip);
+            return true;
+        }
+
+        case rv_blt: {
+            a.mov(asmjit::x86::rax, reg_ptr(rs2));
+            a.cmp(reg_ptr(rs1), asmjit::x86::rax);
+            asmjit::Label skip = a.new_label();
+            a.jge(skip);
+            a.mov(asmjit::x86::rax, asmjit::Imm(imm));
+            a.add(asmjit::x86::rax,
+                  asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, PC)));
+            a.mov(asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, npc)),
+                  asmjit::x86::rax);
+            a.bind(skip);
+            return true;
+        }
+
+        case rv_bltu: {
+            a.mov(asmjit::x86::rax, reg_ptr(rs2));
+            a.cmp(reg_ptr(rs1), asmjit::x86::rax);
+            asmjit::Label skip = a.new_label();
+            a.jae(skip);
+            a.mov(asmjit::x86::rax, asmjit::Imm(imm));
+            a.add(asmjit::x86::rax,
+                  asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, PC)));
+            a.mov(asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, npc)),
+                  asmjit::x86::rax);
+            a.bind(skip);
+            return true;
+        }
+
+        case rv_bne: {
+            a.mov(asmjit::x86::rax, reg_ptr(rs2));
+            a.cmp(reg_ptr(rs1), asmjit::x86::rax);
+            asmjit::Label skip = a.new_label();
+            a.je(skip);
+            a.mov(asmjit::x86::rax, asmjit::Imm(imm));
+            a.add(asmjit::x86::rax,
+                  asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, PC)));
+            a.mov(asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, npc)),
+                  asmjit::x86::rax);
+            a.bind(skip);
+            return true;
+        }
+
+        case rv_fence: return true;
+
+        case rv_fence_i: return true;
+
+        case rv_jal:
+            if (rd) {
+                a.mov(asmjit::x86::rax,
+                      asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                             offsetof(riscv_t, PC)));
+                a.lea(asmjit::x86::rcx,
+                      asmjit::x86::qword_ptr(asmjit::x86::rax, 4));
+                a.mov(reg_ptr(rd), asmjit::x86::rcx);
+            }
+            a.mov(asmjit::x86::rax, asmjit::Imm(imm));
+            a.add(asmjit::x86::rax,
+                  asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, PC)));
+            a.mov(asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, npc)),
+                  asmjit::x86::rax);
+            return true;
+
+        case rv_jalr: {
+            a.mov(asmjit::x86::rax,
+                  asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, PC)));
+            a.lea(asmjit::x86::rcx,
+                  asmjit::x86::qword_ptr(asmjit::x86::rax, 4));
+            a.mov(asmjit::x86::rax, asmjit::Imm(imm));
+            a.add(asmjit::x86::rax, reg_ptr(rs1));
+            a.and_(asmjit::x86::rax, asmjit::Imm(~1ULL));
+            if (rd) {
+                a.mov(reg_ptr(rd), asmjit::x86::rcx);
+            }
+            a.mov(asmjit::x86::qword_ptr(asmjit::x86::rbx,
+                                         offsetof(riscv_t, npc)),
+                  asmjit::x86::rax);
+            return true;
+        }
+
+        default: return false;
+    }
+
+    return false;
 }
