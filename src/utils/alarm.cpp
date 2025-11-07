@@ -15,6 +15,7 @@
  */
 
 #include <cassert>
+#include <cstdlib>
 #include <cstring>
 #include <signal.h>
 #include <sys/time.h>
@@ -58,7 +59,8 @@ void alarm_init() {
     };
 
     int ret = sigaction(SIGVTALRM, &s, nullptr);
-    assert(ret == 0);
+    if (ret)
+        goto fail;
 
     struct itimerval it;
     memset(&it, 0, sizeof(it));
@@ -66,7 +68,13 @@ void alarm_init() {
     it.it_value.tv_usec = 1000000 / TIMER_HZ;
     it.it_interval = it.it_value;
     ret = setitimer(ITIMER_VIRTUAL, &it, NULL);
-    assert(ret == 0);
+    if (ret)
+        goto fail;
 
     log_info("Alarm initialized");
+    return;
+
+fail:
+    log_error("Alarm init failed");
+    exit(EXIT_FAILURE);
 }

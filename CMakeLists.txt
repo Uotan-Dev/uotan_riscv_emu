@@ -25,8 +25,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 # Compiler flags
 set(CMAKE_C_FLAGS_DEBUG   "-g -O0 -Wall -Werror -Wno-unused-command-line-argument -Wno-implicit-fallthrough -Wno-unused-result")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -Wall -Werror -Wno-sign-compare -Wno-unused-command-line-argument -Wno-implicit-fallthrough -Wno-unused-result")
-set(CMAKE_C_FLAGS_RELEASE   "-O3 -Wall -Werror -flto -Wno-unused-command-line-argument -Wno-implicit-fallthrough -Wno-unused-result")
-set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Werror -Wno-sign-compare -flto -Wno-unused-command-line-argument -Wno-implicit-fallthrough -Wno-unused-result")
+set(CMAKE_C_FLAGS_RELEASE   "-O3 -Wall -Werror -flto -Wno-unused-command-line-argument -Wno-implicit-fallthrough -Wno-unused-result -DNDEBUG")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Werror -Wno-sign-compare -flto -Wno-unused-command-line-argument -Wno-implicit-fallthrough -Wno-unused-result -DNDEBUG")
 
 # Prefer LLVM tools when using Clang (helps with -flto)
 if (CMAKE_C_COMPILER_ID MATCHES "Clang")
