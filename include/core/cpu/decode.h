@@ -27,10 +27,19 @@
 
 #include "common.h"
 #include "exec.h"
+#include "insn_implemented.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define macro(name) rv_##name,
+
+typedef enum : uint8_t {
+    RISCV_INSTRUCTIONS(macro)
+} rv_iname_t;
+
+#undef macro
 
 typedef struct _rv_insn {
     uint32_t inst; // raw instruction
@@ -41,6 +50,9 @@ typedef struct _rv_insn {
 
     // instruction executor
     rv_exec_t exec;
+
+    // instruction identifier
+    rv_iname_t iname;
 } rv_insn_t;
 
 // --- pattern matching mechanism ---

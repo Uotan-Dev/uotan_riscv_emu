@@ -304,6 +304,7 @@ FORCE_INLINE void decode_operand_16(rv_insn_t *s, int8_t *rd, int8_t *rs1,
         (s)->rs3 = rs3;                                                        \
         (s)->imm = imm;                                                        \
         (s)->exec = exec_##name;                                               \
+        (s)->iname = rv_##name;                                                \
     }
 
 void cpu_decode_32(rv_insn_t *s) {
@@ -499,6 +500,7 @@ void cpu_decode_32(rv_insn_t *s) {
         (s)->rs2 = rs2;                                                        \
         (s)->imm = imm;                                                        \
         (s)->exec = exec_##name;                                               \
+        (s)->iname = rv_##name;                                                \
     }
 
 void cpu_decode_16(rv_insn_t *s) {
@@ -553,28 +555,29 @@ void cpu_decode_16(rv_insn_t *s) {
 }
 
 bool cpu_insn_is_branch(rv_insn_t *ir) {
-    rv_exec_t exec = ir->exec;
-    return exec == exec_beq || exec == exec_bge || exec == exec_bgeu ||
-           exec == exec_blt || exec == exec_bltu || exec == exec_bne ||
-           exec == exec_c_beqz || exec == exec_c_bnez;
+
+    rv_iname_t iname = ir->iname;
+    return iname == rv_beq || iname == rv_bge || iname == rv_bgeu ||
+           iname == rv_blt || iname == rv_bltu || iname == rv_bne ||
+           iname == rv_c_beqz || iname == rv_c_bnez;
 }
 
 bool cpu_insn_is_direct_jmp(rv_insn_t *ir) {
-    rv_exec_t exec = ir->exec;
-    return exec == exec_jal || exec == exec_c_j || cpu_insn_is_branch(ir);
+    rv_iname_t iname = ir->iname;
+    return iname == rv_jal || iname == rv_c_j || cpu_insn_is_branch(ir);
 }
 
 bool cpu_insn_is_indirect_jmp(rv_insn_t *ir) {
-    rv_exec_t exec = ir->exec;
+    rv_iname_t iname = ir->iname;
 
     // Note: some instructions can also produce a jmp with exceptions in certain
     // cases, but they will be checked at runtime.
-    return exec == exec_jalr || exec == exec_mret || exec == exec_sret ||
-           exec == exec_c_jr || exec == exec_c_jalr || exec == exec_ebreak ||
-           exec == exec_ecall || exec == exec_inv || exec == exec_c_inv;
+    return iname == rv_jalr || iname == rv_mret || iname == rv_sret ||
+           iname == rv_c_jr || iname == rv_c_jalr || iname == rv_ebreak ||
+           iname == rv_ecall || iname == rv_inv || iname == rv_c_inv;
 }
 
 bool cpu_insn_is_sfence_vma(rv_insn_t *ir) {
-    rv_exec_t exec = ir->exec;
-    return exec == exec_sfence_vma;
+    rv_iname_t iname = ir->iname;
+    return iname == rv_sfence_vma;
 }
