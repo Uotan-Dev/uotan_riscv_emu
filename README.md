@@ -2,6 +2,8 @@
 
 **Uotan Emulator** (*uemu*) is a small rv64gc system emulator that boots real firmware and OS images (OpenSBI, U-Boot, Linux) and runs raw/ELF test binaries.
 
+![GitHub stars](https://img.shields.io/github/stars/Uotan-Dev/uotan_riscv_emu?style=flat) ![GitHub forks](https://img.shields.io/github/forks/Uotan-Dev/uotan_riscv_emu)
+
 **Uotan Emulator** supports the following RISC-V ISA features:
 * RV64I base ISAs, v2.1
 * Zifencei extension, v2.0
